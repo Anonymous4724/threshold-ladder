@@ -1,0 +1,2238 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threshold Ladder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300;0,400;0,600;0,800;1,400&family=Chivo+Mono:wght@300;400;600&display=swap">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23e8a13a'/><path d='M22 72h14V40H22zm20 0h14V26H42zm20 0h14V52H62z' fill='%23161a24'/></svg>">
+<style>
+/* ------------------------------------------------------------------ *
+ * Tokens. Light is the base; the two blocks below restate the same
+ * names for dark, so no component ever names a colour directly.
+ * ------------------------------------------------------------------ */
+:root {
+  --ground:      #f2f1ee;
+  --surface:     #ffffff;
+  --raise:       #f7f6f3;
+  --line:        #ddd9d0;
+  --line-strong: #c3bdb0;
+  --ink:         #1d2029;
+  --ink-dim:     #5c6172;
+  --ink-faint:   #8b90a0;
+
+  /* Warm = forecast, cool = measured. The pairing is the legend. */
+  --forecast:    #b9761b;
+  --forecast-sw: #f0dcbe;
+  --measured:    #23708f;
+  --measured-sw: #cfe3ec;
+  --alarm:       #b0402f;
+
+  --radius: 7px;
+  --pad: 18px;
+  --sans: "Chivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Chivo Mono", ui-monospace, "SFMono-Regular", "Cascadia Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #14171f; --surface: #1a1e28; --raise: #212632;
+    --line: #2c3241; --line-strong: #3d4557;
+    --ink: #e7e9ef; --ink-dim: #969db1; --ink-faint: #6b7285;
+    --forecast: #e8a13a; --forecast-sw: #3a2f1c;
+    --measured: #5fa8cc; --measured-sw: #1c2c36; --alarm: #e0705c;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #14171f; --surface: #1a1e28; --raise: #212632;
+  --line: #2c3241; --line-strong: #3d4557;
+  --ink: #e7e9ef; --ink-dim: #969db1; --ink-faint: #6b7285;
+  --forecast: #e8a13a; --forecast-sw: #3a2f1c;
+  --measured: #5fa8cc; --measured-sw: #1c2c36; --alarm: #e0705c;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--ground); color: var(--ink);
+       font: 400 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--forecast); outline-offset: 2px; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---------------------------------------------------------------- header */
+.top { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+       padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.mark { font-weight: 800; letter-spacing: -0.02em; font-size: 19px; }
+.mark span { color: var(--forecast); }
+.tagline { color: var(--ink-faint); font-size: 13px; flex: 1 1 240px; }
+.langs { display: flex; gap: 1px; background: var(--line); border-radius: var(--radius); overflow: hidden; }
+.langs button { border: 0; background: var(--surface); color: var(--ink-dim);
+  padding: 5px 11px; font-size: 12px; font-weight: 600; letter-spacing: .06em; cursor: pointer; }
+.langs button[aria-pressed="true"] { background: var(--forecast); color: var(--ground); }
+
+/* ------------------------------------------------------------------ shell */
+main { display: grid; grid-template-columns: minmax(330px, 410px) minmax(0, 1fr);
+       gap: 22px; align-items: start; padding: 22px 24px 60px; max-width: 1260px; margin: 0 auto; }
+@media (max-width: 940px) { main { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line);
+         border-radius: var(--radius); padding: var(--pad); }
+.panel + .panel { margin-top: 16px; }
+.panel.off { opacity: .5; }
+.panel > h2 { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+              color: var(--ink-faint); font-weight: 600; margin-bottom: 12px; }
+.step { display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 50%; background: var(--raise);
+        border: 1px solid var(--line-strong); font: 600 10px/1 var(--mono);
+        color: var(--ink-dim); margin-right: 7px; }
+.panel.done .step { background: var(--measured); border-color: var(--measured); color: var(--surface); }
+
+/* ------------------------------------------------------------------ form */
+.field { display: grid; gap: 4px; margin-bottom: 11px; }
+.field label { font-size: 12px; color: var(--ink-dim); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+input, select, textarea { background: var(--raise); border: 1px solid var(--line);
+  border-radius: 5px; padding: 7px 9px; width: 100%; }
+input:hover, select:hover, textarea:hover { border-color: var(--line-strong); }
+input:disabled, select:disabled, textarea:disabled { opacity: .6; cursor: not-allowed; }
+textarea { font: 400 13px/1.5 var(--mono); resize: vertical; min-height: 88px; }
+.cal-filters { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 10px; margin-bottom: 11px; }
+.cal-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--line);
+            border-radius: 6px; }
+.cal-row { display: grid; grid-template-columns: 5.2rem 1fr auto; gap: 10px;
+           align-items: baseline; width: 100%; text-align: left; padding: 8px 11px;
+           background: none; border: 0; border-bottom: 1px solid var(--line);
+           color: inherit; font: inherit; cursor: pointer; }
+.cal-row:last-child { border-bottom: 0; }
+.cal-row:hover, .cal-row:focus-visible { background: var(--line); }
+.cal-when { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-dim); }
+.cal-name { font-size: 13px; }
+.cal-tags { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+.cal-live { color: var(--measured); font-weight: 600; }
+.cal-empty { padding: 14px; font-size: 13px; color: var(--ink-faint); }
+@media (max-width: 620px) {
+  .cal-filters { grid-template-columns: 1fr 1fr; }
+  .cal-filters #c-find { grid-column: 1 / -1; }
+  .cal-row { grid-template-columns: 4.4rem 1fr; }
+  .cal-tags { grid-column: 2; }
+}
+.hint { font-size: 12px; color: var(--ink-faint); margin: 0; }
+.hint b { color: var(--ink-dim); font-weight: 600; }
+.hint.warn { color: var(--alarm); }
+.hint.good b { color: var(--measured); }
+
+.actions { display: flex; gap: 9px; flex-wrap: wrap; }
+button.go, button.ghost { border-radius: 5px; padding: 9px 16px; font-weight: 600;
+  font-size: 14px; cursor: pointer; border: 1px solid transparent; }
+button.go { background: var(--forecast); color: #191c24; }
+button.go:hover { filter: brightness(1.07); }
+button.go:disabled { background: var(--line); color: var(--ink-faint); cursor: not-allowed; filter: none; }
+button.ghost { background: transparent; border-color: var(--line-strong); color: var(--ink-dim); }
+button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+/* ------------------------------------------------------- frozen settings */
+.frozen dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+.frozen dt { color: var(--ink-faint); }
+.frozen dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------- the answer */
+.answer { border: 1px solid var(--line); border-radius: var(--radius);
+          background: var(--surface); padding: 20px var(--pad); }
+.ask { display: grid; grid-template-columns: 130px auto 1fr; gap: 12px; align-items: end; }
+.ask .field { margin-bottom: 0; }
+.headline { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
+.headline .big { font: 300 52px/1 var(--mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.headline .unit { font-size: 13px; color: var(--ink-faint); }
+.headline .range { font: 400 16px/1 var(--mono); color: var(--forecast); font-variant-numeric: tabular-nums; }
+.headline.live .big, .headline.live .range { color: var(--measured); }
+.subject { font-size: 14px; color: var(--ink-dim); margin: 7px 0 0; }
+.subject b { color: var(--ink); font-weight: 600; }
+.subject .cut { color: var(--forecast); font-weight: 600; }
+
+/* ------------------------------------------------- the cuts a cup pays on */
+.cuts { margin-top: 18px; }
+.cuts .hint { margin-bottom: 7px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line-strong); background: var(--raise); color: var(--ink-dim);
+        border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer;
+        font-variant-numeric: tabular-nums; }
+.chip b { color: var(--ink); font-weight: 600; }
+.chip:hover { border-color: var(--forecast); color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--forecast-sw); border-color: var(--forecast); color: var(--ink); }
+.chip:disabled { cursor: default; opacity: .6; }
+.chip:disabled:hover { border-color: var(--line-strong); color: var(--ink-dim); }
+
+.note { border-left: 3px solid var(--forecast); background: var(--raise);
+        padding: 11px 14px; border-radius: 0 5px 5px 0; font-size: 13px;
+        color: var(--ink-dim); margin-top: 16px; }
+.note.bad { border-left-color: var(--alarm); }
+.note.cool { border-left-color: var(--measured); }
+.note b { color: var(--ink); }
+
+/* ------------------------------------------------------------- the ladder */
+.ladder { border: 1px solid var(--line); border-radius: var(--radius);
+          background: var(--surface); overflow: hidden; margin-top: 18px; }
+.rung { display: grid; grid-template-columns: 112px minmax(80px, 1fr) 96px;
+        align-items: center; gap: 14px; padding: 8px var(--pad); border-top: 1px solid var(--line); }
+.rung:first-child { border-top: 0; }
+.rung .rank { font: 600 13px/1 var(--mono); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.rung .rank small { display: block; margin-top: 3px; font: 400 10.5px/1.2 var(--sans);
+                    color: var(--forecast); }
+.rung .pts { font: 600 18px/1 var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.rung .band { position: relative; height: 20px; }
+.band i { position: absolute; top: 6px; height: 8px; border-radius: 4px;
+          background: var(--forecast-sw); display: block; }
+.band u { position: absolute; top: 2px; width: 2px; height: 16px; background: var(--forecast); }
+.rung.seen .band i { background: var(--measured-sw); }
+.rung.seen .band u { background: var(--measured); }
+.rung.seen .pts { color: var(--measured); }
+.rung.seen .rank::after { content: " \25CF"; color: var(--measured); font-size: 9px; }
+.rung.aim { background: var(--raise); }
+.rung.aim .rank, .rung.aim .pts { color: var(--ink); }
+.rung.aim .rank::before { content: "\25B8 "; color: var(--forecast); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; padding: 10px 2px 0;
+          font-size: 12px; color: var(--ink-faint); }
+.legend i { display: inline-block; width: 22px; height: 6px; border-radius: 3px;
+            vertical-align: middle; margin-right: 6px; }
+
+/* --------------------------------------------------------- live readings */
+h3.sub { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+         color: var(--ink-faint); font-weight: 600; margin: 18px 0 8px; }
+.log { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.log:empty { display: none; }
+.log-row { display: grid; grid-template-columns: 5rem 1fr auto auto; gap: 10px;
+           align-items: center; padding: 7px 11px; border-top: 1px solid var(--line);
+           font-size: 12.5px; }
+.log-row:first-child { border-top: 0; }
+.log-row .when { font: 600 12px/1.2 var(--mono); color: var(--ink-dim);
+                 font-variant-numeric: tabular-nums; white-space: nowrap; }
+.log-row .what { color: var(--ink-dim); font-family: var(--mono); font-size: 11.5px;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-row .said { font: 600 13px/1 var(--mono); color: var(--forecast); font-variant-numeric: tabular-nums; }
+.log-row .final { color: var(--measured); }
+.log-row button { border: 1px solid var(--line); background: transparent; color: var(--ink-faint);
+                  border-radius: 4px; width: 24px; height: 24px; cursor: pointer; line-height: 1; }
+.log-row button:hover { color: var(--alarm); border-color: var(--alarm); }
+.log-row.session { grid-template-columns: 1fr auto auto; cursor: pointer; }
+.log-row.session:hover { background: var(--raise); }
+.log-row .title { color: var(--ink); }
+.log-row .title small { display: block; color: var(--ink-faint); font-size: 11px; }
+.reading, .reading-head { display: grid; grid-template-columns: 1fr 1fr auto;
+                          gap: 8px; margin-bottom: 8px; align-items: center; }
+.reading-head { margin-bottom: 2px; }
+.reading button { border: 1px solid var(--line-strong); background: transparent;
+  color: var(--ink-faint); border-radius: 5px; width: 30px; height: 32px;
+  cursor: pointer; font-size: 15px; line-height: 1; }
+.reading button:hover { color: var(--alarm); border-color: var(--alarm); }
+.progress { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 7px 0 4px; }
+.progress i { display: block; height: 100%; background: var(--measured); }
+
+table.tiers { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.tiers td { padding: 5px 0; border-top: 1px solid var(--line); }
+table.tiers td:last-child { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+table.tiers tr:first-child td { border-top: 0; }
+.scroller { overflow-x: auto; }
+footer { max-width: 1260px; margin: 0 auto; padding: 0 24px 44px; color: var(--ink-faint); font-size: 12.5px; }
+footer p { margin: 0 0 6px; }
+footer a { color: var(--ink-dim); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="mark">THRESHOLD <span>LADDER</span></div>
+  <div class="tagline" data-t="tagline">How many points a rank will take, before the results exist.</div>
+  <div class="langs" role="group">
+    <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
+    <button type="button" data-set-lang="fr" aria-pressed="false">FR</button>
+  </div>
+</header>
+
+<main>
+<section id="calendar-wrap" hidden>
+  <div class="panel" id="p-calendar">
+    <h2><span class="step">0</span><span data-t="h.calendar">What is on</span></h2>
+    <div class="cal-filters">
+      <select id="c-region"></select>
+      <select id="c-mode"></select>
+      <input id="c-find" type="search" autocomplete="off" spellcheck="false"
+             data-t-placeholder="l.calfind" placeholder="Search a name">
+    </div>
+    <div id="cal-list" class="cal-list"></div>
+    <p class="hint" id="cal-note"></p>
+  </div>
+</section>
+
+<section>
+  <div class="panel" id="p-setup">
+    <h2><span class="step">1</span><span data-t="h.tournament">The tournament</span></h2>
+
+    <div id="setup-form">
+      <div class="field">
+        <label for="f-name" data-t="l.name">Name</label>
+        <input id="f-name" autocomplete="off" list="known" spellcheck="false">
+        <datalist id="known"></datalist>
+        <p class="hint" id="match-hint"></p>
+      </div>
+
+      <div class="field" id="variant-field" hidden>
+        <label for="f-variant" data-t="l.variant">Which stage of it</label>
+        <select id="f-variant"></select>
+      </div>
+
+      <div class="row3">
+        <div class="field"><label for="f-region" data-t="l.region">Region</label><select id="f-region"></select></div>
+        <div class="field"><label for="f-team" data-t="l.team">Team</label><select id="f-team"></select></div>
+        <div class="field"><label for="f-mode" data-t="l.mode">Mode</label><select id="f-mode"></select></div>
+      </div>
+
+      <div class="field">
+        <label for="f-format" data-t="l.format">Format</label>
+        <select id="f-format">
+          <option value="free" data-t="opt.free">Open window - everyone plays at their own pace</option>
+          <option value="sealed" data-t="opt.sealed">Sealed - fixed start times, same games for everyone</option>
+        </select>
+      </div>
+
+      <div class="row3">
+        <div class="field"><label for="f-duration" data-t="l.duration">Session length (min)</label>
+          <input id="f-duration" type="number" min="10" max="1200" step="5"></div>
+        <div class="field"><label for="f-glen" data-t="l.glen">A game lasts (min)</label>
+          <input id="f-glen" type="number" min="4" max="90" step="1"></div>
+        <div class="field"><label for="f-cap" data-t="l.gamecap">Games allowed</label>
+          <input id="f-cap" type="number" min="1" max="60" step="1" placeholder="—"></div>
+      </div>
+      <p class="hint" id="games-hint"></p>
+
+      <div class="field" style="margin-top:12px">
+        <label for="f-field" data-t="l.field">Teams entered</label>
+        <input id="f-field" type="number" min="0" step="1" placeholder="—">
+      </div>
+      <p class="hint" id="field-hint" data-t="hint.field">Leave it empty and a plausible field is assumed. Doubling the
+        number of teams moves a threshold by about 3.5 %, so a rough guess is enough.</p>
+      <p class="hint" id="lobby-hint" hidden></p>
+    </div>
+
+    <div class="frozen" id="setup-frozen" hidden><dl id="frozen-list"></dl></div>
+  </div>
+
+  <div class="panel" id="p-scoring">
+    <h2><span class="step">2</span><span data-t="h.scoring">The scoring</span></h2>
+    <div id="scoring-form">
+      <div class="field">
+        <label for="f-preset" data-t="l.preset">Start from</label>
+        <select id="f-preset"></select>
+      </div>
+      <div class="field">
+        <label for="f-placement" data-t="l.placement">Placement points - one line per rank</label>
+        <textarea id="f-placement" spellcheck="false"></textarea>
+      </div>
+      <p class="hint" id="parse-hint"></p>
+      <div class="row2" style="margin-top:10px">
+        <div class="field"><label for="f-kill" data-t="l.kill">Points per elimination</label>
+          <input id="f-kill" type="number" step="0.5" min="0"></div>
+        <div class="field"><label for="f-killcap" data-t="l.killcap">Elimination cap</label>
+          <input id="f-killcap" type="number" step="1" min="0" placeholder="—"></div>
+      </div>
+    </div>
+    <div class="frozen" id="scoring-frozen" hidden><dl id="frozen-scoring"></dl></div>
+  </div>
+
+  <div class="actions" style="margin-top:16px">
+    <button type="button" class="go" id="confirm" data-t="btn.confirm">Confirm the settings</button>
+    <button type="button" class="ghost" id="edit" hidden data-t="btn.edit">Change the settings</button>
+    <button type="button" class="ghost" id="new" data-t="btn.new">New prediction</button>
+  </div>
+  <p class="hint" id="confirm-hint" style="margin-top:9px"></p>
+
+  <div class="panel off" id="p-live">
+    <h2><span class="step">3</span><span data-t="h.live">While it is running</span></h2>
+    <p class="hint" data-t="hint.live">After each game, read two or three ranks off the standings and
+      press Confirm: that is when the forecast moves, the reading is filed, the points clear and the
+      counter advances. The ranks stay where you put them.</p>
+    <div class="row2" style="margin-top:12px">
+      <div class="field"><label for="f-game" data-t="l.game">Game just played</label>
+        <input id="f-game" type="number" min="1" max="60" step="1" value="1" disabled></div>
+      <div class="field" id="elapsed-field"><label for="f-elapsed" data-t="l.elapsed">Minutes elapsed</label>
+        <input id="f-elapsed" type="number" min="0" max="1200" step="5" value="0" disabled></div>
+    </div>
+    <div class="progress"><i id="bar" style="width:0%"></i></div>
+    <p class="hint" id="progress-text"></p>
+
+    <div class="reading-head" style="margin-top:12px">
+      <span class="hint" data-t="l.readRank">Rank in the standings</span>
+      <span class="hint" data-t="l.readPoints">Points it holds</span><span></span>
+    </div>
+    <div id="readings"></div>
+    <div class="actions">
+      <button type="button" class="go" id="confirm-game" disabled data-t="btn.confirmGame">Confirm</button>
+      <button type="button" class="ghost" id="add-reading" disabled data-t="btn.addReading">Add a rank</button>
+    </div>
+    <p class="hint" id="confirm-hint-live"></p>
+
+    <div id="log-wrap" hidden>
+      <h3 class="sub" data-t="h.log">Recorded so far</h3>
+      <div class="log" id="log"></div>
+      <div class="actions" style="margin-top:10px">
+        <button type="button" class="ghost" id="save-session" data-t="btn.saveSession">Finish and save</button>
+        <button type="button" class="ghost" id="clear-live" data-t="btn.clearLive">Start over</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-sessions" hidden>
+    <h2><span data-t="h.sessions">Tournaments you have followed</span></h2>
+    <div class="log" id="sessions"></div>
+    <p class="hint" data-t="hint.sessions">Kept in this browser. The arrow downloads one as a file
+      the research repository can import, which is how a followed evening reaches the model.</p>
+  </div>
+</section>
+
+<section class="board">
+  <div class="answer">
+    <div class="ask">
+      <div class="field">
+        <label for="f-rank" data-t="l.rank">Rank to predict</label>
+        <input id="f-rank" type="number" min="1" step="1" value="500">
+      </div>
+      <button type="button" class="go" id="predict" data-t="btn.predict">Predict</button>
+      <span></span>
+    </div>
+    <div class="cuts" id="cuts" hidden>
+      <p class="hint" data-t="hint.cuts">What this cup pays out on. Click a cut to price it.</p>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div id="verdict"></div>
+  </div>
+
+  <div id="ladder-wrap" hidden>
+    <div class="ladder" id="ladder"></div>
+    <div class="legend">
+      <span><i style="background:var(--forecast-sw)"></i><span data-t="lg.forecast">Forecast, with its plausible range</span></span>
+      <span><i style="background:var(--measured-sw)"></i><span data-t="lg.measured">Read off the live standings</span></span>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px">
+    <h2><span data-t="h.basis">What this rests on</span></h2>
+    <div class="scroller"><table class="tiers" id="basis"></table></div>
+  </div>
+</section>
+</main>
+
+<footer><p id="foot"></p><p id="credit"></p></footer>
+
+<script src="model.js"></script>
+<script src="calendar.js"></script>
+<script>
+/* ==================================================================
+ * The model, written by export_model.py in the research repository.
+ * Every number in it was measured; none was tuned by hand.
+ * ================================================================== */
+const MODEL = (window.MODEL || (() => { throw new Error("model.js did not load"); })());
+
+/* ==================================================================
+ * Wording. English is the source, French is looked up by key.
+ * ================================================================== */
+const FR = {
+  "tagline": "Combien de points vaudra un rang, avant que les résultats n'existent.",
+  "h.tournament": "Le tournoi", "h.scoring": "Le barème",
+  "h.live": "Pendant le tournoi", "h.basis": "Sur quoi ça repose",
+  "l.name": "Nom", "l.region": "Région", "l.team": "Équipe", "l.mode": "Mode",
+  "l.format": "Format", "l.duration": "Durée de la session (min)",
+  "l.glen": "Une partie dure (min)", "l.gamecap": "Parties autorisées",
+  "l.field": "Équipes inscrites", "l.preset": "Partir de",
+  "l.placement": "Points de placement - une ligne par rang",
+  "l.kill": "Points par élimination", "l.killcap": "Plafond d'éliminations",
+  "l.game": "Partie qui vient de finir", "l.gameShort": "partie",
+  "l.elapsed": "Minutes écoulées",
+  "btn.confirmGame": "Confirmer", "btn.saveSession": "Terminer et sauvegarder",
+  "h.log": "Relevés enregistrés", "h.sessions": "Tournois que tu as suivis",
+  "l.acquisitions": "relevés", "l.finished": "terminé",
+  "hint.confirmGame": "Saisis ce qu'affiche le classement, puis confirme : rien ne bouge avant.",
+  "hint.sessions": "Gardés dans ce navigateur. La flèche en télécharge un sous forme de fichier que le dépôt de recherche sait importer : c'est comme ça qu'une soirée suivie rejoint le modèle.",
+  "l.readRank": "Rang dans le classement", "l.readPoints": "Points qu'il totalise",
+  "l.rank": "Rang à prédire", "l.variant": "De quelle manche s'agit-il",
+  "h.calendar": "Ce qui arrive", "l.calfind": "Chercher un nom",
+  "hint.closed": "Lobby fermé : une finale jouée par les équipes qualifiées dans un seul lobby. "
+               + "L'effectif est celui des éditions précédentes.",
+  "hint.closedguess": "Lobby fermé, probablement : c'est une finale que le modèle n'a jamais vue. "
+                    + "L'effectif est la taille d'un lobby ; corrige-le si tu sais mieux.",
+  "l.callall": "Toutes les régions", "l.calallmodes": "Tous les modes",
+  "l.calnone": "Rien ne correspond. Efface les filtres, ou saisis le tournoi à la main ci-dessous.",
+  "l.callive": "en cours",
+  "l.calnote": "Calendrier arrêté le {date}. Clique un tournoi et tout se remplit ; "
+             + "sinon saisis-le à la main ci-dessous.",
+  "l.calstale": "Ce calendrier date du {date} et ne couvre plus rien à venir. "
+              + "Saisis ton tournoi à la main ci-dessous.",
+  "l.calpartial": "sans barème",
+  "hint.cuts": "Ce que cette cup fait gagner. Clique un palier pour le chiffrer.",
+  "cut.qualifies": "qualifie pour", "cut.first": "1re place", "cut.money": "argent",
+  "cut.item": "cosmétique", "cut.share": "top {p} %", "cut.noField": "effectif inconnu",
+  "cut.prefilled": "Rang prérempli sur le palier de qualification.",
+  "noStage": "sans manche",
+  "opt.free": "Fenêtre ouverte - chacun joue à son rythme",
+  "opt.sealed": "Scellé - horaires fixes, mêmes parties pour tous",
+  "btn.confirm": "Confirmer les paramètres", "btn.edit": "Modifier les paramètres",
+  "btn.new": "Nouvelle prédiction", "btn.predict": "Prédire",
+  "btn.addReading": "Ajouter un rang", "btn.clearLive": "Recommencer",
+  "hint.field": "Laisse vide et un effectif plausible sera supposé. Doubler le nombre d'équipes ne déplace un seuil que d'environ 3,5 %, une estimation grossière suffit.",
+  "hint.live": "Après chaque partie, relève les points de deux ou trois rangs et appuie sur Confirmer : la prédiction se met à jour à ce moment-là, le relevé s'enregistre, les points s'effacent et le compteur avance. Les rangs, eux, restent.",
+  "lg.forecast": "Prédiction, avec sa fourchette",
+  "lg.measured": "Relevé dans le classement",
+  "confirmFirst": "Renseigne le tournoi et confirme les paramètres pour obtenir une prédiction.",
+  "confirmed": "Paramètres gelés. Change le rang et appuie sur Prédire autant de fois que tu veux.",
+  "askRank": "Entre un rang et appuie sur Prédire.",
+  "missing": "À compléter avant de confirmer :",
+  "m.name": "le nom du tournoi", "m.games": "la durée ou le nombre de parties",
+  "m.scoring": "les points de placement",
+  "points": "points", "top": "top", "of": "sur", "teams": "équipes",
+  "games": "parties", "played": "jouées",
+  "tiers": "paliers", "ranksRecognised": "rangs reconnus",
+  "noTiers": "Aucun palier reconnu - une ligne par rang, par exemple « 1 = 60 ».",
+  "gamesAllowed": "les règles en autorisent",
+  "gamesClock": "la durée en permet",
+  "gamesSealed": "fixées par le format scellé",
+  "nameExact": "le modèle connaît ce tournoi",
+  "nameNear": "rapproché de",
+  "nameNew": "inconnu du modèle - la prédiction viendra du barème seul, avec une fourchette bien plus large",
+  "source.category": "des éditions précédentes de ce tournoi dans cette région",
+  "source.family": "ce tournoi dans les autres régions",
+  "source.mode": "des tournois du même type",
+  "source.scoring": "le barème, avec un rapport points/barème mesuré",
+  "source.scoring (thin sample)": "le barème, rapport mesuré sur peu d'éditions",
+  "source.scoring (prior)": "le barème seul - rapport jamais mesuré pour ce format",
+  "basedOn": "Estimé à partir de", "editions": "édition(s)", "matched": "Rapproché de",
+  "assumedField": "Effectif supposé", "under": "moins de",
+  "fieldEffect": "une erreur de 30 % ne déplace le seuil que de",
+  "reading": "relevé(s)",
+  "liveRead": "Lu sur", "liveAt": "à la partie", "liveRuns": "cette cup tourne à",
+  "liveAgainst": "par rapport à son historique",
+  "liveShare": "À ce stade un seuil a typiquement atteint {p} % de sa valeur finale",
+  "liveMeasured": "mesuré sur {n} classements rejoués partie par partie",
+  "liveAssumed": "supposé linéaire — le rythme n'a pas encore été mesuré",
+  "liveBlend": "Relevés et historique sont combinés selon leur précision : ici les relevés pèsent {w} % de la réponse.",
+  "liveCarried": "Ce rang n'a pas été relevé ; {c} % de ce que disent les relevés lui est reporté — mesuré, et dans une file ouverte tout le classement bouge ensemble.",
+  "liveApart": "Ce rang n'a pas été relevé, et dans un lobby fermé un relevé ne vaut que pour son propre rang : les rangs y bougent indépendamment — une équipe qui s'échappe en tête prend les points qui seraient tombés plus bas. Ce chiffre est donc la prédiction issue de l'historique, intacte.",
+  "untested": "La courbe de rythme est mesurée ; la façon de la combiner à l'historique n'a pas encore été validée sur des tournois tenus à l'écart.",
+  "basis.model": "Modèle", "basis.trained": "Entraîné sur",
+  "basis.tournaments": "tournois", "basis.thresholds": "seuils",
+  "basis.error": "Erreur médiane, cup déjà vue",
+  "basis.measured": "Mesuré sur",
+  "basis.split": "les {n} tournois les plus récents, prédits depuis les {m} d'avant",
+  "basis.cold": "Erreur médiane, cup jamais jouée",
+  "basis.ofSample": "de l'échantillon",
+  "basis.coverage": "Seuils réels dans la fourchette",
+  "basis.anchor": "Ancre", "basis.exported": "Modèle exporté le",
+  "foot": "Tout se passe dans cette page : rien n'est envoyé nulle part et le fichier fonctionne hors ligne. Les chiffres viennent de tournois réels ; la note de méthodologie dit où le modèle cesse d'être crédible.",
+  "credit": "Données de tournois issues de l'API publique Fortnite d'Osirion.",
+  "noField": "Le nombre d'équipes manque et aucun tournoi comparable ne permet de le supposer. Sans lui un rang ne veut rien dire : 50e sur 500 et 50e sur 20 000 n'ont rien en commun.",
+  "noGames": "Le nombre de parties manque.",
+  "noReference": "Aucune référence : pas d'édition comparable, et pas de barème saisi.",
+  "unconfirmedScoring": "Le barème n'est pas renseigné et aucune édition comparable n'existe.",
+  "noAnchor": "Aucune référence utilisable."
+};
+let LANG = "en";
+const EN = {};
+function T(key, fallback) {
+  if (LANG === "fr" && FR[key] !== undefined) return FR[key];
+  return EN[key] !== undefined ? EN[key] : (fallback !== undefined ? fallback : key);
+}
+
+/* ==================================================================
+ * The model, in the browser. Line-by-line port of
+ * predict_from_model() in export_model.py, which is checked against
+ * the Python model on every tournament in the training set. Change
+ * one and you must change the other.
+ * ================================================================== */
+/* Indexed on the fields asked for, because the ladder asks a few dozen times
+ * per render and the tables are thousands of rows long. Same trick as
+ * row_for() in export_model.py, which says a port should do exactly this. */
+const LOOKUPS = new Map();
+function rowFor(rows, match) {
+  const fields = Object.keys(match).sort();
+  const key = fields.join("|") + "#" + rows.length + "#" + (rows === MODEL.categories
+    ? "c" : rows === MODEL.families ? "f" : rows === MODEL.modes ? "m" : "x");
+  let index = LOOKUPS.get(key);
+  if (!index) {
+    index = new Map();
+    rows.forEach(row => {
+      const at = fields.map(f => row[f]).join("\u0000");
+      if (!index.has(at)) index.set(at, row);
+    });
+    LOOKUPS.set(key, index);
+  }
+  return index.get(fields.map(f => match[f]).join("\u0000")) || null;
+}
+function shapeRatio(rank, field, curve) {
+  if (!field || field <= 0 || rank < 1) return 1;
+  const q = Math.min(Math.max(rank / field, 1e-9), 1);
+  const qref = Math.min(Math.max(curve.reference_rank / field, 1e-9), 1);
+  return Math.exp(-curve.a * (Math.pow(q, curve.b) - Math.pow(qref, curve.b)));
+}
+function fieldSensitivity(rank, field, curve) {
+  if (!field || field <= 0 || rank < 1) return 0;
+  const q = Math.min(Math.max(rank / field, 1e-9), 1);
+  const qref = Math.min(Math.max(curve.reference_rank / field, 1e-9), 1);
+  return Math.abs(curve.a * curve.b * (Math.pow(q, curve.b) - Math.pow(qref, curve.b)));
+}
+function maxGameScore(scoring) {
+  const rows = (scoring && scoring.placement) || [];
+  if (!rows.length) return 0;
+  const best = rows.reduce((a, r) => (r[0] < a[0] ? r : a));
+  return best[2] + (scoring.kill_cap || 8) * (scoring.kill || 0);
+}
+function guessField(t) {
+  const tries = [
+    ["category", rowFor(MODEL.categories, { category: t.category, region: t.region })],
+    ["family", rowFor(MODEL.families, { category: t.category })],
+    ["mode", rowFor(MODEL.mode_fields,
+      { game_mode: t.game_mode, team_mode: t.team_mode, region: t.region })]
+  ];
+  for (const pair of tries) {
+    const row = pair[1];
+    if (row && (row.field_n || 0) >= 1 && row.field) {
+      return { field: Math.round(row.field), source: pair[0], spread: row.field_spread || 0.2 };
+    }
+  }
+  return null;
+}
+/* What a rank was actually worth here, relative to rank 20, in the editions
+ * behind this row. Read at the scope the level came from, then wider: a level
+ * anchored on the family and a shape read off one category would be describing
+ * two different populations and calling the result one tournament.
+ *
+ * The port of shape_from() in calibration.py. The scope order, the minimum
+ * edition count and the blending weight all come out of MODEL rather than being
+ * retyped, so a change on the Python side arrives through the file. */
+/* The measured ranks either side of one the table does not hold. The port
+ * of calibration.bracket: the harvest keeps ranks 1, 3, 5, 10, 20, 25, 50,
+ * 100 and so on, and a rank between two of them is read off both, log-linear
+ * in the rank - the interpolation the curve itself is a straight line under.
+ * Falling through to the curve instead priced rank 8 of a twenty-team lobby
+ * above rank 5. Beyond the deepest measured rank: null, as before. */
+function bracketOf(table, rank, usable) {
+  let lo = null, hi = null;
+  Object.keys(table || {}).forEach(key => {
+    const at = parseInt(key, 10);
+    if (!isFinite(at) || !usable(table[key])) return;
+    if (at < rank && (lo === null || at > lo)) lo = at;
+    else if (at > rank && (hi === null || at < hi)) hi = at;
+  });
+  if (lo === null || hi === null) return null;
+  return { lo: lo, hi: hi, f: (Math.log(rank) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) };
+}
+function between(vLo, vHi, f) {
+  return Math.exp((1 - f) * Math.log(vLo) + f * Math.log(vHi));
+}
+
+function shapeFrom(t, rank, source) {
+  const rule = MODEL.shape_rule || {};
+  const least = rule.min_editions || 3, prior = rule.prior_weight || 4;
+  // Past this rank the curve beat the table, measured: few editions are
+  // harvested deep enough, and the ratio down there turns on the field size,
+  // which the curve carries and a table does not.
+  if (rank > (rule.max_rank || 500)) return null;
+  // Read from the model, not retyped here. The mode scope is deliberately not
+  // in it: a ratio deep in the standings depends on how many teams there are,
+  // and a mode groups a five-hundred-team cup with a ten-thousand-team one.
+  const order = (rule.scopes || {})[source] || [];
+  for (const scope of order) {
+    let row = null;
+    if (scope === "category") row = rowFor(MODEL.categories, { category: t.category, region: t.region });
+    else if (scope === "family") row = rowFor(MODEL.families, { category: t.category });
+    else row = rowFor(MODEL.modes, { game_mode: t.game_mode, team_mode: t.team_mode });
+    const table = (row || {}).shape || {};
+    const usable = e => !!e && e[1] >= least && !!e[0];
+    const read = e => {
+      const weight = e[1] / (e[1] + prior);
+      return { ratio: e[0], rel: Math.sqrt(weight * e[2] * e[2]
+                                           + (1 - weight) * MODEL.spread.shape * MODEL.spread.shape) };
+    };
+    const entry = table[String(rank)];
+    if (usable(entry)) return read(entry);
+    const found = bracketOf(table, rank, usable);
+    if (!found) continue;
+    const a = read(table[String(found.lo)]), b = read(table[String(found.hi)]);
+    return { ratio: between(a.ratio, b.ratio, found.f), rel: Math.max(a.rel, b.rel) };
+  }
+  return null;
+}
+/* What a cup nobody has seen before is most like. The port of
+ * calibration.cold_signature: read from the name and the category label,
+ * which are the two fields both sides have. */
+const COLD_KINDS = [["fncs", "fncs"], ["champion series", "fncs"], ["cash cup", "cash-cup"],
+                    ["elite series", "elite-series"], ["victory cup", "victory-cup"],
+                    ["practice", "practice"], ["blitz", "blitz"]];
+function coldSignature(t) {
+  const name = ((t.name || "") + " " + (t.category || "")).toLowerCase();
+  let kind = "other";
+  for (const pair of COLD_KINDS) { if (name.indexOf(pair[0]) !== -1) { kind = pair[1]; break; } }
+  const platform = name.indexOf("mobile") !== -1 ? "mobile"
+                 : (name.indexOf("console") !== -1 ? "console" : "pc");
+  const label = String(t.category || "");
+  const stage = (/ Final$/.test(label) || /Semi-final$/.test(label)) ? "final" : "open";
+  return [t.game_mode || "", t.team_mode || "", kind, platform, stage];
+}
+
+/* Rung zero: this cup, this region, this rank, last time. The port of
+ * calibration.direct_from - nothing modelled, because measured, that beats
+ * modelling it: a strong evening lifts every rank together, and a reading
+ * taken whole keeps that where a level times a ratio loses it. */
+function directReading(t, rank) {
+  const row = rowFor(MODEL.categories, { category: t.category, region: t.region });
+  const table = (row || {}).direct || {};
+  const usable = e => !!e && !!e[0];
+  const read = e => {
+    const value = e[0], n = e[1], measured = e[2];
+    const fallback = MODEL.anchor_spread.category;
+    let rel;
+    if (measured === null || measured === undefined) rel = fallback * MODEL.widen.single_edition;
+    else {
+      const pairs = Math.max(n - 1, 0), weight = pairs / (pairs + 2);
+      rel = Math.sqrt(weight * measured * measured + (1 - weight) * fallback * fallback);
+    }
+    return { value: value, rel: rel, n: n };
+  };
+  const entry = table[String(rank)];
+  if (usable(entry)) return read(entry);
+  const found = bracketOf(table, rank, usable);
+  if (!found) return null;
+  const a = read(table[String(found.lo)]), b = read(table[String(found.hi)]);
+  return { value: between(a.value, b.value, found.f), rel: Math.max(a.rel, b.rel), n: Math.min(a.n, b.n) };
+}
+
+function anchorLevel(t) {
+  const games = Number(t.max_games) || 0;
+  if (games <= 0) return null;
+  const spread = MODEL.anchor_spread, widen = MODEL.widen;
+  // The stored level is what those editions reached over the games they played.
+  // A tournament running the same number is not rescaled at all; one running a
+  // different number is scaled at the measured per-game exponent, not at 1.0 -
+  // a session twice as long does not double what twentieth place scores.
+  const measured = (source, row) => {
+    if (!row || (row.n || 0) < 1) return null;
+    const theirs = Number(row.games) || games;
+    // Widened when the cup has run once - `seen` - not when the level was read
+    // off one edition of many by choice.
+    const once = (row.seen === undefined || row.seen === null ? row.n : row.seen) === 1;
+    return { value: row.level * Math.pow(games / theirs, MODEL.games_exponent),
+             source: source, n: row.n,
+             rel: spread[source] * (once ? widen.single_edition : 1) };
+  };
+  const direct = [
+    ["category", rowFor(MODEL.categories, { category: t.category, region: t.region })],
+    ["family", rowFor(MODEL.families, { category: t.category })]
+  ];
+  for (const pair of direct) {
+    const found = measured(pair[0], pair[1]);
+    if (found) return found;
+  }
+  const scoring = t.scoring || {};
+  if (t.scoring_known !== false && (scoring.placement || []).length) {
+    const best = maxGameScore(scoring);
+    let entry = null, factor = widen.prior_only;
+    // Most specific first, the port of calibration.anchor_level: this kind of
+    // cup on this platform at this stage in this region, then without the
+    // region, then game mode and team size, then game mode alone.
+    const sig = coldSignature(t);
+    const probes = [
+      [() => rowFor(MODEL.cold_starts, { game_mode: sig[0], team_mode: sig[1], kind: sig[2],
+                                         platform: sig[3], stage: sig[4], region: t.region || "" }),
+       widen.cold_region],
+      [() => rowFor(MODEL.cold_starts, { game_mode: sig[0], team_mode: sig[1], kind: sig[2],
+                                         platform: sig[3], stage: sig[4], region: "" }), 1],
+      [() => rowFor(MODEL.modes, { game_mode: t.game_mode, team_mode: t.team_mode || "" }), 1],
+      [() => rowFor(MODEL.modes, { game_mode: t.game_mode, team_mode: "" }), widen.game_mode_only]
+    ];
+    for (const pair of probes) {
+      const row = pair[0]();
+      if (row && (row.share_n || 0) >= 1) { entry = row; factor = pair[1]; break; }
+    }
+    const n = entry ? entry.share_n : 0;
+    const thin = MODEL.shrinkage.thin_below;
+    let share;
+    if (n) {
+      const weight = n / (n + MODEL.shrinkage.prior_weight);
+      share = weight * entry.share + (1 - weight) * MODEL.reference_share;
+      if (n < thin) factor = Math.max(factor, widen.thin_sample);
+    } else {
+      share = MODEL.reference_share;
+    }
+    if (best > 0) {
+      return { value: share * best * games,
+        rel: spread.scoring * (n >= thin ? 1 : factor),
+        source: n >= thin ? "scoring" : (n ? "scoring (thin sample)" : "scoring (prior)"),
+        n: n };
+    }
+  }
+  return measured("mode", rowFor(MODEL.modes, { game_mode: t.game_mode, team_mode: t.team_mode }));
+}
+function whyNoAnchor(t) {
+  if ((Number(t.max_games) || 0) <= 0) return T("noGames", MODEL.messages.no_games);
+  if (!((t.scoring || {}).placement || []).length) return T("noReference", MODEL.messages.no_reference);
+  if (t.scoring_known === false) return T("unconfirmedScoring", MODEL.messages.unconfirmed_scoring);
+  return T("noAnchor", MODEL.messages.no_anchor);
+}
+function predictOne(t, rank) {
+  let field = Math.max(0, Math.round(Number(t.field_size) || 0));
+  let guessed = null, fieldSpread = 0;
+  if (!field) {
+    const found = guessField(t);
+    if (!found) return { ok: false, reason: T("noField", MODEL.messages.no_field) };
+    field = found.field; guessed = found.source; fieldSpread = found.spread;
+  }
+  if (rank < 1) return null;
+  const straight = directReading(t, rank);
+  if (straight) {
+    const v = straight.value, rel = straight.rel;
+    return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel),
+      rel: rel, n: straight.n, source: "previous edition", field: field, guessedField: guessed,
+      shapeSource: "direct", level: v, fieldEffect: 0 };
+  }
+  const top = anchorLevel(t);
+  if (!top) return { ok: false, reason: whyNoAnchor(t) };
+  const curve = MODEL.curve;
+  const slope = fieldSensitivity(rank, field, curve);
+  // Measured first, modelled second. Where editions of this cup have actually
+  // been to this rank, their median says what it was worth; the curve answers
+  // only for ranks none of them reached. Line for line the same cascade as
+  // shape_from() in calibration.py - change one, change the other.
+  const found = shapeFrom(t, rank, top.source);
+  let ratio, shapeRel, shapeSource, fieldPart;
+  if (found) {
+    ratio = found.ratio; shapeRel = found.rel; shapeSource = "measured";
+    // No separate field term: the spread above is what these very editions did
+    // at this very rank, fields and all, so a field correction on top would be
+    // counting the same variation twice.
+    fieldPart = 0;
+  } else {
+    ratio = shapeRatio(rank, field, curve); shapeRel = MODEL.spread.shape;
+    shapeSource = "curve";
+    fieldPart = slope * (guessed ? fieldSpread : MODEL.spread.field_entered);
+  }
+  const value = top.value * ratio;
+  const rel = Math.sqrt(top.rel * top.rel + shapeRel * shapeRel + fieldPart * fieldPart);
+  return { ok: true, value: value, low: Math.max(0, value * (1 - rel)), high: value * (1 + rel),
+    rel: rel, n: top.n, source: top.source, field: field, guessedField: guessed,
+    shapeSource: shapeSource, level: top.value,
+    fieldEffect: 100 * slope * MODEL.spread.field_probe };
+}
+
+/* ------------------------------------------------------------------
+ * Matching a typed name to a tournament the model knows.
+ *
+ * Exact string equality was never going to survive contact with real
+ * names: "FNCS Div 2" and "FNCS Division 2 - Round 1" are the same
+ * event typed by two people, and once the training set comes from an
+ * API the stored spelling is not the one anybody types.
+ *
+ * So: fold accents and case, drop the words every tournament shares,
+ * and compare what is left. Numbers are the exception and must match
+ * exactly - Division 1 and Division 2 share every word they have and
+ * are not remotely the same event.
+ * ------------------------------------------------------------------ */
+var NOISE = ["cup", "cups", "tournament", "tournoi", "official", "the", "de", "du",
+             "des", "la", "le", "les", "event", "epicgames", "series", "serie"];
+function fold(text) {
+  return (text || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+function words(text) {
+  return fold(text).replace(/[^a-z0-9]+/g, " ").trim().split(" ")
+    .filter(w => w && NOISE.indexOf(w) === -1);
+}
+function numbers(text) {
+  return (fold(text).match(/\d+/g) || []).sort().join(",");
+}
+// "div" and "division" are the same word typed by someone in a hurry, so a
+// token counts as shared when one side is a prefix of the other. Three letters
+// is the shortest prefix that means anything here - "r" would match everything.
+function sameWord(a, b) {
+  if (a === b) return true;
+  const short = a.length < b.length ? a : b, long = a.length < b.length ? b : a;
+  return short.length >= 3 && long.indexOf(short) === 0;
+}
+function overlap(a, b) {
+  const A = words(a), B = words(b);
+  if (!A.length || !B.length) return 0;
+  let shared = 0;
+  A.forEach(w => { if (B.some(v => sameWord(v, w))) shared += 1; });
+  // Divided by the longer side, so a name that is a subset of another scores
+  // well without a name padded with extra words scoring well by accident.
+  return shared / Math.max(A.length, B.length);
+}
+/* Every stage of the tournament the typed name could mean.
+ *
+ * A cup and its qualification round carry the same name and different levels,
+ * and the name someone types says nothing about which one they are in. Rather
+ * than pick for them and be quietly wrong, the page lists what it found and
+ * lets them say — with the number of editions behind each, so the choice is
+ * informed rather than a guess. */
+function variantsFor(name) {
+  if (!name || !name.trim()) return [];
+  const want = numbers(name);
+  const wanted = words(name);
+  const found = {};
+  named().forEach(entry => {
+    if (entry.table !== "categories") return;
+    const row = entry.row;
+    if (entry.numbers !== want && numbers(row.family) !== want) return;
+    const score = Math.max(scoreAgainst(wanted, entry.words),
+                           scoreAgainst(wanted, entry.familyWords));
+    if (score < 0.6) return;
+    const seen = found[row.category] || (found[row.category] = {
+      category: row.category, stage: row.stage, n: 0, games: row.games,
+      regions: [], score: 0 });
+    seen.n += row.n;
+    seen.games = Math.max(seen.games, row.games || 0);
+    seen.score = Math.max(seen.score, score);
+    if (seen.regions.indexOf(row.region) === -1) seen.regions.push(row.region);
+  });
+  return Object.keys(found).map(k => found[k])
+    .sort((a, b) => (b.score - a.score) || (b.n - a.n));
+}
+
+/* The name matching walks every category on every keystroke. At thirty rows
+ * that costs nothing; at two thousand, splitting each name into words again
+ * and again is what makes a search box feel slow. So each row is split once,
+ * when the page loads, and the loops read the result. */
+let NAMED = null;
+function named() {
+  if (NAMED) return NAMED;
+  NAMED = [];
+  const add = (row, table) => NAMED.push({
+    row: row, table: table, words: words(row.category), numbers: numbers(row.category),
+    familyWords: words(row.family || row.category)
+  });
+  MODEL.categories.forEach(r => add(r, "categories"));
+  MODEL.families.forEach(r => add(r, "families"));
+  return NAMED;
+}
+function scoreAgainst(wanted, have) {
+  if (!wanted.length || !have.length) return 0;
+  let shared = 0;
+  wanted.forEach(w => { if (have.some(v => sameWord(v, w))) shared += 1; });
+  return shared / Math.max(wanted.length, have.length);
+}
+
+function matchTournament(name, region) {
+  if (!name || !name.trim()) return null;
+  const exact = MODEL.categories.find(c => fold(c.category) === fold(name) && c.region === region)
+             || MODEL.families.find(f => fold(f.category) === fold(name));
+  if (exact) return { label: exact.category, kind: "exact", n: exact.n };
+
+  const want = numbers(name);
+  const wanted = words(name);
+  let best = null;
+  named().forEach(entry => {
+    if (entry.numbers !== want) return;
+    const score = scoreAgainst(wanted, entry.words);
+    if (score < 0.6) return;
+    const better = !best || score > best.score + 0.001
+      || (Math.abs(score - best.score) <= 0.001 && entry.row.region === region);
+    if (better) best = { label: entry.row.category, kind: "near", score: score, n: entry.row.n };
+  });
+  return best;
+}
+
+/* ------------------------------------------------------------------
+ * Live refinement. Each reading says what the level is right now:
+ * divide the observed points by the shape at that rank and every
+ * reading lands on the same number, give or take. The median of those
+ * is the level, scaled to the end of the session by the games left.
+ *
+ * The weight is the share of the session played, so history carries
+ * the first game and the standings carry the last. Honest, but only
+ * two sessions have ever been tracked minute by minute.
+ * ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------
+ * While the cup runs: readings off the live standings.
+ *
+ * A reading says what a rank is worth now. Turning that into what it
+ * will be worth at the end takes two things: the shape of this cup's
+ * ladder, and how far along the session is. The first comes from the
+ * cold forecast itself - the previous edition, the measured table, the
+ * curve, whichever rung answered - because that is the shape the cup
+ * actually has. An earlier version pushed every reading through the
+ * open-queue curve to a level at rank 20 and back out again; in a
+ * twenty-team lobby that curve is five times too steep, and a top-5
+ * reading of 153 came out as 506. The second comes from MODEL.pace,
+ * measured by analysis/live.py replaying harvested boards game by
+ * game: at half the games a threshold sits at half its final value,
+ * give or take fifteen per cent from one cup to the next.
+ *
+ * So each reading becomes a ratio - this cup against its history, at
+ * this point of the session - the readings are pooled with a median,
+ * and the answer is the cold ladder scaled by that ratio, combined with
+ * the cold forecast by precision: whichever of the two is sharper weighs
+ * more. At the last game the readings are the answer. */
+const PACE_DEFAULT = {                     // used until analysis/live.py has run
+  curve: { open_by_time: {}, closed_by_game: {} },
+  dispersion: { open_by_time: {}, closed_by_game: {} },
+  carry: { open_by_time: {}, closed_by_game: {} }
+};
+const PACE_MIN_SHARE = 0.2;                // one game of six says nothing about six
+/* Below this, a reading says nothing about a rank it was not read at, and the
+ * ladder keeps its cold forecast there. Measured (analysis/live.py): in an
+ * open queue of thousands the whole board moves together and a reading at rank
+ * 5 prices rank 20 almost exactly (slope 0.86); inside one closed lobby it
+ * does not, and the slope is zero — the twenty teams share out a fixed pot, so
+ * a team running away with the top takes the points that would have landed at
+ * rank 10. Carrying the ratio down a sealed final's ladder is how a top-5 read
+ * hot turned rank 10 into 234 where it finished at 207. */
+const CARRY_MIN = 0.05;
+
+function paceKind(t) {
+  return String(STATE.format) === "sealed" ? "closed_by_game" : "open_by_time";
+}
+
+function paceAt(table, share) {
+  // Linear interpolation between the measured tenths; linear in the share
+  // itself where nothing was measured.
+  const keys = Object.keys(table || {}).map(Number).filter(k => isFinite(k)).sort((a, b) => a - b);
+  if (!keys.length) return null;
+  if (share <= keys[0]) return table[keys[0].toFixed(1)] * share / keys[0];
+  for (let i = 1; i < keys.length; i++) {
+    if (share <= keys[i]) {
+      const a = keys[i - 1], b = keys[i], f = (share - a) / (b - a);
+      return table[a.toFixed(1)] * (1 - f) + table[b.toFixed(1)] * f;
+    }
+  }
+  return table[keys[keys.length - 1].toFixed(1)];
+}
+
+function liveShare(s, entry) {
+  /* How far along the session is, on the clock the format actually keeps.
+   *
+   * A sealed lobby plays its games one after another, so games played is the
+   * clock and every team is on the same one. An open queue is thousands of
+   * teams playing at their own pace: what a threshold has reached depends on
+   * how much of the *window* has gone, not on how many games you personally
+   * got through. Reading your own game count there said "half way" twenty
+   * minutes into a three-hour window, which is where the pace curve was being
+   * asked the wrong question. */
+  if (String(s.format) === "sealed") {
+    const games = gameCount(s);
+    return games ? Math.min(entry.game / games, 1) : 0;
+  }
+  const span = Number(s.duration) || 0;
+  return span ? Math.min((Number(entry.elapsed) || 0) / span, 1) : 0;
+}
+
+function refine(t, log) {
+  /* The most recent confirmed acquisition, turned into "how this cup is
+   * running against its history". Earlier acquisitions are kept as a record
+   * and drawn in the list, but they say nothing the latest one does not: a
+   * reading twenty minutes old is the same measurement, worse. */
+  const entry = (log || []).length ? log[log.length - 1] : null;
+  if (!entry) return null;
+  const usable = (entry.readings || []).filter(r => r.rank >= 1 && r.points > 0);
+  const games = Number(t.max_games) || 0;
+  if (!usable.length || games < 1) return null;
+  const share = entry.share;
+  if (!(share >= PACE_MIN_SHARE)) return null;
+  const pace = MODEL.pace || PACE_DEFAULT;
+  const kind = paceKind(t);
+  const measured = paceAt((pace.curve || {})[kind], share);
+  const expected = measured === null ? share : Math.max(measured, 0.05);
+  const disp = paceAt((pace.dispersion || {})[kind], share);
+  const relPace = disp === null ? 0.10 * Math.sqrt((1 - share) / share) + 0.03 : disp;
+  // Unmeasured means unknown, and unknown means a reading speaks for its own
+  // rank only: the conservative reading of no evidence.
+  const carried = (((pace.carry || {})[kind]) || {}).slope;
+
+  const ratios = [];
+  usable.forEach(r => {
+    const cold = predictOne(t, r.rank);
+    if (cold && cold.ok && cold.value > 0) {
+      ratios.push({ rank: r.rank, ratio: r.points / (cold.value * expected) });
+    }
+  });
+  if (!ratios.length) return null;
+  const sorted = ratios.map(x => x.ratio).sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const ratio = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  // Readings that disagree about the pace widen the band: median absolute deviation.
+  const dev = sorted.map(x => Math.abs(x - ratio) / Math.max(ratio, 1e-9)).sort((a, b) => a - b);
+  const mad = dev.length ? dev[Math.floor(dev.length / 2)] : 0;
+  const byRank = {};
+  ratios.forEach(x => { byRank[x.rank] = x.ratio; });
+  // A rank that was read carries only the pace's own uncertainty; a rank that
+  // was not also carries the readings' disagreement about the pace.
+  return { ratio: ratio, rel: Math.sqrt(relPace * relPace + mad * mad), relOwn: relPace,
+           carry: carried === undefined ? 0 : carried,
+           share: share, expected: expected, measured: measured !== null, n: ratios.length,
+           game: entry.game, played: entry.game, games: games, byRank: byRank, kind: kind };
+}
+
+/* The cold forecast at a rank, refined by the readings when there are any.
+ * Returns {value, rel, weight}, weight being the share of the answer that
+ * came from the readings. */
+function forecastAt(t, rank, live) {
+  const cold = predictOne(t, rank);
+  if (!cold || !cold.ok) return null;
+  if (!live) return { value: cold.value, rel: cold.rel, weight: 0 };
+  const own = live.byRank[rank];
+  let ratio, relLive;
+  if (own !== undefined) {
+    ratio = own; relLive = live.relOwn;          // read here: the reading is the evidence
+  } else if (live.carry >= CARRY_MIN) {
+    // Read elsewhere: carry the measured share of it, in log space, so a carry
+    // of zero leaves the cold forecast exactly where it was.
+    ratio = Math.pow(live.ratio, live.carry); relLive = live.rel;
+  } else {
+    // A reading at another rank is not evidence about this one. Blending it in
+    // anyway would move the number AND narrow the band, on nothing.
+    return { value: cold.value, rel: cold.rel, weight: 0 };
+  }
+  const fromReadings = cold.value * ratio;
+  const wl = 1 / Math.max(relLive, 0.01) ** 2, wc = 1 / Math.max(cold.rel, 0.01) ** 2;
+  const value = (fromReadings * wl + cold.value * wc) / (wl + wc);
+  return { value: value, rel: 1 / Math.sqrt(wl + wc), weight: wl / (wl + wc) };
+}
+
+/* ==================================================================
+ * Reading a pasted scoring table
+ * ================================================================== */
+function parseScoring(text) {
+  const rows = [];
+  let kill = null;
+  (text || "").split(/\r?\n/).forEach(line => {
+    if (!line.trim()) return;
+    const elim = line.match(/(?:elim|kill|élim)\w*[^\d\-+]*([+-]?\d+(?:[.,]\d+)?)/i);
+    if (elim && !/^\s*(?:top\s*)?#?\d/.test(line)) {
+      kill = parseFloat(elim[1].replace(",", ".")); return;
+    }
+    const m = line.match(/^\s*(?:top\s*|place\s*|#)?(\d+)\s*(?:st|nd|rd|th|ers?|ères?|èmes?|emes?|e)?\s*(?:[-–—]\s*(?:top\s*|#)?(\d+)\s*(?:st|nd|rd|th|ers?|èmes?|emes?|e)?)?\s*[=:\t ]\s*(.+)$/i);
+    if (!m) return;
+    const low = parseInt(m[1], 10);
+    const high = m[2] ? parseInt(m[2], 10) : low;
+    const values = (m[3].replace(/\([^)]*\)/g, " ").match(/-?\d+(?:[.,]\d+)?/g) || [])
+      .map(v => parseFloat(v.replace(",", ".")));
+    if (values.length) rows.push([low, Math.max(high, low), values[0]]);
+  });
+  rows.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  rows.forEach(r => {
+    const last = merged[merged.length - 1];
+    if (last && last[2] === r[2] && r[0] === last[1] + 1) last[1] = r[1];
+    else merged.push(r.slice());
+  });
+  return { placement: merged.filter(r => r[2] > 0), kill: kill };
+}
+function scoringToText(scoring) {
+  return ((scoring && scoring.placement) || [])
+    .map(r => (r[0] === r[1] ? r[0] : r[0] + "-" + r[1]) + " = " + r[2]).join("\n");
+}
+
+/* ==================================================================
+ * State
+ * ================================================================== */
+const LADDER_RANKS = [1, 3, 5, 10, 20, 25, 50, 100, 250, 500, 1000, 2500];
+const $ = id => document.getElementById(id);
+const nf = () => new Intl.NumberFormat(LANG === "fr" ? "fr-FR" : "en-GB");
+const num = v => (v === null || v === undefined || !isFinite(v)) ? "—" : nf().format(Math.round(v));
+const esc = t => String(t).replace(/[&<>"]/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* Opens on a real cup the model knows, already confirmed, so the page
+   shows what it does before anyone has typed anything. */
+const EXAMPLE = {
+  name: "Reload Duos Victory Cup", region: "ASIA", team_mode: "Duo",
+  game_mode: "Reload", format: "free", duration: 180, game_minutes: 18,
+  game_cap: 10, field_size: 0, rank: 500, asked: 500, confirmed: true,
+  scoring: { kill: 2, kill_cap: null,
+    placement: [[1, 1, 60], [2, 2, 54], [3, 3, 48], [4, 5, 42], [6, 10, 36],
+                [11, 15, 30], [16, 25, 24], [26, 40, 18], [41, 60, 12]] },
+  game: 1, elapsed: 0, readings: [], log: []
+};
+const SESSIONS_KEY = "threshold-ladder-sessions";
+let STATE = load() || JSON.parse(JSON.stringify(EXAMPLE));
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("threshold-ladder") || "null");
+    if (!saved || !saved.scoring) return null;
+    // A tournament saved before the acquisitions existed: keep the settings,
+    // start the log empty rather than guessing what its readings meant.
+    if (!Array.isArray(saved.log)) { saved.log = []; saved.readings = []; }
+    if (!saved.game) saved.game = 1;
+    if (saved.elapsed === undefined) saved.elapsed = 0;
+    return saved;
+  } catch (e) { return null; }
+}
+function save() {
+  try { localStorage.setItem("threshold-ladder", JSON.stringify(STATE)); } catch (e) { /* private */ }
+}
+
+/* How many games actually get played. In an open window it is whichever
+   runs out first, the rule cap or the clock; in a sealed format the
+   schedule fixes it and the clock is only a sanity check. */
+/* How many games get played.
+ *
+ * The rules cap wins whenever it is given. An earlier version took whichever
+ * of the cap and the clock was smaller, which sounds careful and is not: a
+ * game length that is a few minutes too long quietly turns ten games into six,
+ * and since the level scales with the game count that halves every threshold
+ * on the page without saying anything. The clock now only raises a warning. */
+function clockGames(s) {
+  const glen = Number(s.game_minutes) || MODEL.game_minutes[s.game_mode] || 25;
+  return Math.floor((Number(s.duration) || 0) / glen);
+}
+function gameCount(s) {
+  return Number(s.game_cap) || clockGames(s);
+}
+function asTournament(s) {
+  const loose = matchTournament(s.name, s.region);
+  const matched = s.variant ? { label: s.variant, kind: "picked" } : loose;
+  return {
+    category: matched ? matched.label : s.name,
+    name: s.name || "",
+    region: s.region, team_mode: s.team_mode, game_mode: s.game_mode,
+    max_games: gameCount(s), field_size: s.field_size, scoring: s.scoring,
+    scoring_known: (s.scoring.placement || []).length > 0,
+    matched: matched
+  };
+}
+
+/* ==================================================================
+ * Form and state
+ * ================================================================== */
+function readForm() {
+  STATE.name = $("f-name").value.trim();
+  STATE.region = $("f-region").value;
+  STATE.team_mode = $("f-team").value;
+  STATE.game_mode = $("f-mode").value;
+  STATE.format = $("f-format").value;
+  STATE.duration = Number($("f-duration").value) || 0;
+  STATE.game_minutes = Number($("f-glen").value) || 0;
+  STATE.game_cap = Number($("f-cap").value) || 0;
+  if ($("f-variant").options.length) STATE.variant = $("f-variant").value;
+  const typed = Number($("f-field").value) || 0;
+  if (typed !== STATE.field_size) STATE.field_guessed = false;   // a person overrode the guess
+  STATE.field_size = typed;
+  const parsed = parseScoring($("f-placement").value);
+  STATE.scoring = { placement: parsed.placement,
+    kill: Number($("f-kill").value) || (parsed.kill || 0),
+    kill_cap: $("f-killcap").value === "" ? null : Number($("f-killcap").value) };
+  save();
+}
+function readLive() {
+  STATE.game = Math.max(1, Math.round(Number($("f-game").value) || 1));
+  STATE.elapsed = Math.max(0, Number($("f-elapsed").value) || 0);
+  STATE.readings = [].slice.call(document.querySelectorAll("#readings .reading")).map(row => ({
+    rank: Number(row.querySelector(".r-rank").value) || 0,
+    points: Number(row.querySelector(".r-pts").value) || 0
+  })).filter(r => r.rank || r.points);
+  save();
+}
+
+/* ------------------------------------------------------------------
+ * One acquisition per game.
+ *
+ * Nothing moves while the boxes are being filled in: a half-typed 15
+ * on the way to 153 is not a reading, and a forecast that lurches on
+ * every keystroke cannot be read at all. Confirm takes what is in the
+ * boxes, stamps it with the game and the clock, files it, empties the
+ * points, keeps the ranks — the same ranks get read every game — and
+ * moves the counter on. Only then does the answer change.
+ * ------------------------------------------------------------------ */
+function canConfirm() {
+  return STATE.confirmed && [].slice.call(document.querySelectorAll("#readings .reading"))
+    .some(row => (Number(row.querySelector(".r-rank").value) || 0) >= 1
+              && (Number(row.querySelector(".r-pts").value) || 0) > 0);
+}
+
+function confirmGame() {
+  if (!canConfirm()) return;
+  readLive();
+  const readings = STATE.readings.filter(r => r.rank >= 1 && r.points > 0)
+                                 .sort((a, b) => a.rank - b.rank);
+  const entry = { game: STATE.game, elapsed: STATE.elapsed, at: new Date().toISOString(),
+                  readings: readings };
+  entry.share = liveShare(STATE, entry);
+  STATE.log = (STATE.log || []).filter(e => e.game !== entry.game).concat([entry])
+                               .sort((a, b) => a.game - b.game);
+  // The forecast this acquisition produced, kept beside it: the record of what
+  // the page said at the time is the only thing that can score it afterwards.
+  const t = asTournament(STATE);
+  const said = forecastAt(t, STATE.asked || STATE.rank || 0, refine(t, STATE.log));
+  if (said) entry.said = { rank: STATE.asked || STATE.rank, value: Math.round(said.value) };
+  const games = gameCount(STATE);
+  if (STATE.game < Math.max(games, 1)) STATE.game += 1;
+  document.querySelectorAll("#readings .r-pts").forEach(box => { box.value = ""; });
+  fillLive();
+  save();
+  render();
+  const first = document.querySelector("#readings .r-pts");
+  if (first) first.focus();
+}
+
+function fillLive() {
+  $("f-game").value = STATE.game || 1;
+  const open = String(STATE.format) !== "sealed";
+  $("elapsed-field").hidden = !open;
+  if (open && STATE.begin && !STATE.touchedElapsed) {
+    const gone = (Date.now() - Date.parse(STATE.begin)) / 60000;
+    if (isFinite(gone) && gone >= 0) STATE.elapsed = Math.round(Math.min(gone, Number(STATE.duration) || gone));
+  }
+  $("f-elapsed").value = STATE.elapsed || 0;
+  const share = liveShare(STATE, { game: STATE.game, elapsed: STATE.elapsed });
+  $("bar").style.width = (100 * share).toFixed(0) + "%";
+  $("progress-text").textContent = Math.round(100 * share) + " % · " + (open
+    ? (STATE.elapsed || 0) + "/" + (STATE.duration || 0) + " min"
+    : STATE.game + "/" + gameCount(STATE) + " " + T("games", "games"));
+  $("confirm-game").disabled = !canConfirm();
+  $("confirm-game").textContent = T("btn.confirmGame", "Confirm") +
+    (String(STATE.format) === "sealed" ? " " + T("l.gameShort", "game") + " " + STATE.game : "");
+  $("confirm-hint-live").textContent = canConfirm() ? ""
+    : T("hint.confirmGame", "Type what the standings show now, then confirm: nothing moves until you do.");
+  drawLog();
+}
+
+function drawLog() {
+  const log = STATE.log || [];
+  $("log-wrap").hidden = !log.length;
+  $("log").innerHTML = log.slice().reverse().map(entry => {
+    const which = String(STATE.format) === "sealed"
+      ? T("l.gameShort", "game") + " " + entry.game
+      : (entry.elapsed || 0) + " min";
+    const what = entry.readings.map(r => T("top", "top") + " " + r.rank + " " + num(r.points)).join(" · ");
+    const said = entry.said ? num(entry.said.value) : "";
+    return '<div class="log-row"><span class="when' + (entry.share >= 1 ? " final" : "") + '">' +
+      esc(which) + '</span><span class="what">' + esc(what) + '</span>' +
+      '<span class="said">' + esc(said) + '</span>' +
+      '<button type="button" data-game="' + entry.game + '" aria-label="remove">&times;</button></div>';
+  }).join("");
+  $("log").querySelectorAll("button[data-game]").forEach(b => {
+    b.onclick = () => {
+      STATE.log = (STATE.log || []).filter(e => String(e.game) !== b.dataset.game);
+      fillLive(); save(); render();
+    };
+  });
+}
+function fillForm() {
+  $("f-name").value = STATE.name || "";
+  $("f-region").value = STATE.region;
+  $("f-team").value = STATE.team_mode;
+  $("f-mode").value = STATE.game_mode;
+  $("f-format").value = STATE.format || "free";
+  $("f-duration").value = STATE.duration || "";
+  $("f-glen").value = STATE.game_minutes || MODEL.game_minutes[STATE.game_mode] || 25;
+  $("f-cap").value = STATE.game_cap || "";
+  $("f-field").value = STATE.field_size || "";
+  const lobby = $("lobby-hint");
+  if (lobby) {
+    const closed = STATE.format === "sealed" && STATE.field_size > 0
+                   && STATE.field_size <= lobbyCap(STATE.team_mode, STATE.game_mode);
+    lobby.hidden = !closed;
+    if (closed) lobby.textContent = STATE.field_guessed
+      ? T("hint.closedguess", "Closed lobby, probably: a final the model has never seen. The field is one lobby's worth; correct it if you know better.")
+      : T("hint.closed", "Closed lobby: a final played by the qualified teams in a single lobby. The field is what previous editions ranked.");
+  }
+  $("f-placement").value = scoringToText(STATE.scoring);
+  $("f-kill").value = (STATE.scoring.kill === null || STATE.scoring.kill === undefined)
+    ? "" : STATE.scoring.kill;
+  $("f-killcap").value = STATE.scoring.kill_cap === null ? "" : STATE.scoring.kill_cap;
+  $("f-rank").value = STATE.rank || 500;
+  drawReadings();
+  fillLive();
+}
+function drawReadings() {
+  $("readings").innerHTML = "";
+  // The ranks that have been read before, so the boxes come back the way they
+  // were left: the same three or four ranks get read every game.
+  const last = (STATE.log || []).length ? STATE.log[STATE.log.length - 1].readings : [];
+  const rows = STATE.readings.length ? STATE.readings
+             : (last.length ? last.map(r => ({ rank: r.rank, points: 0 }))
+                            : [{ rank: 20, points: 0 }]);
+  rows.forEach(r => addReadingRow(r.rank, r.points));
+}
+function addReadingRow(rank, points) {
+  const row = document.createElement("div");
+  row.className = "reading";
+  row.innerHTML = '<input class="r-rank" type="number" min="1" step="1">' +
+                  '<input class="r-pts" type="number" min="0" step="1">' +
+                  '<button type="button">&times;</button>';
+  row.querySelector(".r-rank").value = rank || "";
+  row.querySelector(".r-pts").value = points || "";
+  row.querySelector(".r-rank").disabled = !STATE.confirmed;
+  row.querySelector(".r-pts").disabled = !STATE.confirmed;
+  row.querySelector("button").onclick = () => { row.remove(); liveChanged(); };
+  row.querySelector(".r-rank").addEventListener("input", liveChanged);
+  row.querySelector(".r-pts").addEventListener("input", liveChanged);
+  row.querySelector(".r-pts").addEventListener("keydown", e => {
+    if (e.key === "Enter") confirmGame();          // the whole loop, from the keyboard
+  });
+  $("readings").appendChild(row);
+}
+
+/* ==================================================================
+ * Steps 1 and 2 - the settings, and freezing them
+ * ================================================================== */
+function drawVariants() {
+  const list = variantsFor(STATE.name);
+  const field = $("variant-field");
+  if (!list.length) {
+    STATE.variant = null;
+    $("f-variant").innerHTML = "";
+    field.hidden = true;
+    return;
+  }
+  field.hidden = list.length < 2;
+  if (!list.some(v => v.category === STATE.variant)) {
+    // Default to the stage with data in the reader's own region, since that is
+    // the row the forecast will actually be able to use.
+    const mine = list.find(v => v.regions.indexOf(STATE.region) !== -1);
+    STATE.variant = (mine || list[0]).category;
+  }
+  $("f-variant").innerHTML = list.map(v => {
+    const label = (v.stage || T("noStage", "no stage")) + " · " + v.n + " " +
+      T("editions", "edition(s)") + " · " + v.games + " " + T("games", "games") +
+      (v.regions.indexOf(STATE.region) !== -1 ? " · " + STATE.region + " \u2713" : "");
+    return '<option value="' + esc(v.category) + '"' +
+      (v.category === STATE.variant ? " selected" : "") + ">" + esc(label) + "</option>";
+  }).join("");
+  // The model knows how many games these run; typing it again is a chance to
+  // get it wrong, and getting it wrong scales every threshold on the page.
+  const picked = list.find(v => v.category === STATE.variant);
+  if (picked && picked.games && !STATE.game_cap) {
+    STATE.game_cap = picked.games;
+    $("f-cap").value = picked.games;
+  }
+}
+
+function whatIsMissing() {
+  const gaps = [];
+  if (!STATE.name) gaps.push(T("m.name", "the tournament's name"));
+  if (gameCount(STATE) < 1) gaps.push(T("m.games", "the session length or the number of games"));
+  if (!(STATE.scoring.placement || []).length) gaps.push(T("m.scoring", "the placement points"));
+  return gaps;
+}
+
+function settingsChanged() {
+  if (!STATE.confirmed) readForm();
+  const games = gameCount(STATE);
+  $("games-hint").className = "hint";
+  $("games-hint").innerHTML = games ? "<b>" + games + " " + T("games", "games") + "</b>" : "";
+
+  const parsed = STATE.scoring.placement || [];
+  $("parse-hint").className = "hint" + (parsed.length ? "" : " warn");
+  $("parse-hint").innerHTML = parsed.length
+    ? "<b>" + parsed.length + "</b> " + T("tiers", "tiers") + " · " +
+      T("ranksRecognised", "ranks recognised") + " 1–" + parsed[parsed.length - 1][1]
+    : T("noTiers", 'No tier recognised - one line per rank, e.g. "1 = 60".');
+
+  drawVariants();
+  const matched = STATE.variant ? { label: STATE.variant, kind: "picked" }
+                                : matchTournament(STATE.name, STATE.region);
+  $("match-hint").className = "hint" + (matched ? " good" : "");
+  $("match-hint").innerHTML = !STATE.name ? ""
+    : matched && matched.kind === "exact"
+      ? "<b>&check; " + T("nameExact", "the model knows this tournament") + "</b>"
+    : matched
+      ? "<b>&check; " + T("nameNear", "matched to") + " " + esc(matched.label) + "</b>"
+      : T("nameNew", "not in the model - the forecast will come from the scoring table alone, "
+                   + "with a much wider range");
+
+  const gaps = whatIsMissing();
+  $("confirm").disabled = gaps.length > 0;
+  $("confirm-hint").className = "hint" + (gaps.length ? " warn" : "");
+  $("confirm-hint").textContent = gaps.length
+    ? T("missing", "Still to fill in:") + " " + gaps.join(", ")
+    : (STATE.confirmed ? T("confirmed",
+        "Settings frozen. Change the rank and press Predict as often as you like.") : "");
+  // The cuts belong to the calendar row; the moment the name or region is
+  // typed over they are somebody else's and must not be offered.
+  drawCuts(fieldNow(), Math.round(Number($("f-rank").value) || 0));
+  save();
+}
+
+const LOCKED = ["f-name", "f-region", "f-team", "f-mode", "f-format", "f-duration",
+                "f-glen", "f-cap", "f-field", "f-preset", "f-placement", "f-kill", "f-killcap"];
+
+function setFrozen(frozen) {
+  STATE.confirmed = frozen;
+  LOCKED.forEach(id => { $(id).disabled = frozen; });
+  $("f-variant").disabled = frozen;
+  $("variant-field").hidden = frozen || $("f-variant").options.length < 2;
+  $("setup-form").hidden = frozen;
+  $("scoring-form").hidden = frozen;
+  $("setup-frozen").hidden = !frozen;
+  $("scoring-frozen").hidden = !frozen;
+  $("confirm").hidden = frozen;
+  $("edit").hidden = !frozen;
+  $("p-setup").classList.toggle("done", frozen);
+  $("p-scoring").classList.toggle("done", frozen);
+  $("p-live").classList.toggle("off", !frozen);
+  ["f-game", "f-elapsed", "add-reading", "confirm-game", "save-session",
+   "clear-live"].forEach(id => { $(id).disabled = !frozen; });
+  document.querySelectorAll("#readings input").forEach(i => { i.disabled = !frozen; });
+  // The live panel depends on settings that have just changed — which clock
+  // it keeps, whether Confirm has anything to confirm — so it is redrawn here
+  // rather than in each of the four places that freeze or unfreeze the form.
+  fillLive();
+
+  if (frozen) {
+    const t = asTournament(STATE);
+    const pairs = [
+      [T("l.name", "Name"), esc(STATE.variant || STATE.name)],
+      [T("l.region", "Region"), STATE.region + " · " + STATE.team_mode + " · " + STATE.game_mode],
+      [T("l.format", "Format"), (STATE.format === "sealed"
+        ? T("opt.sealed", "Sealed") : T("opt.free", "Open window")).split(" - ")[0]],
+      [T("games", "Games"), gameCount(STATE) + " × " +
+        (STATE.game_minutes || MODEL.game_minutes[STATE.game_mode]) + " min"],
+      [T("l.field", "Teams entered"), STATE.field_size ? num(STATE.field_size) : "—"]
+    ];
+    $("frozen-list").innerHTML = pairs.map(p =>
+      "<dt>" + p[0] + "</dt><dd>" + p[1] + "</dd>").join("");
+    const s = STATE.scoring;
+    $("frozen-scoring").innerHTML =
+      "<dt>" + T("tiers", "tiers") + "</dt><dd>" + (s.placement || []).length + "</dd>" +
+      "<dt>" + T("l.kill", "Per elimination") + "</dt><dd>" + (s.kill || 0) +
+      (s.kill_cap ? " (" + s.kill_cap + ")" : "") + "</dd>" +
+      "<dt>" + T("matched", "Matched") + "</dt><dd>" +
+      (t.matched ? esc(t.matched.label) : "—") + "</dd>";
+  }
+  save();
+}
+
+/* ==================================================================
+ * The answer
+ * ================================================================== */
+function sourceLabel(source) {
+  const english = {
+    "category": "earlier editions of this tournament in this region",
+    "family": "this tournament in other regions",
+    "mode": "tournaments of the same type",
+    "scoring": "the scoring, with a measured points-to-scoring ratio",
+    "scoring (thin sample)": "the scoring, ratio measured on few editions",
+    "scoring (prior)": "the scoring alone - the ratio was never measured for this format"
+  }[source] || source;
+  const key = "source." + source;
+  return (LANG === "fr" && FR[key]) ? FR[key] : english;
+}
+
+function predict() {
+  if (!STATE.confirmed) return;
+  STATE.rank = Math.max(1, Math.round(Number($("f-rank").value) || 0));
+  STATE.asked = STATE.rank;
+  save();
+  render();
+}
+
+function render() {
+  const board = $("verdict");
+  $("foot").textContent = T("foot", "Everything happens in this page: nothing is sent anywhere "
+    + "and the file works offline. The numbers come from real tournaments; the methodology note "
+    + "says where the model stops being believable.");
+  // Credit, and a link: the tournaments behind every number here were read from
+  // Osirion's public API. Saying so is the least a page built on someone else's
+  // work owes them, and it tells a reader where to check.
+  $("credit").innerHTML = T("credit", "Tournament data from Osirion's public Fortnite API.")
+    .replace("Osirion", '<a href="https://osirion.gg" target="_blank" rel="noopener noreferrer">Osirion</a>');
+  $("basis").innerHTML = basisRows();
+
+  if (!STATE.confirmed || !STATE.asked) {
+    drawCuts(fieldNow(), Math.round(Number($("f-rank").value) || 0));
+    board.innerHTML = '<p class="hint" style="margin-top:16px">' + (STATE.confirmed
+      ? T("askRank", "Enter a rank and press Predict.")
+      : T("confirmFirst", "Fill in the tournament and confirm the settings to get a forecast."))
+      + "</p>";
+    $("ladder").innerHTML = "";
+    $("ladder-wrap").hidden = true;
+    return;
+  }
+
+  const t = asTournament(STATE);
+  const live = refine(t, STATE.log);
+  const rank = STATE.asked;
+  const cold = predictOne(t, rank);
+  if (!cold || !cold.ok) {
+    drawCuts(fieldNow(), rank);
+    board.innerHTML = '<div class="note bad">' + esc(cold ? cold.reason : whyNoAnchor(t)) + "</div>";
+    $("ladder").innerHTML = "";
+    $("ladder-wrap").hidden = true;
+    return;
+  }
+
+  const at = r => forecastAt(t, r, live) || { value: 0, rel: 0, weight: 0 };
+  const answer = at(rank);
+  const field = cold.field;
+  drawCuts(field, rank);
+  const asked = cutAt(rank, field);
+
+  board.innerHTML =
+    '<div class="headline' + (live ? " live" : "") + '">' +
+      '<span class="big">' + num(answer.value) + "</span>" +
+      '<span class="unit">' + T("points", "points") + "</span>" +
+      '<span class="range">' + num(Math.max(0, answer.value * (1 - answer.rel))) + " – " +
+        num(answer.value * (1 + answer.rel)) + "</span>" +
+    "</div>" +
+    '<p class="subject"><b>' + T("top", "top") + " " + nf().format(rank) + "</b> " +
+      T("of", "of") + " " + num(field) + " " + T("teams", "teams") + " · " +
+      esc(STATE.name) + " · " + STATE.region +
+      (asked ? ' · <span class="cut">' + esc(cutWhat(asked)) + "</span>" : "") + "</p>" +
+    explainBlock(live, cold, answer, rank);
+
+  const seen = {};
+  const latest = (STATE.log || []).length ? STATE.log[STATE.log.length - 1].readings : [];
+  latest.forEach(r => { if (r.rank && r.points) seen[r.rank] = r.points; });
+  // The cuts sit on the ladder too, named: a reader scanning it finds "top
+  // 2,000 · qualifies for Round 2" without having to know the rank by heart.
+  const cutRanks = activeCuts().map(c => cutRank(c, field)).filter(r => r > 0);
+  const wanted = LADDER_RANKS.concat([rank]).concat(cutRanks).concat(Object.keys(seen).map(Number));
+  const ranks = wanted.filter((r, i) => wanted.indexOf(r) === i && r >= 1 && r <= Math.max(field, 1))
+                      .sort((a, b) => a - b);
+  const rows = ranks.map(r => {
+    const p = at(r);
+    return { rank: r, value: p.value, rel: p.rel, seen: seen[r] !== undefined, cut: cutAt(r, field) };
+  });
+  // A ladder cannot fold: a rank read hot lifts the ranks above it, which are
+  // worth at least as much by definition. Walked from the deepest rung up.
+  for (let i = rows.length - 2; i >= 0; i--) {
+    if (rows[i].value < rows[i + 1].value) rows[i].value = rows[i + 1].value;
+  }
+  rows.forEach(r => { r.low = Math.max(0, r.value * (1 - r.rel)); r.high = r.value * (1 + r.rel); });
+  const widest = Math.max.apply(null, rows.map(r => r.high).concat([1]));
+  $("ladder").innerHTML = rows.map(r => {
+    const left = 100 * r.low / widest, width = Math.max(100 * (r.high - r.low) / widest, 1.2);
+    return '<div class="rung' + (r.seen ? " seen" : "") + (r.rank === rank ? " aim" : "") + '">' +
+      '<div class="rank">' + T("top", "top") + " " + nf().format(r.rank) +
+        (r.cut ? "<small>" + esc(cutWhat(r.cut)) + "</small>" : "") + "</div>" +
+      '<div class="band"><i style="left:' + left.toFixed(2) + "%;width:" + width.toFixed(2) + '%"></i>' +
+      '<u style="left:' + (100 * r.value / widest).toFixed(2) + '%"></u></div>' +
+      '<div class="pts">' + num(r.value) + "</div></div>";
+  }).join("");
+  $("ladder-wrap").hidden = false;
+}
+
+function explainBlock(live, cold, answer, rank) {
+  const lines = [];
+  if (live) {
+    const pct = x => (x >= 0 ? "+" : "−") + Math.round(100 * Math.abs(x)) + " %";
+    const boards = ((MODEL.pace || {}).boards || {});
+    const n = (boards.open || 0) + (boards.closed || 0);
+    lines.push("<b>" + T("liveRead", "Read from") + " " + live.n + " " + T("reading", "reading(s)") +
+      " " + T("liveAt", "at game") + " " + live.played + " " + T("of", "of") + " " + live.games +
+      ":</b> " + T("liveRuns", "this cup is running") + " " + pct(live.ratio - 1) + " " +
+      T("liveAgainst", "against its history") + ". " +
+      T("liveShare", "At this point a threshold has typically reached {p} % of its final value")
+        .replace("{p}", Math.round(100 * live.expected)) +
+      (live.measured
+        ? " (" + T("liveMeasured", "measured on {n} boards replayed game by game").replace("{n}", n) +
+          ", ±" + Math.round(100 * live.rel) + " %)."
+        : " (" + T("liveAssumed", "assumed linear — the pace has not been measured yet") + ")."));
+    const readHere = live.byRank[rank] !== undefined;
+    if (readHere || live.carry >= CARRY_MIN) {
+      lines.push(T("liveBlend", "Readings and history are combined by precision: here the readings "
+        + "weigh {w} % of the answer.").replace("{w}", Math.round(100 * (answer ? answer.weight : 0)))
+        + (readHere ? "" : " " + T("liveCarried", "This rank was not read; {c} % of what the "
+            + "readings say carries to it — measured, and in an open queue the whole board moves "
+            + "together.").replace("{c}", Math.round(100 * live.carry))));
+    } else {
+      lines.push(T("liveApart", "This rank was not read, and in a single closed lobby a reading "
+        + "prices its own rank only: the ranks move independently there — one team running away "
+        + "with the top takes the points that would have landed further down. So this number is "
+        + "the forecast from history, untouched."));
+    }
+    lines.push('<span class="hint">' + T("untested", "The pace curve is measured; the way it is "
+      + "blended with the history has not yet been validated on held-out tournaments.") + "</span>");
+  } else {
+    lines.push("<b>" + T("basedOn", "Estimated from") + " " + sourceLabel(cold.source) + "</b>" +
+      (cold.n ? " · " + cold.n + " " + T("editions", "edition(s)") : ""));
+    if (cold.guessedField) {
+      lines.push(T("assumedField", "Assumed field") + ": " + num(cold.field) + " " +
+        T("teams", "teams") + " — " + T("fieldEffect", "a 30 % error moves the threshold by") + " " +
+        (cold.fieldEffect < 0.1 ? T("under", "under") + " 0.1 %."
+                                : cold.fieldEffect.toFixed(1) + " %."));
+    }
+  }
+  return '<div class="note' + (live ? " cool" : "") + '">' + lines.join("<br>") + "</div>";
+}
+
+function basisRows() {
+  const s = MODEL.source || {};
+  // Measured by analysis/validate.py and carried in the model, so the page
+  // cannot quote an error the current model never had. Two of these numbers
+  // were typed in once and outlived the model they described.
+  const q = MODEL.quality || null;
+  const pct = (x, digits) => (x === null || x === undefined || isNaN(x)) ? "—"
+    : new Intl.NumberFormat(LANG === "fr" ? "fr-FR" : "en-GB",
+        { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(x)) + " %";
+  return [
+    [T("basis.trained", "Trained on"), (s.tournaments || 0) + " " +
+      T("basis.tournaments", "tournaments") + ", " + (s.thresholds || 0) + " " +
+      T("basis.thresholds", "thresholds")],
+    [T("basis.measured", "Measured on"), q
+      ? T("basis.split", "the newest {n} tournaments, forecast from the {m} before them")
+          .replace("{n}", nf().format(q.targets || 0)).replace("{m}", nf().format(q.pool || 0))
+      : "—"],
+    // "Warm" is the rows where a previous edition existed - the number the
+    // README leads with; "cold" is the scoring-table-only start, and the share
+    // says how much of a new season begins that way.
+    [T("basis.error", "Median error, cup seen before"),
+      q && q.baselines && q.baselines.model ? pct(q.baselines.model.median_ape, 1) : "—"],
+    [T("basis.cold", "Median error, cup never run before"),
+      q && q.cold_median_ape !== null && q.cold_median_ape !== undefined
+        ? pct(q.cold_median_ape, 0) + (q.cold_share ? " (" + Math.round(100 * q.cold_share) + " % "
+            + T("basis.ofSample", "of the sample") + ")" : "")
+        : "—"],
+    [T("basis.coverage", "Real thresholds inside the band"),
+      q && q.coverage !== undefined ? pct(100 * q.coverage, 0) : "—"],
+    [T("basis.anchor", "Anchor"), "top " + MODEL.curve.reference_rank],
+    [T("basis.model", "Model"), "level · exp(−" + MODEL.curve.a + " · (q^" + MODEL.curve.b +
+      " − qref^" + MODEL.curve.b + "))"],
+    [T("basis.exported", "Model exported"), MODEL.generated]
+  ].map(p => "<tr><td>" + p[0] + "</td><td>" + p[1] + "</td></tr>").join("");
+}
+
+/* ==================================================================
+ * Live inputs
+ * ================================================================== */
+function liveChanged() {
+  // Typing changes nothing but the button: the forecast waits for Confirm.
+  if (!STATE.confirmed) return;
+  readLive();
+  fillLive();
+}
+
+/* ------------------------------------------------------------------
+ * Sessions: a followed evening, kept and exported.
+ *
+ * The page has no server, so "saved" means this browser — and a file,
+ * because a browser is not a record. The file is what the research
+ * repository imports (`import_session.py`), which is how an evening
+ * spent typing readings turns into the one thing the live model has
+ * never had: tournaments where the standings were watched all the way
+ * to the end, and the answer is known.
+ * ------------------------------------------------------------------ */
+function sessions() {
+  try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || "[]") || []; }
+  catch (e) { return []; }
+}
+
+function keepSessions(list) {
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(list.slice(-40))); }
+  catch (e) { /* private window, or full: the file export still works */ }
+}
+
+function sessionOf(state) {
+  return {
+    saved: new Date().toISOString(),
+    model: MODEL.generated,
+    tournament: {
+      name: state.name, category: state.variant || state.name, region: state.region,
+      team_mode: state.team_mode, game_mode: state.game_mode, format: state.format,
+      games: gameCount(state), game_minutes: state.game_minutes,
+      duration: state.duration, field_size: state.field_size,
+      begin: state.begin || "", end: state.end || "", scoring: state.scoring
+    },
+    log: (state.log || []).map(e => ({ game: e.game, elapsed: e.elapsed, at: e.at,
+                                       share: e.share, readings: e.readings, said: e.said }))
+  };
+}
+
+function download(name, text) {
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function fileNameFor(session) {
+  const slug = (session.tournament.name || "cup").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  return "session-" + (slug || "cup") + "-" + (session.saved || "").slice(0, 10) + ".json";
+}
+
+function saveSession() {
+  if (!(STATE.log || []).length) return;
+  const session = sessionOf(STATE);
+  const list = sessions();
+  // One entry per tournament and start, so saving twice on the same evening
+  // updates the record instead of stacking near-copies.
+  const key = session.tournament.name + "|" + session.tournament.begin + "|" + session.tournament.region;
+  keepSessions(list.filter(s => (s.tournament.name + "|" + s.tournament.begin + "|" +
+                                 s.tournament.region) !== key).concat([session]));
+  download(fileNameFor(session), JSON.stringify(session, null, 1));
+  drawSessions();
+}
+
+function drawSessions() {
+  const list = sessions().slice().reverse();
+  $("p-sessions").hidden = !list.length;
+  $("sessions").innerHTML = list.map((s, i) => {
+    const done = (s.log || []).some(e => e.share >= 1);
+    const when = (s.saved || "").slice(0, 10);
+    return '<div class="log-row session" data-open="' + i + '">' +
+      '<span class="title">' + esc(s.tournament.name || "—") +
+        "<small>" + esc(when + " · " + (s.tournament.region || "") + " · " +
+          (s.log || []).length + " " + T("l.acquisitions", "acquisitions") +
+          (done ? " · " + T("l.finished", "finished") : "")) + "</small></span>" +
+      '<button type="button" data-get="' + i + '" aria-label="download">&darr;</button>' +
+      '<button type="button" data-drop="' + i + '" aria-label="remove">&times;</button></div>';
+  }).join("");
+  const list_ = list;
+  $("sessions").querySelectorAll("button[data-get]").forEach(b => {
+    b.onclick = e => { e.stopPropagation();
+      const s = list_[Number(b.dataset.get)]; download(fileNameFor(s), JSON.stringify(s, null, 1)); };
+  });
+  $("sessions").querySelectorAll("button[data-drop]").forEach(b => {
+    b.onclick = e => { e.stopPropagation();
+      const gone = list_[Number(b.dataset.drop)];
+      keepSessions(sessions().filter(s => s.saved !== gone.saved));
+      drawSessions(); };
+  });
+  $("sessions").querySelectorAll(".log-row.session").forEach(row => {
+    row.onclick = () => openSession(list_[Number(row.dataset.open)]);
+  });
+}
+
+function openSession(session) {
+  if (!session) return;
+  const tour = session.tournament || {};
+  STATE = Object.assign(JSON.parse(JSON.stringify(EXAMPLE)), {
+    name: tour.name || "", variant: tour.category && tour.category !== tour.name ? tour.category : null,
+    region: tour.region, team_mode: tour.team_mode, game_mode: tour.game_mode,
+    format: tour.format || "free", duration: tour.duration || 0,
+    game_minutes: tour.game_minutes || 0, game_cap: tour.games || 0,
+    field_size: tour.field_size || 0, begin: tour.begin || "", end: tour.end || "",
+    scoring: tour.scoring || { kill: 0, kill_cap: null, placement: [] },
+    log: session.log || [], readings: [], confirmed: true
+  });
+  const last = STATE.log.length ? STATE.log[STATE.log.length - 1] : null;
+  STATE.game = last ? last.game : 1;
+  STATE.rank = STATE.asked = last && last.said ? last.said.rank : 500;
+  setFrozen(true); fillForm(); fillLive(); settingsChanged(); save(); render();
+  $("p-live").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ==================================================================
+ * Wiring
+ * ================================================================== */
+function fillSelect(id, values, chosen) {
+  $(id).innerHTML = values.map(v =>
+    '<option value="' + esc(v) + '"' + (v === chosen ? " selected" : "") + ">" +
+    esc(v) + "</option>").join("");
+}
+function applyLanguage(code) {
+  LANG = code === "fr" ? "fr" : "en";
+  document.documentElement.lang = LANG;
+  document.documentElement.setAttribute("data-lang", LANG);
+  document.querySelectorAll("[data-set-lang]").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.setLang === LANG)));
+  document.querySelectorAll("[data-t]").forEach(el => {
+    const key = el.dataset.t;
+    if (EN[key] === undefined) EN[key] = el.textContent.trim();
+    el.textContent = T(key);
+  });
+  document.querySelectorAll("[data-t-placeholder]").forEach(el => {
+    const key = el.dataset.tPlaceholder;
+    if (EN[key] === undefined) EN[key] = el.placeholder;
+    el.placeholder = T(key);
+  });
+  drawCalendar();
+  try { localStorage.setItem("threshold-ladder-lang", LANG); } catch (e) { /* ignore */ }
+  settingsChanged();
+  if (STATE.confirmed) setFrozen(true);
+  liveChanged();
+  render();
+}
+
+/* ------------------------------------------------------------------
+ * What is on this week.
+ *
+ * The list comes from calendar.js, written next to this page by the
+ * tracker. It cannot be fetched from here: Osirion's API answers a
+ * browser's request but sends no Access-Control-Allow-Origin, so every
+ * browser refuses to hand the response to the script that asked for it.
+ * Measured, from a local file and from a real origin alike. So the
+ * calendar is collected on a machine with no such rule and shipped
+ * beside the page, which needs no permission at all.
+ *
+ * Everything here degrades to nothing: with no calendar, or one whose
+ * week has passed, the panel simply does not appear and the form below
+ * is what it always was. */
+let CAL = null;
+
+function calendarReady() {
+  const c = (typeof window !== "undefined") ? window.CALENDAR : null;
+  return c && Array.isArray(c.events) && c.events.length ? c : null;
+}
+
+function calWhen(row) {
+  const t = Date.parse(row.begin);
+  return isFinite(t) ? t : 0;
+}
+
+function calLive(row) {
+  const now = Date.now(), a = calWhen(row), b = Date.parse(row.end);
+  return a && a <= now && (!isFinite(b) || now <= b);
+}
+
+function calLabel(row) {
+  // The stored times are UTC; the reader is not. Shown in their own zone,
+  // because "starts at 19:00" is only useful in the zone they live in.
+  const d = new Date(row.begin);
+  if (!isFinite(d.getTime())) return "—";
+  const day = d.toLocaleDateString(LANG === "fr" ? "fr-FR" : "en-GB",
+                                   { weekday: "short", day: "numeric" });
+  const time = d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB",
+                                    { hour: "2-digit", minute: "2-digit" });
+  return day + " " + time;
+}
+
+function startCalendar() {
+  CAL = calendarReady();
+  if (!CAL) return;
+  const regions = [], modes = [];
+  CAL.events.forEach(e => {
+    if (e.region && regions.indexOf(e.region) === -1) regions.push(e.region);
+    const m = calMode(e);
+    if (m && modes.indexOf(m) === -1) modes.push(m);
+  });
+  regions.sort(); modes.sort();
+  fillSelect("c-region", ["*"].concat(regions), "*");
+  fillSelect("c-mode", ["*"].concat(modes), "*");
+  ["c-region", "c-mode"].forEach(id => $(id).addEventListener("change", drawCalendar));
+  $("c-find").addEventListener("input", drawCalendar);
+  $("calendar-wrap").hidden = false;
+}
+
+function calMode(row) {
+  return [row.mode, row.team].filter(Boolean).join(" ");
+}
+
+function drawCalendar() {
+  if (!CAL || !$("cal-list")) return;
+  // The two "any" entries are labels, not data, so they are relabelled here
+  // rather than being stored translated.
+  const anyRegion = T("l.callall", "All regions"), anyMode = T("l.calallmodes", "All modes");
+  [["c-region", anyRegion], ["c-mode", anyMode]].forEach(([id, label]) => {
+    const opt = $(id).querySelector('option[value="*"]');
+    if (opt) opt.textContent = label;
+  });
+
+  const region = $("c-region").value, mode = $("c-mode").value;
+  const needle = ($("c-find").value || "").trim().toLowerCase();
+  const now = Date.now();
+  const rows = CAL.events
+    .filter(e => region === "*" || e.region === region)
+    .filter(e => mode === "*" || calMode(e) === mode)
+    .filter(e => !needle || (e.name || "").toLowerCase().indexOf(needle) !== -1)
+    .filter(e => calWhen(e) && (calLive(e) || calWhen(e) >= now - 6 * 3600e3))
+    .sort((a, b) => calWhen(a) - calWhen(b));
+
+  const list = $("cal-list");
+  list.innerHTML = "";
+  if (!rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "cal-empty";
+    empty.textContent = T("l.calnone",
+      "Nothing matches. Clear the filters, or type the tournament in by hand below.");
+    list.appendChild(empty);
+  }
+  rows.slice(0, 120).forEach(row => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "cal-row";
+    const live = calLive(row);
+    const tags = [row.region, calMode(row), row.games ? row.games + "×" : ""]
+      .filter(Boolean).join(" · ")
+      + (row.scoring === null || row.scoring === undefined
+          ? " · " + T("l.calpartial", "no scoring") : "");
+    button.innerHTML =
+      '<span class="cal-when' + (live ? " cal-live" : "") + '">'
+      + esc(live ? T("l.callive", "live") : calLabel(row)) + "</span>"
+      + '<span class="cal-name">' + esc(row.name || "") + "</span>"
+      + '<span class="cal-tags">' + esc(tags) + "</span>";
+    button.addEventListener("click", () => pickFromCalendar(row));
+    list.appendChild(button);
+  });
+
+  const when = (CAL.generated || "").slice(0, 10);
+  const key = rows.length ? "l.calnote" : "l.calstale";
+  const fallback = rows.length
+    ? "Calendar as of {date}. Click a tournament and everything fills in; otherwise type it in by hand below."
+    : "This calendar is from {date} and no longer covers anything upcoming. Type your tournament in by hand below.";
+  $("cal-note").textContent = T(key, fallback).replace("{date}", when);
+}
+
+/* One lobby holds this many teams. A final played by qualified teams in a
+ * single lobby cannot rank more than this, whatever the sign-up count says.
+ * Measured on the harvest: Duo finals sit at 46-50 teams, Trio at 29-33, Solo
+ * at 96-100 - the cap, less a few no-shows. Reload lobbies seat forty players,
+ * not a hundred: its Duo finals sit at 19-20. Blitz is a Reload-sized lobby too. */
+const LOBBY = { Solo: 100, Duo: 50, Trio: 33, Squad: 25 };
+const LOBBY_SMALL = { Solo: 40, Duo: 20, Trio: 13, Squad: 10 };
+function lobbyCap(team, mode) {
+  const small = /reload|blitz/i.test(String(mode || ""));
+  return (small ? LOBBY_SMALL : LOBBY)[team] || 0;
+}
+
+/* Is this a closed lobby, and how many teams are in it?
+ *
+ * Two readings, the measured one first. If the model knows the category and
+ * its typical field is no bigger than one lobby, that is what it is: a closed
+ * final, and the field is the number the history says. If the model has never
+ * seen it but the window is a final or semi-final, it is almost certainly a
+ * single lobby too, and the lobby cap stands in for the count - marked as a
+ * guess, because that is what it is. Anything else is an open queue. */
+function closedLobby(row) {
+  const cap = lobbyCap(row.team, row.mode);
+  let known = rowFor(MODEL.categories, { category: row.kind, region: row.region })
+           || rowFor(MODEL.families, { category: row.kind });
+  if (!known) {
+    // The same cup under a spelling the model knows: the match the forecast
+    // itself will use, so the field and the level come from the same editions.
+    const near = matchTournament(row.name, row.region);
+    if (near) known = rowFor(MODEL.categories, { category: near.label, region: row.region })
+                   || rowFor(MODEL.families, { category: near.label });
+  }
+  if (known && known.field && cap && known.field <= cap) {
+    return { field: Math.round(known.field), guessed: false };
+  }
+  if (cap && (row.stage === 9 || row.stage === 8)) {
+    return { field: cap, guessed: true };
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------
+ * The cuts a cup pays out on: qualification, money, cosmetics.
+ *
+ * They come with the calendar row as [code, number, detail]:
+ *   ["q", 2000, "Event 1 Round 2"]   the top 2,000 go through to that window
+ *   ["p", 0.25, "Final"]             the top quarter of the field go through
+ *   ["c", 8, 100]                    prize money down to 8th; 100 dollars there
+ *   ["i", 200, ""]                   a cosmetic down to 200th
+ *
+ * A cut is a rank and a rank is what the model prices, so the widest
+ * qualification cut becomes the rank asked by default - "how many points
+ * to get through" is the question people open this page with - and every
+ * cut is a chip that asks for it. The cuts belong to the row that was
+ * clicked and go quiet the moment the name or region is typed over.
+ * ------------------------------------------------------------------ */
+function activeCuts() {
+  if (!Array.isArray(STATE.tiers) || !STATE.tiers.length) return [];
+  return STATE.tiersFor === (STATE.name || "") + "|" + (STATE.region || "") ? STATE.tiers : [];
+}
+
+function fieldNow() {
+  // The field the page would forecast with right now: typed, or guessed the
+  // way predictOne guesses it. A percentile cut is only a rank once this is known.
+  const typed = Math.round(Number(STATE.field_size) || 0);
+  if (typed > 0) return typed;
+  const found = guessField(asTournament(STATE));
+  return found ? Math.round(found.field) : 0;
+}
+
+function cutRank(cut, field) {
+  // Never deeper than the field: Epic writes "money down to 40th" for a lobby
+  // that seats 33, and a rank past the last team prices nothing.
+  if (cut[0] === "p") return field ? Math.max(1, Math.ceil(cut[1] * field)) : 0;
+  const rank = Math.max(1, Math.round(Number(cut[1]) || 0));
+  return field ? Math.min(rank, field) : rank;
+}
+
+function cutWhat(cut) {
+  if (cut[0] === "q" || cut[0] === "p") return T("cut.qualifies", "qualifies for") + " " + (cut[2] || "");
+  if (cut[0] === "c") {
+    const money = typeof cut[2] === "number" ? "$" + nf().format(cut[2]) : String(cut[2] || "");
+    return (cutRank(cut, 0) === 1 ? T("cut.first", "1st place") : T("cut.money", "money"))
+         + (money ? " · " + money : "");
+  }
+  return T("cut.item", "cosmetic");
+}
+
+function cutTitle(cut, field) {
+  const rank = cutRank(cut, field);
+  if (cut[0] === "p") {
+    const share = T("cut.share", "top {p} %").replace("{p}", Math.round(100 * cut[1]));
+    return rank ? share + " ≈ " + T("top", "top") + " " + nf().format(rank)
+                : share + " · " + T("cut.noField", "field unknown");
+  }
+  return T("top", "top") + " " + nf().format(rank);
+}
+
+function defaultCut(cuts, field) {
+  // The widest qualification cut; failing one, the widest cut of any kind.
+  const ranked = cuts.map(c => ({ cut: c, rank: cutRank(c, field) })).filter(x => x.rank > 0);
+  const qualify = ranked.filter(x => x.cut[0] === "q" || x.cut[0] === "p");
+  const pool = qualify.length ? qualify : ranked;
+  return pool.length ? pool.reduce((best, x) => x.rank > best.rank ? x : best, pool[0]) : null;
+}
+
+function cutAt(rank, field) {
+  return activeCuts().find(c => cutRank(c, field) === rank) || null;
+}
+
+function drawCuts(field, asked) {
+  const cuts = activeCuts(), wrap = $("cuts"), chips = $("chips");
+  if (!wrap || !chips) return;
+  wrap.hidden = !cuts.length;
+  chips.innerHTML = "";
+  cuts.forEach(cut => {
+    const rank = cutRank(cut, field);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "chip";
+    button.innerHTML = "<b>" + esc(cutTitle(cut, field)) + "</b> · " + esc(cutWhat(cut));
+    button.setAttribute("aria-pressed", rank && rank === asked ? "true" : "false");
+    button.disabled = !rank;
+    button.addEventListener("click", () => {
+      $("f-rank").value = rank;
+      if (STATE.confirmed) predict(); else render();
+    });
+    chips.appendChild(button);
+  });
+}
+
+function pickFromCalendar(row) {
+  // Straight into STATE, then the ordinary redraw. Nothing here knows how the
+  // form is laid out, which is why adding a field to the form does not mean
+  // remembering to add it here too.
+  STATE.name = row.name || STATE.name;
+  if (row.region) STATE.region = row.region;
+  if (row.team) STATE.team_mode = row.team;
+  if (row.mode) STATE.game_mode = row.mode;
+  if (row.games) STATE.game_cap = row.games;
+  // The session is exactly the window Epic published, start to end.
+  const a = Date.parse(row.begin), b = Date.parse(row.end);
+  if (isFinite(a) && isFinite(b) && b > a) STATE.duration = Math.round((b - a) / 60000);
+  // Closed lobby: sealed format, field from the history or the lobby cap.
+  // Open queue: free format, field left for the cascade to guess.
+  const closed = closedLobby(row);
+  STATE.format = closed ? "sealed" : "free";
+  STATE.field_size = closed ? closed.field : 0;
+  STATE.field_guessed = closed ? closed.guessed : false;
+  const table = (CAL.scorings || [])[row.scoring];
+  if (table && table.placement) {
+    STATE.scoring = { kill: table.kill === undefined ? 0 : table.kill,
+                      kill_cap: table.kill_cap === undefined ? null : table.kill_cap,
+                      placement: table.placement };
+  }
+  STATE.tiers = Array.isArray(row.tiers) ? row.tiers : [];
+  STATE.tiersFor = (row.name || "") + "|" + (row.region || "");
+  // Another tournament, another evening: the window's own clock, and no
+  // acquisitions carried over from the last one.
+  STATE.begin = row.begin || ""; STATE.end = row.end || "";
+  STATE.log = []; STATE.readings = []; STATE.game = 1;
+  STATE.elapsed = 0; STATE.touchedElapsed = false;
+  STATE.confirmed = false;
+  setFrozen(false);
+  fillForm();
+  settingsChanged();
+  // The rank people came for: the widest qualification cut, when the cup has one.
+  const cut = defaultCut(activeCuts(), fieldNow());
+  if (cut) { STATE.rank = cut.rank; $("f-rank").value = cut.rank; }
+  // Everything Epic published is now in the form; there is nothing left to
+  // confirm by hand, so the answer comes with the click. "Change the settings"
+  // is one button away for anyone who knows better.
+  if (!whatIsMissing().length) {
+    readForm();
+    setFrozen(true);
+    settingsChanged();
+    STATE.rank = Math.max(1, Math.round(Number($("f-rank").value) || 0));
+    STATE.asked = STATE.rank;
+  }
+  save();
+  render();
+  $("f-rank").focus();
+  $("p-setup").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function start() {
+  document.querySelectorAll("[data-t]").forEach(el => { EN[el.dataset.t] = el.textContent.trim(); });
+  document.querySelectorAll("[data-t-placeholder]").forEach(el => {
+    EN[el.dataset.tPlaceholder] = el.placeholder; });
+  startCalendar();
+
+  const regions = [];
+  MODEL.categories.forEach(c => { if (c.region && regions.indexOf(c.region) === -1) regions.push(c.region); });
+  regions.sort();
+  fillSelect("f-region", regions.length ? regions : ["EU", "NAC", "ASIA", "BR", "OCE", "ME"], STATE.region);
+  fillSelect("f-team", ["Solo", "Duo", "Trio", "Squad"], STATE.team_mode);
+  fillSelect("f-mode", Object.keys(MODEL.game_minutes), STATE.game_mode);
+
+  const names = [];
+  MODEL.categories.concat(MODEL.families).forEach(r => {
+    if (names.indexOf(r.category) === -1) names.push(r.category);
+  });
+  names.sort();
+  $("known").innerHTML = names.map(n => '<option value="' + esc(n) + '"></option>').join("");
+
+  const presets = MODEL.scoring_presets || [];
+  $("f-preset").innerHTML = '<option value="">—</option>' + presets.map((p, i) =>
+    '<option value="' + i + '">' + esc(p.name) + "</option>").join("");
+  $("f-preset").onchange = e => {
+    const preset = presets[Number(e.target.value)];
+    if (!preset) return;
+    $("f-placement").value = scoringToText(preset);
+    $("f-kill").value = preset.kill;
+    $("f-killcap").value = preset.kill_cap === null ? "" : preset.kill_cap;
+    settingsChanged();
+  };
+  // The mode decides how long a game runs, unless the length was typed in.
+  $("f-mode").addEventListener("change", () => {
+    if (!STATE.touchedGameLength) $("f-glen").value = MODEL.game_minutes[$("f-mode").value] || 25;
+    settingsChanged();
+  });
+  $("f-glen").addEventListener("input", () => { STATE.touchedGameLength = true; });
+  $("f-variant").addEventListener("change", () => {
+    STATE.variant = $("f-variant").value;
+    const picked = variantsFor(STATE.name).find(v => v.category === STATE.variant);
+    if (picked && picked.games) { STATE.game_cap = picked.games; $("f-cap").value = picked.games; }
+    settingsChanged();
+  });
+
+  fillForm();
+  ["f-name", "f-region", "f-team", "f-format", "f-duration", "f-glen", "f-cap",
+   "f-field", "f-placement", "f-kill", "f-killcap"]
+    .forEach(id => $(id).addEventListener("input", settingsChanged));
+
+  $("confirm").onclick = () => { readForm(); setFrozen(true); settingsChanged(); render(); };
+  $("edit").onclick = () => { setFrozen(false); settingsChanged(); render(); };
+  $("predict").onclick = predict;
+  $("f-rank").addEventListener("keydown", e => { if (e.key === "Enter") predict(); });
+  $("add-reading").onclick = () => { addReadingRow(0, 0); liveChanged(); };
+  $("confirm-game").onclick = confirmGame;
+  $("save-session").onclick = saveSession;
+  $("clear-live").onclick = () => {
+    STATE.log = []; STATE.readings = []; STATE.game = 1;
+    STATE.elapsed = 0; STATE.touchedElapsed = false;
+    drawReadings(); fillLive(); save(); render();
+  };
+  $("f-game").addEventListener("input", liveChanged);
+  $("f-elapsed").addEventListener("input", () => { STATE.touchedElapsed = true; liveChanged(); });
+  drawSessions();
+  $("new").onclick = () => {
+    const blank = JSON.parse(JSON.stringify(EXAMPLE));
+    blank.name = ""; blank.duration = 0; blank.game_cap = 0;
+    blank.scoring = { kill: 0, kill_cap: null, placement: [] };
+    blank.confirmed = false; blank.asked = null;
+    blank.log = []; blank.readings = []; blank.game = 1; blank.elapsed = 0;
+    STATE = blank;
+    setFrozen(false); fillForm(); settingsChanged(); render(); $("f-name").focus();
+  };
+  document.querySelectorAll("[data-set-lang]").forEach(b => {
+    b.onclick = () => applyLanguage(b.dataset.setLang);
+  });
+
+  let saved = "en";
+  try { saved = localStorage.getItem("threshold-ladder-lang") || "en"; } catch (e) { /* ignore */ }
+  setFrozen(!!STATE.confirmed);
+  applyLanguage(saved);
+}
+start();
+</script>
+</body>
+</html>

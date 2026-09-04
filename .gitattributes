@@ -1,0 +1,8 @@
+# One line ending everywhere in the repository, so Windows and Linux checkouts
+# produce identical diffs and Git stops warning about the conversion.
+* text=auto eol=lf
+
+# Generated, and committed so that downloading it is one click. Marking it means
+# GitHub reports the repository's language honestly instead of counting the
+# embedded model as hand-written code.
+index.html linguist-generated=true

@@ -80,6 +80,23 @@ main { display: grid; grid-template-columns: minmax(330px, 410px) minmax(0, 1fr)
 
 .panel { background: var(--surface); border: 1px solid var(--line);
          border-radius: var(--radius); padding: var(--pad); }
+
+/* Two screens in one page. The front page is the week's list and nothing
+   else, one column in the middle; picking a tournament turns the page into
+   the forecast, answer on the left, settings on the right, and the browser's
+   own back button is a way home. */
+main[data-view="home"] { grid-template-columns: minmax(0, 700px); justify-content: center; }
+main[data-view="home"] > section.form, main[data-view="home"] > section.board { display: none; }
+main[data-view="home"] .cal-list { max-height: 56vh; }
+main[data-view="predict"] > #calendar-wrap, main[data-view="predict"] > #home-extras { display: none; }
+@media (min-width: 941px) {
+  main[data-view="predict"] > section.board { grid-column: 1; grid-row: 1; }
+  main[data-view="predict"] > section.form { grid-column: 2; grid-row: 1; }
+}
+@media (max-width: 940px) { main[data-view="predict"] > section.board { order: -1; } }
+.nav { margin-bottom: 12px; }
+button.back { padding: 6px 12px; font-size: 13px; }
+#home-extras .panel { margin-top: 18px; }
 .panel + .panel { margin-top: 16px; }
 .panel.off { opacity: .5; }
 .panel > h2 { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
@@ -100,7 +117,7 @@ input, select, textarea { background: var(--raise); border: 1px solid var(--line
 input:hover, select:hover, textarea:hover { border-color: var(--line-strong); }
 input:disabled, select:disabled, textarea:disabled { opacity: .6; cursor: not-allowed; }
 textarea { font: 400 13px/1.5 var(--mono); resize: vertical; min-height: 88px; }
-.cal-filters { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 10px; margin-bottom: 11px; }
+.cal-filters { display: grid; grid-template-columns: 1fr 1fr 1fr 2fr; gap: 10px; margin-bottom: 11px; }
 .cal-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--line);
             border-radius: 6px; }
 .cal-row { display: grid; grid-template-columns: 5.2rem 1fr auto; gap: 10px;
@@ -115,7 +132,7 @@ textarea { font: 400 13px/1.5 var(--mono); resize: vertical; min-height: 88px; }
 .cal-live { color: var(--measured); font-weight: 600; }
 .cal-empty { padding: 14px; font-size: 13px; color: var(--ink-faint); }
 @media (max-width: 620px) {
-  .cal-filters { grid-template-columns: 1fr 1fr; }
+  .cal-filters { grid-template-columns: 1fr 1fr 1fr; }
   .cal-filters #c-find { grid-column: 1 / -1; }
   .cal-row { grid-template-columns: 4.4rem 1fr; }
   .cal-tags { grid-column: 2; }
@@ -265,10 +282,11 @@ footer a { color: var(--ink-dim); }
 <main>
 <section id="calendar-wrap" hidden>
   <div class="panel" id="p-calendar">
-    <h2><span class="step">0</span><span data-t="h.calendar">What is on</span></h2>
+    <h2><span data-t="h.calendar">What is on</span></h2>
     <div class="cal-filters">
       <select id="c-region"></select>
       <select id="c-mode"></select>
+      <select id="c-team"></select>
       <input id="c-find" type="search" autocomplete="off" spellcheck="false"
              data-t-placeholder="l.calfind" placeholder="Search a name">
     </div>
@@ -277,7 +295,23 @@ footer a { color: var(--ink-dim); }
   </div>
 </section>
 
-<section>
+<section id="home-extras">
+  <div class="panel" id="p-byhand">
+    <p class="hint" data-t="hint.byhand">A tournament that is not in the list can be typed in by
+      hand: name, region, format, and the scoring table from its rules.</p>
+    <div class="actions" style="margin-top:10px">
+      <button type="button" class="ghost" id="new" data-t="btn.new">Type a tournament by hand</button>
+    </div>
+  </div>
+  <div class="panel" id="p-sessions" hidden>
+    <h2><span data-t="h.sessions">Tournaments you have followed</span></h2>
+    <div class="log" id="sessions"></div>
+    <p class="hint" data-t="hint.sessions">Kept in this browser. Click one to reopen it; the arrow
+      downloads it as a small file.</p>
+  </div>
+</section>
+
+<section class="form">
   <div class="panel" id="p-setup">
     <h2><span class="step">1</span><span data-t="h.tournament">The tournament</span></h2>
 
@@ -355,7 +389,6 @@ footer a { color: var(--ink-dim); }
   <div class="actions" style="margin-top:16px">
     <button type="button" class="go" id="confirm" data-t="btn.confirm">Confirm the settings</button>
     <button type="button" class="ghost" id="edit" hidden data-t="btn.edit">Change the settings</button>
-    <button type="button" class="ghost" id="new" data-t="btn.new">New prediction</button>
   </div>
   <p class="hint" id="confirm-hint" style="margin-top:9px"></p>
 
@@ -388,21 +421,17 @@ footer a { color: var(--ink-dim); }
       <h3 class="sub" data-t="h.log">Recorded so far</h3>
       <div class="log" id="log"></div>
       <div class="actions" style="margin-top:10px">
-        <button type="button" class="ghost" id="save-session" data-t="btn.saveSession">Finish and save</button>
+        <button type="button" class="go" id="save-session" data-t="btn.saveSession">Finish</button>
         <button type="button" class="ghost" id="clear-live" data-t="btn.clearLive">Start over</button>
       </div>
     </div>
   </div>
-
-  <div class="panel" id="p-sessions" hidden>
-    <h2><span data-t="h.sessions">Tournaments you have followed</span></h2>
-    <div class="log" id="sessions"></div>
-    <p class="hint" data-t="hint.sessions">Kept in this browser. Click one to reopen it; the arrow
-      downloads it as a small file.</p>
-  </div>
 </section>
 
 <section class="board">
+  <div class="nav">
+    <button type="button" class="ghost back" id="back">&larr; <span data-t="btn.back">All tournaments</span></button>
+  </div>
   <div class="answer">
     <div class="ask">
       <div class="field">
@@ -467,7 +496,9 @@ const FR = {
   "l.kill": "Points par élimination", "l.killcap": "Plafond d'éliminations",
   "l.game": "Partie qui vient de finir", "l.gameShort": "partie",
   "l.elapsed": "Minutes écoulées",
-  "btn.confirmGame": "Confirmer", "btn.saveSession": "Terminer et sauvegarder",
+  "btn.confirmGame": "Confirmer", "btn.saveSession": "Terminer",
+  "btn.back": "Tous les tournois",
+  "hint.byhand": "Un tournoi absent de la liste se saisit à la main : nom, région, format, et le barème de son règlement.",
   "h.log": "Relevés enregistrés", "h.sessions": "Tournois que tu as suivis",
   "l.acquisitions": "relevés", "l.finished": "terminé",
   "hint.confirmGame": "Saisis ce qu'affiche le classement, puis confirme : rien ne bouge avant.",
@@ -479,11 +510,11 @@ const FR = {
                + "L'effectif est celui des éditions précédentes.",
   "hint.closedguess": "Lobby fermé, probablement : c'est une finale que le modèle n'a jamais vue. "
                     + "L'effectif est la taille d'un lobby ; corrige-le si tu sais mieux.",
-  "l.callall": "Toutes les régions", "l.calallmodes": "Tous les modes",
+  "l.callall": "Toute région", "l.calallmodes": "Tout mode",
+  "l.calallteams": "Toute taille", "l.calother": "Autre",
   "l.calnone": "Rien ne correspond. Efface les filtres, ou saisis le tournoi à la main ci-dessous.",
   "l.callive": "en cours",
-  "l.calnote": "Calendrier arrêté le {date}. Clique un tournoi et tout se remplit ; "
-             + "sinon saisis-le à la main ci-dessous.",
+  "l.calnote": "Calendrier arrêté le {date}. Clique un tournoi et la prédiction s'ouvre.",
   "l.calstale": "Ce calendrier date du {date} et ne couvre plus rien à venir. "
               + "Saisis ton tournoi à la main ci-dessous.",
   "l.calpartial": "sans barème",
@@ -495,7 +526,7 @@ const FR = {
   "opt.free": "Fenêtre ouverte - chacun joue à son rythme",
   "opt.sealed": "Scellé - horaires fixes, mêmes parties pour tous",
   "btn.confirm": "Confirmer les paramètres", "btn.edit": "Modifier les paramètres",
-  "btn.new": "Nouvelle prédiction", "btn.predict": "Prédire",
+  "btn.new": "Saisir un tournoi à la main", "btn.predict": "Prédire",
   "btn.addReading": "Ajouter un rang", "btn.clearLive": "Recommencer",
   "hint.field": "Laisse vide et un effectif plausible sera supposé. Doubler le nombre d'équipes ne déplace un seuil que d'environ 3,5 %, une estimation grossière suffit.",
   "hint.live": "Après chaque partie, relève les points de deux ou trois rangs et appuie sur Confirmer : la prédiction se met à jour à ce moment-là, le relevé s'enregistre, les points s'effacent et le compteur avance. Les rangs, eux, restent.",
@@ -1818,8 +1849,12 @@ function saveSession() {
   const key = session.tournament.name + "|" + session.tournament.begin + "|" + session.tournament.region;
   keepSessions(list.filter(s => (s.tournament.name + "|" + s.tournament.begin + "|" +
                                  s.tournament.region) !== key).concat([session]));
-  download(fileNameFor(session), JSON.stringify(session, null, 1));
   drawSessions();
+  // The evening is on record; the page goes back to the list, where it now
+  // sits at the top and its arrow downloads it as a file.
+  STATE = blankState();
+  setFrozen(false); fillForm(); fillLive(); settingsChanged(); save(); render();
+  goHome();
 }
 
 function drawSessions() {
@@ -1868,6 +1903,7 @@ function openSession(session) {
   STATE.game = last ? last.game : 1;
   STATE.rank = STATE.asked = last && last.said ? last.said.rank : 500;
   setFrozen(true); fillForm(); fillLive(); settingsChanged(); save(); render();
+  showView("predict", true);
   $("p-live").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1949,42 +1985,61 @@ function calLabel(row) {
 function startCalendar() {
   CAL = calendarReady();
   if (!CAL) return;
-  const regions = [], modes = [];
+  // Mode and team size are two filters, not one list of every pairing.
+  const regions = [], modes = [], teams = [];
   CAL.events.forEach(e => {
     if (e.region && regions.indexOf(e.region) === -1) regions.push(e.region);
-    const m = calMode(e);
-    if (m && modes.indexOf(m) === -1) modes.push(m);
+    if (e.mode && modes.indexOf(e.mode) === -1) modes.push(e.mode);
+    if (e.team && teams.indexOf(e.team) === -1) teams.push(e.team);
   });
-  regions.sort(); modes.sort();
+  regions.sort();
+  modes.sort((a, b) => (a === "Other") - (b === "Other") || a.localeCompare(b));
+  teams.sort((a, b) => TEAM_ORDER.indexOf(a) - TEAM_ORDER.indexOf(b));
   fillSelect("c-region", ["*"].concat(regions), "*");
   fillSelect("c-mode", ["*"].concat(modes), "*");
-  ["c-region", "c-mode"].forEach(id => $(id).addEventListener("change", drawCalendar));
+  fillSelect("c-team", ["*"].concat(teams), "*");
+  ["c-region", "c-mode", "c-team"].forEach(id => $(id).addEventListener("change", drawCalendar));
   $("c-find").addEventListener("input", drawCalendar);
   $("calendar-wrap").hidden = false;
 }
 
-function calMode(row) {
-  return [row.mode, row.team].filter(Boolean).join(" ");
+const TEAM_ORDER = ["Solo", "Duo", "Trio", "Squad"];
+
+/* A window that plays on something other than a tournament playlist - a
+ * test cup in an arena, say - is none of the modes the model knows. */
+function calModeLabel(mode) {
+  return mode === "Other" ? T("l.calother", "Other") : mode;
+}
+
+/* Over, as opposed to live or still to come. The list is for deciding what to
+ * play; a cup that finished this morning is not a decision. */
+function calOver(row) {
+  const end = Date.parse(row.end);
+  if (isFinite(end)) return end < Date.now();
+  return calWhen(row) < Date.now() - 3 * 3600e3;
 }
 
 function drawCalendar() {
   if (!CAL || !$("cal-list")) return;
   // The two "any" entries are labels, not data, so they are relabelled here
   // rather than being stored translated.
-  const anyRegion = T("l.callall", "All regions"), anyMode = T("l.calallmodes", "All modes");
-  [["c-region", anyRegion], ["c-mode", anyMode]].forEach(([id, label]) => {
+  const anyRegion = T("l.callall", "Any region"), anyMode = T("l.calallmodes", "Any mode");
+  const anyTeam = T("l.calallteams", "Any size");
+  [["c-region", anyRegion], ["c-mode", anyMode], ["c-team", anyTeam]].forEach(([id, label]) => {
     const opt = $(id).querySelector('option[value="*"]');
     if (opt) opt.textContent = label;
   });
+  const other = $("c-mode").querySelector('option[value="Other"]');
+  if (other) other.textContent = calModeLabel("Other");
 
-  const region = $("c-region").value, mode = $("c-mode").value;
+  const region = $("c-region").value, mode = $("c-mode").value, team = $("c-team").value;
   const needle = ($("c-find").value || "").trim().toLowerCase();
-  const now = Date.now();
-  const rows = CAL.events
+  const upcoming = CAL.events.filter(e => calWhen(e) && !calOver(e));
+  const rows = upcoming
     .filter(e => region === "*" || e.region === region)
-    .filter(e => mode === "*" || calMode(e) === mode)
+    .filter(e => mode === "*" || e.mode === mode)
+    .filter(e => team === "*" || e.team === team)
     .filter(e => !needle || (e.name || "").toLowerCase().indexOf(needle) !== -1)
-    .filter(e => calWhen(e) && (calLive(e) || calWhen(e) >= now - 6 * 3600e3))
     .sort((a, b) => calWhen(a) - calWhen(b));
 
   const list = $("cal-list");
@@ -2001,7 +2056,7 @@ function drawCalendar() {
     button.type = "button";
     button.className = "cal-row";
     const live = calLive(row);
-    const tags = [row.region, calMode(row), row.games ? row.games + "×" : ""]
+    const tags = [row.region, calModeLabel(row.mode), row.team, row.games ? row.games + "×" : ""]
       .filter(Boolean).join(" · ")
       + (row.scoring === null || row.scoring === undefined
           ? " · " + T("l.calpartial", "no scoring") : "");
@@ -2015,9 +2070,9 @@ function drawCalendar() {
   });
 
   const when = (CAL.generated || "").slice(0, 10);
-  const key = rows.length ? "l.calnote" : "l.calstale";
-  const fallback = rows.length
-    ? "Calendar as of {date}. Click a tournament and everything fills in; otherwise type it in by hand below."
+  const key = upcoming.length ? "l.calnote" : "l.calstale";
+  const fallback = upcoming.length
+    ? "Calendar as of {date}. Click a tournament and the forecast opens."
     : "This calendar is from {date} and no longer covers anything upcoming. Type your tournament in by hand below.";
   $("cal-note").textContent = T(key, fallback).replace("{date}", when);
 }
@@ -2159,7 +2214,7 @@ function pickFromCalendar(row) {
   STATE.name = row.name || STATE.name;
   if (row.region) STATE.region = row.region;
   if (row.team) STATE.team_mode = row.team;
-  if (row.mode) STATE.game_mode = row.mode;
+  if (row.mode && row.mode !== "Other") STATE.game_mode = row.mode;
   if (row.games) STATE.game_cap = row.games;
   // The session is exactly the window Epic published, start to end.
   const a = Date.parse(row.begin), b = Date.parse(row.end);
@@ -2202,9 +2257,36 @@ function pickFromCalendar(row) {
   }
   save();
   render();
-  $("f-rank").focus();
-  $("p-setup").scrollIntoView({ behavior: "smooth", block: "start" });
+  showView("predict", true);
 }
+
+/* ==================================================================
+ * The two screens
+ * ================================================================== */
+let PUSHED = 0;                            // forecast screens put on the history by this page
+function showView(view, push) {
+  const main = document.querySelector("main");
+  main.dataset.view = view;
+  const url = view === "predict" ? "#tournament" : location.pathname + location.search;
+  try {
+    (push ? history.pushState : history.replaceState).call(history, { view }, "", url);
+    if (push && view === "predict") PUSHED++;
+  } catch (e) { /* a file opened on its own may refuse; the screen still changes */ }
+  window.scrollTo(0, 0);
+}
+/* The page's own back button is the browser's when the forecast was reached
+ * from the list, so the two agree; otherwise the list simply replaces it. */
+function goHome() {
+  if (PUSHED > 0) history.back();
+  else showView("home", false);
+}
+window.addEventListener("popstate", () => {
+  const view = location.hash === "#tournament" ? "predict" : "home";
+  if (view === "home" && PUSHED > 0) PUSHED--;
+  else if (view === "predict") PUSHED++;
+  document.querySelector("main").dataset.view = view;
+  window.scrollTo(0, 0);
+});
 
 /* ==================================================================
  * The banner
@@ -2300,8 +2382,10 @@ function start() {
   drawSessions();
   $("new").onclick = () => {
     STATE = blankState();
-    setFrozen(false); fillForm(); settingsChanged(); render(); $("f-name").focus();
+    setFrozen(false); fillForm(); settingsChanged(); render();
+    showView("predict", true); $("f-name").focus();
   };
+  $("back").onclick = () => { drawCalendar(); drawSessions(); goHome(); };
   document.querySelectorAll("[data-set-lang]").forEach(b => {
     b.onclick = () => applyLanguage(b.dataset.setLang);
   });
@@ -2310,6 +2394,8 @@ function start() {
   try { saved = localStorage.getItem("threshold-ladder-lang") || "en"; } catch (e) { /* ignore */ }
   setFrozen(!!STATE.confirmed);
   applyLanguage(saved);
+  // An evening in progress reopens where it was; anything else starts at the list.
+  showView((STATE.log || []).length ? "predict" : "home", false);
   mountAd();
 }
 start();

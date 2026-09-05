@@ -25,10 +25,13 @@ Aucune installation, aucun compte, aucune clé d'API. Deux façons de l'avoir :
 ## S'en servir
 
 La page s'ouvre sur **ce qui se joue cette semaine** : tous les tournois du
-calendrier, filtrables par région et par mode, cherchables par nom, ceux en
-cours marqués comme tels. Un clic et le formulaire se remplit — nom, région,
-taille d'équipe, mode, nombre de parties, durée de la session, barème — et la
-réponse vient avec le clic, puisque chacun de ces réglages est celui d'Epic.
+calendrier encore à venir, filtrables par région, par mode et par taille
+d'équipe, cherchables par nom, ceux en cours marqués comme tels et ceux déjà
+finis écartés. Un clic et la prédiction s'ouvre sur son propre écran : nom,
+région, taille d'équipe, mode, nombre de parties, durée de la session et
+barème sont remplis, et la réponse est déjà là, puisque chacun de ces réglages
+est celui d'Epic. **Tous les tournois**, en haut, ou le bouton retour du
+navigateur, ramène à la liste.
 
 Le rang qu'elle chiffre en premier, c'est **le palier qui compte**. Chaque cup
 emporte les paliers qu'elle fait gagner, lus dans sa table de gains : le top
@@ -43,11 +46,12 @@ Une finale jouée par les équipes qualifiées dans un seul lobby est reconnue
 comme telle : le format passe en scellé, l'effectif devient la taille du lobby,
 et la page le dit sous le champ.
 
-Un tournoi absent du calendrier se saisit à la main — nom, région, taille
-d'équipe, mode, fenêtre ouverte ou scellée, durée de la session et durée d'une
-partie, l'effectif s'il est connu — et le barème se colle directement depuis le
-règlement (`1 = 60`, `1er 60`, `Top 1 : 60` et le reste se lisent tous).
-**Confirmer les paramètres** les gèle, pour que rien ne bouge par accident.
+Un tournoi absent du calendrier se saisit à la main, par le bouton sous la
+liste — nom, région, taille d'équipe, mode, fenêtre ouverte ou scellée, durée
+de la session et durée d'une partie, l'effectif s'il est connu — et le barème
+se colle directement depuis le règlement (`1 = 60`, `1er 60`, `Top 1 : 60` et
+le reste se lisent tous). **Confirmer les paramètres** les gèle, pour que rien
+ne bouge par accident.
 
 Le champ du nom connaît les tournois du modèle et rapproche largement : « FNCS
 Div 2 » trouve « FNCS Division 2 » — mais jamais « FNCS Division 3 », parce que
@@ -92,9 +96,9 @@ qui seraient tombés au rang 10. Là, un relevé ne chiffre que son propre rang,
 reste de l'échelle garde sa prédiction issue de l'historique, et la page dit
 laquelle des deux situations elle traite.
 
-**Terminer et sauvegarder** garde la soirée dans le navigateur — une liste des
-tournois suivis, qu'on peut rouvrir — et la télécharge sous forme de petit
-fichier.
+**Terminer** garde la soirée dans le navigateur et revient à la liste, où les
+tournois suivis attendent sous le calendrier, prêts à être rouverts ; la flèche
+à côté de chacun le télécharge sous forme de petit fichier.
 
 Deux langues, EN/FR, bouton dans l'en-tête.
 

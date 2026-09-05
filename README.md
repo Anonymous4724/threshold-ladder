@@ -24,11 +24,14 @@ No installation, no account, no API key. There are two ways to have it:
 
 ## Using it
 
-The page opens on **what is on this week**: every tournament in the calendar,
-filtered by region and mode, searchable by name, with the ones running right now
-marked live. Click one and the form fills itself — name, region, team size,
-mode, number of games, session length, and the scoring table — and the answer
-comes with the click, because every one of those settings is Epic's own.
+The page opens on **what is on this week**: every tournament still to come in
+the calendar, filtered by region, mode and team size, searchable by name, with
+the ones running right now marked live and the ones already over left out.
+Click one and the forecast opens on its own screen: name, region, team size,
+mode, number of games, session length and scoring table are filled in, and the
+answer is already there, because every one of those settings is Epic's own.
+**All tournaments** at the top, or the browser's back button, returns to the
+list.
 
 The rank it prices first is **the cut that matters**. Each cup carries the cuts
 it pays out on, read from its payout table: the top 2,000 go through to Round 2,
@@ -42,11 +45,12 @@ A final played by qualified teams in a single lobby is recognised as such: the
 format switches to sealed, the field becomes the lobby size, and the page says
 so under the field.
 
-A tournament that is not in the calendar can be typed in by hand — name, region,
-team size, mode, open window or sealed, how long the session runs and how long a
-game takes, the field size if it is known — and the scoring table pastes
-straight from the rules (`1 = 60`, `1st 60`, `Top 1 : 60` and the rest all
-parse). **Confirm the settings** freezes them so nothing shifts by accident.
+A tournament that is not in the calendar can be typed in by hand, from the
+button under the list — name, region, team size, mode, open window or sealed,
+how long the session runs and how long a game takes, the field size if it is
+known — and the scoring table pastes straight from the rules (`1 = 60`,
+`1st 60`, `Top 1 : 60` and the rest all parse). **Confirm the settings**
+freezes them so nothing shifts by accident.
 
 The name field knows the tournaments in the model and matches loosely, so "FNCS
 Div 2" finds "FNCS Division 2" — but never "FNCS Division 3", because the
@@ -89,8 +93,9 @@ team running away with the top takes the points that would have landed at rank
 10. There a reading prices its own rank, the rest of the ladder keeps its
 forecast from history, and the page says which of the two it is doing.
 
-**Finish and save** keeps the evening in the browser — a list of the tournaments
-followed, reopenable — and downloads it as a small file.
+**Finish** keeps the evening in the browser and goes back to the list, where
+the tournaments followed sit under the calendar, reopenable; the arrow next to
+each one downloads it as a small file.
 
 Both languages, EN/FR, switched in the header.
 

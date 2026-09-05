@@ -270,7 +270,7 @@ h3.sub { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
          color: var(--ink-faint); font-weight: 600; margin: 18px 0 8px; }
 .log { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .log:empty { display: none; }
-.log-row { display: grid; grid-template-columns: 5rem 1fr auto auto; gap: 10px;
+.log-row { display: grid; grid-template-columns: minmax(5rem, max-content) minmax(0, 1fr) auto auto; gap: 10px;
            align-items: center; padding: 7px 11px; border-top: 1px solid var(--line);
            font-size: 12.5px; }
 .log-row:first-child { border-top: 0; }
@@ -278,6 +278,10 @@ h3.sub { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
             color: var(--measured); margin-left: 4px; }
 .log-row .when { font: 600 12px/1.2 var(--mono); color: var(--ink-dim);
                  font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The clock sits under the game or the minute rather than beside it: three
+   readings a game make that first column long enough to run into the next. */
+.log-row .when .clock { display: block; margin-top: 3px; font-weight: 400;
+                        font-size: 10.5px; color: var(--ink-faint); }
 .log-row .what { color: var(--ink-dim); font-family: var(--mono); font-size: 11.5px;
                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-row .said { font: 600 13px/1 var(--mono); color: var(--forecast); font-variant-numeric: tabular-nums; }
@@ -1662,14 +1666,16 @@ function drawLog() {
   const clock = iso => { const d = new Date(iso); return isFinite(d.getTime())
     ? d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : ""; };
   $("log").innerHTML = log.slice().reverse().map(entry => {
-    const which = (String(STATE.format) === "sealed"
+    const which = String(STATE.format) === "sealed"
       ? T("l.gameShort", "game") + " " + entry.game
-      : (entry.elapsed || 0) + " min") + (entry.auto && entry.at ? " · " + clock(entry.at) : "");
+      : (entry.elapsed || 0) + " min";
+    const at = entry.at ? clock(entry.at) : "";
     const what = entry.readings.map(r => T("top", "top") + " " + r.rank + " " + num(r.points)).join(" · ");
     const said = entry.said ? num(entry.said.value) : "";
     const tag = entry.auto ? ' <small class="auto-tag">' + esc(T("l.auto", "auto")) + "</small>" : "";
     return '<div class="log-row"><span class="when' + (entry.share >= 1 ? " final" : "") + '">' +
-      esc(which) + tag + '</span><span class="what">' + esc(what) + '</span>' +
+      esc(which) + tag + (at ? '<small class="clock">' + esc(at) + "</small>" : "") +
+      '</span><span class="what">' + esc(what) + '</span>' +
       '<span class="said">' + esc(said) + '</span>' +
       (entry.auto ? "<span></span>"
         : '<button type="button" data-game="' + entry.game + '" aria-label="remove">&times;</button>') +

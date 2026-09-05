@@ -144,10 +144,14 @@ Two caveats the page repeats where they apply:
 
 ## Privacy
 
-Nothing leaves the page. No analytics, no request to anyone but the host serving
-the page itself, no storage beyond the browser keeping an evening in progress
-and the evenings saved. The page opens on the week's calendar and an empty
-form. The standalone file behaves identically with the network off, apart from
+Everything the page computes happens in the browser. No analytics, no storage
+beyond the browser keeping an evening in progress and the evenings saved. The
+page opens on the week's calendar and an empty form.
+
+The hosted page shows one advertising banner, served by Google; visitors in
+Europe are asked for consent first, and the banner has no bearing on anything
+else on the page. The [privacy note](privacy.html) says exactly what it does.
+The standalone file carries no banner and makes no request at all, apart from
 falling back to a system font.
 
 Tournament data comes from [Osirion](https://osirion.gg)'s public Fortnite API.

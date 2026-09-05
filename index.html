@@ -239,6 +239,16 @@ table.tiers tr:first-child td { border-top: 0; }
 footer { max-width: 1260px; margin: 0 auto; padding: 0 24px 44px; color: var(--ink-faint); font-size: 12.5px; }
 footer p { margin: 0 0 6px; }
 footer a { color: var(--ink-dim); }
+
+/* ------------------------------------------------------------------ ad */
+/* One strip, fixed sizes chosen by width so the page never jumps when it
+   fills, below everything the page is for. */
+.ad-strip { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center;
+            gap: 4px; margin-top: 8px; }
+.ad-strip small { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+.ad-slot { display: inline-block; width: 320px; height: 100px; }
+@media (min-width: 500px) { .ad-slot { width: 468px; height: 60px; } }
+@media (min-width: 800px) { .ad-slot { width: 728px; height: 90px; } }
 </style>
 </head>
 <body>
@@ -422,9 +432,13 @@ footer a { color: var(--ink-dim); }
     <div class="scroller"><table class="tiers" id="basis"></table></div>
   </div>
 </section>
+<aside class="ad-strip" id="ad" hidden>
+  <small data-t="ad.label">Advertisement</small>
+  <ins class="adsbygoogle ad-slot" id="ad-slot"></ins>
+</aside>
 </main>
 
-<footer><p id="foot"></p><p id="credit"></p><p id="legal"></p></footer>
+<footer><p id="foot"></p><p id="credit"></p><p id="legal"></p><p id="privacy-link"></p></footer>
 
 <script src="model.js"></script>
 <script src="calendar.js"></script>
@@ -434,6 +448,9 @@ footer a { color: var(--ink-dim); }
  * Every number in it was measured; none was tuned by hand.
  * ================================================================== */
 const MODEL = (window.MODEL || (() => { throw new Error("model.js did not load"); })());
+/* The advertising account and unit, from ads.json at build time; empty means
+ * no banner, and the standalone file always gets empty. */
+const ADS = {};
 
 /* ==================================================================
  * Wording. English is the source, French is looked up by key.
@@ -530,6 +547,9 @@ const FR = {
   "basis.coverage": "Seuils réels dans la fourchette",
   "basis.anchor": "Ancre", "basis.exported": "Modèle exporté le",
   "foot": "Tout se passe dans cette page : rien n'est envoyé nulle part et le fichier fonctionne hors ligne. Les chiffres viennent de tournois réels ; la note de méthodologie dit où le modèle cesse d'être crédible.",
+  "footAds": "Tout ce que la page calcule se passe ici : le tournoi saisi ne quitte jamais le navigateur. La seule requête vers l'extérieur est la bannière publicitaire, servie par Google ; la page de confidentialité dit ce qu'elle fait.",
+  "privacyLink": "Confidentialité",
+  "ad.label": "Publicité",
   "credit": "Données de tournois issues de l'API publique Fortnite d'Osirion.",
   "noField": "Le nombre d'équipes manque et aucun tournoi comparable ne permet de le supposer. Sans lui un rang ne veut rien dire : 50e sur 500 et 50e sur 20 000 n'ont rien en commun.",
   "noGames": "Le nombre de parties manque.",
@@ -1550,9 +1570,18 @@ function predict() {
 
 function render() {
   const board = $("verdict");
-  $("foot").textContent = T("foot", "Everything happens in this page: nothing is sent anywhere "
-    + "and the file works offline. The numbers come from real tournaments; the methodology note "
-    + "says where the model stops being believable.");
+  $("foot").textContent = adsOn()
+    ? T("footAds", "Everything the page computes happens here: the tournament you type never "
+        + "leaves your browser. The one request to anyone else is the advertising banner, served "
+        + "by Google; the privacy note says what it does.")
+    : T("foot", "Everything happens in this page: nothing is sent anywhere "
+        + "and the file works offline. The numbers come from real tournaments; the methodology note "
+        + "says where the model stops being believable.");
+  // The note lives beside the hosted page; a file opened on its own has no
+  // neighbour to point at, and nothing to disclose that the line above does not.
+  $("privacy-link").innerHTML = /^https?:$/.test(location.protocol)
+    ? '<a href="privacy.html' + (LANG === "fr" ? "#fr" : "") + '">' + T("privacyLink", "Privacy") + "</a>"
+    : "";
   // Credit, and a link: the tournaments behind every number here were read from
   // Osirion's public API. Saying so is the least a page built on someone else's
   // work owes them, and it tells a reader where to check.
@@ -2177,6 +2206,34 @@ function pickFromCalendar(row) {
   $("p-setup").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+/* ==================================================================
+ * The banner
+ * ================================================================== */
+function adsOn() {
+  return !!(ADS && ADS.client && ADS.slot) && /^https?:$/.test(location.protocol);
+}
+/* One unit, once, after the page is up. The account script is in the head
+ * when the build put it there; the unit only has to be pointed at it. Nothing
+ * here blocks a forecast, and a blocked or absent script leaves an empty
+ * strip rather than an error. */
+function mountAd() {
+  if (!adsOn()) return;
+  const strip = $("ad"), slot = $("ad-slot"), label = strip.querySelector("small");
+  slot.setAttribute("data-ad-client", ADS.client);
+  slot.setAttribute("data-ad-slot", ADS.slot);
+  // The unit needs its box on screen to be filled, so the strip shows first
+  // and the label waits: a caption over an empty box would be the page
+  // advertising an absence. Unfilled, the whole strip folds away.
+  label.style.visibility = "hidden";
+  strip.hidden = false;
+  new MutationObserver(() => {
+    const status = slot.getAttribute("data-ad-status");
+    if (status === "filled") label.style.visibility = "";
+    else if (status === "unfilled") strip.hidden = true;
+  }).observe(slot, { attributes: true, attributeFilter: ["data-ad-status"] });
+  try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* blocked */ }
+}
+
 function start() {
   document.querySelectorAll("[data-t]").forEach(el => { EN[el.dataset.t] = el.textContent.trim(); });
   document.querySelectorAll("[data-t-placeholder]").forEach(el => {
@@ -2253,6 +2310,7 @@ function start() {
   try { saved = localStorage.getItem("threshold-ladder-lang") || "en"; } catch (e) { /* ignore */ }
   setFrozen(!!STATE.confirmed);
   applyLanguage(saved);
+  mountAd();
 }
 start();
 </script>

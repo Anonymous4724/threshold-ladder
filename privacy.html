@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threshold Ladder — Privacy</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23e8a13a'/><path d='M22 72h14V40H22zm20 0h14V26H42zm20 0h14V52H62z' fill='%23161a24'/></svg>">
+<style>
+:root { --ground: #f6f4ef; --surface: #fffdf9; --ink: #161a24; --ink-dim: #4a5060; --ink-faint: #7a8090;
+        --line: #e3dfd6; --forecast: #e8a13a; }
+@media (prefers-color-scheme: dark) {
+  :root { --ground: #14171f; --surface: #1c2029; --ink: #ecebe6; --ink-dim: #b4b8c2; --ink-faint: #7d8290; --line: #2b3040; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.55 Chivo, "Segoe UI", system-ui, sans-serif; }
+header { padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.mark { font-weight: 800; letter-spacing: .02em; text-decoration: none; color: var(--ink); }
+.mark span { color: var(--forecast); }
+main { max-width: 760px; margin: 0 auto; padding: 28px 24px 60px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 26px 0 8px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-dim); }
+p { margin: 0 0 12px; }
+a { color: var(--ink-dim); }
+.lang { font-size: 13px; color: var(--ink-faint); margin: 0 0 18px; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 40px 0; }
+</style>
+</head>
+<body>
+<header><a class="mark" href="./">THRESHOLD <span>LADDER</span></a></header>
+<main>
+<h1 id="en">Privacy</h1>
+<p class="lang"><a href="#fr">Version française ci-dessous</a></p>
+
+<h2>What the page keeps</h2>
+<p>Everything the page computes happens in your browser. The tournament you type, the readings you
+confirm during a session and the evenings you save are stored by your browser alone (its local
+storage), never sent anywhere, and gone when you clear the site's data. The language you pick is kept
+the same way. There is no account, no form that reaches a server, and no analytics of any kind.</p>
+
+<h2>Advertising</h2>
+<p>When the hosted page shows an advertising banner, it is served by Google AdSense. Google, as a
+third-party vendor, uses cookies to serve ads, and its advertising cookies let it serve ads based on your previous
+visits to this and other websites. Visitors in the European Economic Area, the United Kingdom and
+Switzerland are asked for their consent before any such cookie is set; ads shown without consent are
+not personalised.</p>
+<p>You can opt out of personalised advertising in
+<a href="https://www.google.com/settings/ads" rel="noopener noreferrer">Google's ad settings</a>, and
+of third-party vendors' cookies at
+<a href="https://www.aboutads.info/choices/" rel="noopener noreferrer">aboutads.info</a>. How Google
+uses data from sites that show its ads is described at
+<a href="https://policies.google.com/technologies/ads" rel="noopener noreferrer">policies.google.com/technologies/ads</a>.</p>
+<p>The banner has no bearing on the forecasts: nothing on the page waits for it, and a blocked banner
+leaves an empty strip and a working page.</p>
+
+<h2>The standalone file</h2>
+<p><code>standalone.html</code> is the whole page in one file, for use with no network. It carries no
+banner, loads nothing from anyone, and makes no request at all.</p>
+
+<h2>Where the numbers come from</h2>
+<p>The model is built from public tournament results read from
+<a href="https://osirion.gg" rel="noopener noreferrer">Osirion</a>'s API. It contains thresholds,
+scoring tables and calendar fields: no player names, no accounts, nothing personal.</p>
+
+<h2>Questions</h2>
+<p>Through the project's
+<a href="https://github.com/Anonymous4724/threshold-ladder/issues" rel="noopener noreferrer">issue tracker</a>.</p>
+
+<hr>
+
+<h1 id="fr">Confidentialité</h1>
+<p class="lang"><a href="#en">English version above</a></p>
+
+<h2>Ce que la page garde</h2>
+<p>Tout ce que la page calcule se passe dans votre navigateur. Le tournoi saisi, les relevés confirmés
+pendant une session et les soirées sauvegardées sont conservés par votre navigateur seul (son stockage
+local), jamais envoyés nulle part, et disparaissent quand vous effacez les données du site. La langue
+choisie est gardée de la même façon. Il n'y a ni compte, ni formulaire qui atteigne un serveur, ni
+mesure d'audience d'aucune sorte.</p>
+
+<h2>Publicité</h2>
+<p>Quand la page hébergée affiche une bannière publicitaire, elle est servie par Google AdSense.
+Google, en tant que fournisseur tiers, utilise des cookies pour diffuser des annonces, et ses cookies publicitaires lui
+permettent de les choisir d'après vos visites précédentes sur ce site et sur d'autres. Les visiteurs de
+l'Espace économique européen, du Royaume-Uni et de la Suisse se voient demander leur consentement avant
+tout dépôt d'un tel cookie ; sans consentement, les annonces ne sont pas personnalisées.</p>
+<p>Vous pouvez refuser la publicité personnalisée dans les
+<a href="https://www.google.com/settings/ads" rel="noopener noreferrer">paramètres des annonces Google</a>,
+et les cookies des fournisseurs tiers sur
+<a href="https://www.aboutads.info/choices/" rel="noopener noreferrer">aboutads.info</a>. L'usage que
+Google fait des données des sites qui affichent ses annonces est décrit sur
+<a href="https://policies.google.com/technologies/ads?hl=fr" rel="noopener noreferrer">policies.google.com/technologies/ads</a>.</p>
+<p>La bannière n'a aucun effet sur les prédictions : rien sur la page ne l'attend, et une bannière
+bloquée laisse une bande vide et une page qui marche.</p>
+
+<h2>Le fichier autonome</h2>
+<p><code>standalone.html</code> est la page entière en un seul fichier, pour un usage sans réseau. Il ne
+porte aucune bannière, ne charge rien de personne et ne fait aucune requête.</p>
+
+<h2>D'où viennent les chiffres</h2>
+<p>Le modèle est bâti sur des résultats publics de tournois lus depuis l'API
+d'<a href="https://osirion.gg" rel="noopener noreferrer">Osirion</a>. Il contient des seuils, des
+barèmes et des champs de calendrier : aucun nom de joueur, aucun compte, rien de personnel.</p>
+
+<h2>Questions</h2>
+<p>Par le
+<a href="https://github.com/Anonymous4724/threshold-ladder/issues" rel="noopener noreferrer">suivi des tickets</a>
+du projet.</p>
+</main>
+</body>
+</html>

@@ -152,11 +152,17 @@ Deux réserves que la page répète là où elles s'appliquent :
 
 ## Vie privée
 
-Rien ne sort de la page. Aucune mesure d'audience, aucune requête à qui que ce
-soit d'autre que l'hébergeur de la page elle-même, aucun stockage au-delà d'une
-soirée en cours et des soirées sauvegardées, gardées par le navigateur. La page
-s'ouvre sur le calendrier de la semaine et un formulaire vide. Le fichier
-autonome se comporte à l'identique réseau coupé, à la police système près.
+Tout ce que la page calcule se passe dans le navigateur. Aucune mesure
+d'audience, aucun stockage au-delà d'une soirée en cours et des soirées
+sauvegardées, gardées par le navigateur. La page s'ouvre sur le calendrier de
+la semaine et un formulaire vide.
+
+La page hébergée affiche une bannière publicitaire, servie par Google ; les
+visiteurs européens se voient demander leur consentement d'abord, et la
+bannière n'a d'effet sur rien d'autre dans la page. La [note de
+confidentialité](privacy.html) dit exactement ce qu'elle fait. Le fichier
+autonome ne porte aucune bannière et ne fait aucune requête, à la police
+système près.
 
 Les données de tournois viennent de l'API publique Fortnite
 d'[Osirion](https://osirion.gg).

@@ -26,6 +26,13 @@ Keeping the page and the model apart matters more than it looks: the page is
 edited by hand and the model is regenerated whenever the training set grows, and
 neither should force a merge on the other.
 
+`ads.json` beside this file names the advertising account and unit, if any:
+`{"client": "ca-pub-...", "slot": "..."}`. Given both, the hosted page carries
+the account's tags in its head, one banner above the footer, and an `ads.txt`
+at the root for the account to be checked against. Empty, or absent, means no
+banner and no `ads.txt`. The standalone file never carries one: it is the copy
+that makes no request at all.
+
     python build.py            writes index.html, model.js and standalone.html
     python build.py --check    verifies all three match the sources
 """
@@ -33,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -44,6 +52,12 @@ PAGE = HERE / "index.html"
 SCRIPT = HERE / "model.js"
 ALONE = HERE / "standalone.html"
 PLACEHOLDER = "__MODEL_JSON__"
+ADS = HERE / "ads.json"
+ADS_TXT = HERE / "ads.txt"
+ADS_JSON = "__ADS_JSON__"
+ADS_HEAD = "__ADS_HEAD__"
+# The seller id every AdSense ads.txt line ends with; it names Google, not the account.
+ADS_TAG = "f08c47fec0942fa0"
 
 # What the hosted page puts where the model would have been. `defer` is wrong
 # here and `async` worse: the model has to be defined before the page's own
@@ -60,8 +74,42 @@ def blob() -> str:
     return json.dumps(model, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
-def render() -> tuple[str, str, str]:
-    """(hosted page, model script, standalone page).
+def ads() -> dict:
+    """The advertising settings, or an empty dict when there is to be no banner."""
+    if not ADS.exists():
+        return {}
+    try:
+        given = json.loads(ADS.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise SystemExit(f"{ADS.name} is not valid JSON: {exc}")
+    client = str(given.get("client") or "").strip()
+    slot = str(given.get("slot") or "").strip()
+    if not client and not slot:
+        return {}
+    if not re.fullmatch(r"ca-pub-\d{16}", client):
+        raise SystemExit(f"{ADS.name}: 'client' should look like ca-pub-0000000000000000, not {client!r}.")
+    if not re.fullmatch(r"\d{6,12}", slot):
+        raise SystemExit(f"{ADS.name}: 'slot' should be the unit's number, not {slot!r}.")
+    return {"client": client, "slot": slot}
+
+
+def ads_head(settings: dict) -> str:
+    """What the account's own snippet puts in the head: the meta tag its site
+    check looks for, and the script that serves the unit."""
+    if not settings:
+        return ""
+    client = settings["client"]
+    return (f'<meta name="google-adsense-account" content="{client}">\n'
+            f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
+            f'?client={client}" crossorigin="anonymous"></script>\n')
+
+
+def ads_txt(settings: dict) -> str:
+    return f"google.com, {settings['client'][3:]}, DIRECT, {ADS_TAG}\n" if settings else ""
+
+
+def render() -> tuple[str, str, str, str]:
+    """(hosted page, model script, standalone page, ads.txt).
 
     The calendar is optional on both paths and deliberately so. The hosted page
     asks for `calendar.js` and carries on if the host has none — a 404 leaves
@@ -77,15 +125,26 @@ def render() -> tuple[str, str, str]:
     if "<script" not in page:
         raise SystemExit(f"{SOURCE.name} has no script tag to load the model before.")
 
-    hosted = page.replace(PLACEHOLDER, LOAD).replace(
-        "<script", '<script src="model.js"></script>\n'
-                   '<script src="calendar.js"></script>\n<script', 1)
+    for marker in (ADS_JSON, ADS_HEAD):
+        if marker not in page:
+            raise SystemExit(f"{SOURCE.name} has no {marker} to fill.")
+    settings = ads()
 
-    alone = page.replace(PLACEHOLDER, data)
+    hosted = page.replace(PLACEHOLDER, LOAD).replace(ADS_JSON, json.dumps(settings)) \
+                 .replace(ADS_HEAD, ads_head(settings))
+    # The head tags come first, so the account script is loading while the
+    # rest of the head parses; the model still precedes the page's own script.
+    hosted = hosted.replace(
+        "<script", '<script src="model.js"></script>\n'
+                   '<script src="calendar.js"></script>\n<script', 1) if not settings else hosted.replace(
+        "<style>", '<script src="model.js"></script>\n'
+                   '<script src="calendar.js"></script>\n<style>', 1)
+
+    alone = page.replace(PLACEHOLDER, data).replace(ADS_JSON, "{}").replace(ADS_HEAD, "")
     if CALENDAR.exists():
         frozen = CALENDAR.read_text(encoding="utf-8").replace("</", "<\\/")
         alone = alone.replace("<script", "<script>\n" + frozen + "</script>\n<script", 1)
-    return hosted, f"window.MODEL = {data};\n", alone
+    return hosted, f"window.MODEL = {data};\n", alone, ads_txt(settings)
 
 
 def size(text: str) -> str:
@@ -98,8 +157,8 @@ def main() -> int:
                         help="fail if the built files are behind their sources")
     args = parser.parse_args()
 
-    hosted, script, alone = render()
-    built = ((PAGE, hosted), (SCRIPT, script), (ALONE, alone))
+    hosted, script, alone, sellers = render()
+    built = ((PAGE, hosted), (SCRIPT, script), (ALONE, alone), (ADS_TXT, sellers))
 
     if args.check:
         stale = [path.name for path, want in built
@@ -111,7 +170,10 @@ def main() -> int:
         return 0
 
     for path, want in built:
-        path.write_text(want, encoding="utf-8")
+        if want:
+            path.write_text(want, encoding="utf-8")
+        elif path.exists():
+            path.unlink()                      # no banner, no ads.txt
     model = json.loads(MODEL.read_text(encoding="utf-8"))
     print(f"index.html      {size(hosted):>8}   + model.js {size(script)}  (the site)")
     if CALENDAR.exists():
@@ -121,7 +183,9 @@ def main() -> int:
               f"generated {cal.get('generated', '?')}")
     else:
         print("                no calendar.js — the what-is-on panel stays hidden")
-    print(f"standalone.html {size(alone):>8}   one file, no network")
+    print(f"standalone.html {size(alone):>8}   one file, no network, no banner")
+    print("banner          " + (f"{ads()['client']} unit {ads()['slot']}, ads.txt written"
+                                if ads() else "none (ads.json empty or absent)"))
     print(f"                model of {model['source']['tournaments']} tournaments, "
           f"{len(model['categories'])} categories, {len(model['families'])} families")
     return 0

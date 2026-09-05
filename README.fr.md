@@ -122,11 +122,16 @@ main marche toujours et prend le dessus tant qu'il est le plus récent.
 bougé : les points aux rangs relevés, relevé après relevé, et ce que la
 prédiction disait à chaque fois avec sa fourchette — en parties pour un lobby
 scellé, en minutes pour une file ouverte — face à la prédiction d'avant tournoi
-tracée en filet.
+tracée en filet. La courbe de prédiction est celle du rang demandé maintenant,
+recalculée à chaque relevé : demander un autre rang redessine toute la courbe.
 
-**Terminer** garde la soirée dans le navigateur et revient à la liste, où les
-tournois suivis attendent sous le calendrier, prêts à être rouverts ; la flèche
-à côté de chacun le télécharge sous forme de petit fichier.
+La dernière cup ouverte reste dans le navigateur telle qu'on l'a laissée :
+recharger la page la ramène, réglage corrigé à la main compris, et la même
+ligne de la liste la rouvre plutôt que la copie du calendrier — une autre
+ligne, ou **Saisir un tournoi à la main**, repart de zéro. **Terminer** garde la soirée et
+revient à la liste, où les tournois suivis attendent sous le calendrier, prêts
+à être rouverts ; la flèche à côté de chacun le télécharge sous forme de petit
+fichier.
 
 Deux langues, EN/FR, bouton dans l'en-tête.
 

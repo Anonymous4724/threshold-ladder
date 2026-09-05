@@ -1215,7 +1215,7 @@ function refine(t, log) {
    * reading twenty minutes old is the same measurement, worse. */
   const entry = (log || []).length ? log[log.length - 1] : null;
   if (!entry) return null;
-  const usable = (entry.readings || []).filter(r => r.rank >= 1 && r.points > 0);
+  const usable = monotone((entry.readings || []).filter(r => r.rank >= 1 && r.points > 0));
   const games = Number(t.max_games) || 0;
   if (!usable.length || games < 1) return null;
   const share = entry.share;
@@ -1395,10 +1395,24 @@ function blankState() {
 function liveLog(s) {
   const manual = (s.log || []).slice();
   const auto = s.auto;
-  if (!auto) return manual;
-  const last = manual.length ? manual[manual.length - 1] : null;
-  if (last && Date.parse(last.at || 0) >= Date.parse(auto.at || 0)) return manual;
-  return manual.concat([auto]);
+  const merged = !auto ? manual
+    : (manual.length && Date.parse(manual[manual.length - 1].at || 0) >= Date.parse(auto.at || 0)) ? manual
+    : manual.concat([auto]);
+  // How far along each reading was is a matter of the settings as they are
+  // now, not as they were when it was taken: a format corrected from open
+  // queue to sealed lobby after three readings re-clocks the three.
+  return merged.map(e => Object.assign({}, e, { share: e.final ? 1 : liveShare(s, e) }));
+}
+
+/* Standings never rise with rank. A reading that does - a deeper page read a
+ * moment after the first, on a board still being sorted, or a typo - says
+ * nothing a shallower one has not said better, and is dropped. */
+function monotone(readings) {
+  const kept = [];
+  (readings || []).slice().sort((a, b) => a.rank - b.rank).forEach(r => {
+    if (!kept.length || r.points <= kept[kept.length - 1].points) kept.push(r);
+  });
+  return kept;
 }
 let STATE = load() || blankState();
 
@@ -1411,12 +1425,14 @@ function load() {
     const saved = JSON.parse(localStorage.getItem("threshold-ladder") || "null");
     if (!saved || !saved.scoring) return null;
     const manual = Array.isArray(saved.log) && saved.log.length;
-    const auto = !!saved.auto;
-    if (!manual && !auto) return null;
-    // An evening followed by the feed alone is over once its window is long
-    // gone; one typed by hand is kept until it is finished or started over.
+    // The cup this browser last looked at comes back as it was left, settings
+    // corrected by hand included, until its window is long gone; an evening
+    // with readings typed by hand is kept until it is finished or started
+    // over. Which screen opens is decided elsewhere: the list, unless an
+    // evening is in progress or the page was reloaded on its forecast.
     const ended = Date.parse(saved.end || "");
     if (!manual && isFinite(ended) && Date.now() - ended > 12 * 3600e3) return null;
+    if (!manual && !saved.auto && !saved.touched && !saved.name) return null;
     if (!saved.game) saved.game = 1;
     if (saved.elapsed === undefined) saved.elapsed = 0;
     if (!Array.isArray(saved.readings)) saved.readings = [];
@@ -1930,17 +1946,23 @@ function chartEntries() {
   const auto = (STATE.autoLog || []).map(e => Object.assign({}, e, { auto: true }));
   return manual.concat(auto)
     .filter(e => (e.readings || []).length)
+    .map(e => Object.assign({}, e, { share: e.final ? 1 : liveShare(STATE, e) }))
     .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0));
 }
 
 function drawChart(t, cold) {
   const panel = $("p-chart"), svg = $("chart");
-  const entries = chartEntries();
-  if (entries.length < 2) { panel.hidden = true; return; }
-  panel.hidden = false;
+  let entries = chartEntries();
   const sealed = String(STATE.format) === "sealed";
   const xOf = e => sealed ? Number(e.game) || 0 : Number(e.elapsed) || 0;
   const asked = STATE.asked || STATE.rank || 0;
+  // One point per moment on the clock: the feed reads a sealed lobby two or
+  // three times per game, and the last of those is the settled standing.
+  const byX = new Map();
+  entries.forEach(e => byX.set(xOf(e), e));
+  entries = Array.from(byX.values());
+  if (entries.length < 2) { panel.hidden = true; return; }
+  panel.hidden = false;
 
   // The ranks worth a line: the one asked for, then the most read.
   const count = {};
@@ -1951,8 +1973,15 @@ function drawChart(t, cold) {
     key: "r" + rank, label: T("top", "top") + " " + rank, hue: 1 + i, kind: "reading",
     points: entries.map(e => { const r = e.readings.find(x => x.rank === rank); return r ? { x: xOf(e), y: r.points, e: e } : null; }).filter(Boolean)
   }));
-  const said = entries.filter(e => e.said && e.said.rank === asked && e.said.value > 0)
-    .map(e => ({ x: xOf(e), y: e.said.value, lo: e.said.low, hi: e.said.high, e: e }));
+  // The forecast at each reading, for the rank asked now - recomputed from
+  // the readings rather than read back from what was said at the time, so a
+  // rank asked after the fact gets its whole line, and a setting corrected
+  // after the fact corrects the line with it.
+  const said = entries.map(e => {
+    const live = refine(t, [e]);
+    const f = live ? forecastAt(t, asked, live) : null;
+    return f && f.value > 0 ? { x: xOf(e), y: f.value, lo: Math.max(0, f.value * (1 - f.rel)), hi: f.value * (1 + f.rel), e: e } : null;
+  }).filter(Boolean);
   if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked), hue: 0, kind: "forecast", points: said });
 
   // Scales. The x axis runs the whole session; y from zero to a clean tick.
@@ -2635,6 +2664,16 @@ function drawCuts(field, asked) {
 }
 
 function pickFromCalendar(row) {
+  // The cup already open, with settings corrected by hand or an evening of
+  // readings behind it, is shown as it is: the calendar's copy would throw
+  // both away. Any other row starts from the calendar.
+  const same = row.window && row.window === STATE.window && row.event === STATE.event;
+  if (same && (STATE.touched || (STATE.log || []).length || STATE.auto)) {
+    save();
+    render();
+    showView("predict", true);
+    return;
+  }
   // Straight into STATE, then the ordinary redraw. Nothing here knows how the
   // form is laid out, which is why adding a field to the form does not mean
   // remembering to add it here too.
@@ -2672,6 +2711,7 @@ function pickFromCalendar(row) {
   STATE.elapsed = 0; STATE.touchedElapsed = false;
   STATE.auto = null; STATE.autoLog = [];
   STATE.confirmed = false;
+  STATE.touched = false;
   setFrozen(false);
   fillForm();
   settingsChanged();
@@ -2762,8 +2802,8 @@ function pollLive() {
 function takeLive(feed) {
   const found = (feed.windows || []).find(w => w.window === STATE.window && w.event === STATE.event);
   if (!found || !found.updated || (STATE.auto && STATE.auto.updated === found.updated)) return;
-  const readings = (found.readings || []).map(r => ({ rank: Number(r[0]), points: Number(r[1]) }))
-    .filter(r => r.rank >= 1 && r.points > 0).sort((a, b) => a.rank - b.rank);
+  const readings = monotone((found.readings || []).map(r => ({ rank: Number(r[0]), points: Number(r[1]) }))
+    .filter(r => r.rank >= 1 && r.points > 0));
   if (!readings.length) return;
   const sealed = String(STATE.format) === "sealed";
   const games = Number(found.games) || 0;
@@ -2771,8 +2811,9 @@ function takeLive(feed) {
   const gone = (Date.parse(found.updated) - Date.parse(STATE.begin || found.begin || "")) / 60000;
   const entry = { game: sealed ? games : Math.max(1, games || 1),
                   elapsed: isFinite(gone) ? Math.max(0, Math.round(gone)) : 0,
-                  at: found.updated, updated: found.updated, readings: readings, auto: true };
-  entry.share = found.final ? 1 : liveShare(STATE, entry);
+                  at: found.updated, updated: found.updated, readings: readings, auto: true,
+                  final: !!found.final };
+  entry.share = entry.final ? 1 : liveShare(STATE, entry);
   STATE.auto = entry;
   const tNow = asTournament(STATE);
   entry.said = saidNow(tNow, STATE.asked || STATE.rank || 0, refine(tNow, liveLog(STATE)));
@@ -2942,27 +2983,33 @@ function start() {
     $("f-placement").value = scoringToText(preset);
     $("f-kill").value = preset.kill;
     $("f-killcap").value = preset.kill_cap === null ? "" : preset.kill_cap;
+    STATE.touched = true;
     settingsChanged();
   };
   // The mode decides how long a game runs, unless the length was typed in.
   $("f-mode").addEventListener("change", () => {
     if (!STATE.touchedGameLength) $("f-glen").value = MODEL.game_minutes[$("f-mode").value] || 25;
+    STATE.touched = true;
     settingsChanged();
   });
   $("f-glen").addEventListener("input", () => { STATE.touchedGameLength = true; });
   $("f-variant").addEventListener("change", () => {
     STATE.variant = $("f-variant").value;
+    STATE.touched = true;
     const picked = variantsFor(STATE.name).find(v => v.category === STATE.variant);
     if (picked && picked.games) { STATE.game_cap = picked.games; $("f-cap").value = picked.games; }
     settingsChanged();
   });
 
   fillForm();
+  // A setting changed by hand marks the cup as edited: from then on the
+  // calendar's copy of it no longer overwrites what was typed.
+  const byHand = () => { STATE.touched = true; settingsChanged(); };
   ["f-name", "f-region", "f-team", "f-format", "f-duration", "f-glen", "f-cap",
    "f-field", "f-placement", "f-kill", "f-killcap"]
-    .forEach(id => $(id).addEventListener("input", settingsChanged));
+    .forEach(id => $(id).addEventListener("input", byHand));
 
-  $("confirm").onclick = () => { readForm(); setFrozen(true); settingsChanged(); render(); };
+  $("confirm").onclick = () => { STATE.touched = true; readForm(); setFrozen(true); settingsChanged(); render(); };
   $("edit").onclick = () => { setFrozen(false); settingsChanged(); render(); };
   $("predict").onclick = predict;
   $("f-rank").addEventListener("keydown", e => { if (e.key === "Enter") predict(); });
@@ -2999,8 +3046,10 @@ function start() {
   try { saved = localStorage.getItem("threshold-ladder-lang") || "en"; } catch (e) { /* ignore */ }
   setFrozen(!!STATE.confirmed);
   applyLanguage(saved);
-  // An evening in progress reopens where it was; anything else starts at the list.
-  showView((STATE.log || []).length || STATE.auto ? "predict" : "home", false);
+  // An evening in progress reopens where it was, and so does a forecast the
+  // page was reloaded on; anything else starts at the list.
+  const reloaded = location.hash === "#tournament" && !!STATE.name;
+  showView((STATE.log || []).length || STATE.auto || reloaded ? "predict" : "home", false);
   mountAd();
   startLive();
 }

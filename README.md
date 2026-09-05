@@ -114,11 +114,16 @@ by hand still works and takes over while it is the fresher one.
 From the second reading on, a chart under the ladder shows how it moved: the
 points at the ranks read, reading by reading, and what the forecast said each
 time with its range — over games in a sealed lobby, over minutes in an open
-queue — against the pre-tournament forecast drawn as a hairline.
+queue — against the pre-tournament forecast drawn as a hairline. The forecast
+line is for the rank asked now, worked out again from each reading, so asking
+another rank redraws the whole line.
 
-**Finish** keeps the evening in the browser and goes back to the list, where
-the tournaments followed sit under the calendar, reopenable; the arrow next to
-each one downloads it as a small file.
+The cup last opened stays in the browser as it was left: reload the page and
+it is back, a setting corrected by hand included, and the same row in the list
+reopens it rather than the calendar's copy — another row, or **Type a
+tournament by hand**, starts over. **Finish** keeps the evening and goes back to the
+list, where the tournaments followed sit under the calendar, reopenable; the
+arrow next to each one downloads it as a small file.
 
 Both languages, EN/FR, switched in the header.
 

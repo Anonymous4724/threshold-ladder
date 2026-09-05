@@ -213,6 +213,14 @@ async function readWindow(row, now) {
     if (page) takeFrom(page.pairs);
   }
   readings.sort((a, b) => a[0] - b[0]);
+  // Standings never rise with rank. A deeper page is read a moment after the
+  // first, and early in an open queue the board is still being sorted between
+  // the two: a rank read richer than a shallower one is the later board, not
+  // this one, and is dropped so the reading is one snapshot.
+  const settled = [];
+  for (const r of readings) {
+    if (!settled.length || r[1] <= settled[settled.length - 1][1]) settled.push(r);
+  }
   const end = Date.parse(row.end);
   return {
     event: row.event, window: row.window, name: row.name, region: row.region,
@@ -220,7 +228,7 @@ async function readWindow(row, now) {
     updated: first.updatedAt || new Date(now).toISOString(),
     // How many games the leaders have completed: the clock of a sealed lobby.
     games: first.games, teams: first.teams, pages: first.totalPages || null,
-    readings: readings,
+    readings: settled,
     final: isFinite(end) && now > end,
   };
 }

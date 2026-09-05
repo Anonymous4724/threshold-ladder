@@ -1,9 +1,9 @@
 """Join the page and the model, for a site and for a single file.
 
 `src/app.html` is the source: markup, style and logic, with a single
-`__MODEL_JSON__` placeholder where the numbers go. `model.json` is written by
-`export_model.py` in the tracker repository, which checks it reproduces the
-Python model before writing it. This joins the two, twice:
+`__MODEL_JSON__` placeholder where the numbers go. `model.json` is exported by
+the research code that trains the model, which checks the export reproduces
+the Python model before writing it. This joins the two, twice:
 
     index.html + model.js   the pair a static host serves. The page is small
                             and cached; the model is a separate file, so it can

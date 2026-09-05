@@ -1,98 +1,96 @@
 # Threshold Ladder
 
+**→ [Open the site](https://anonymous4724.github.io/threshold-ladder/)** ·
 *[Version française](README.fr.md)*
 
-A page that tells you how many points a given finishing rank will take in a
-Fortnite tournament — before the results exist, and again more precisely once
-the session is running.
+How many points a given finishing rank will take in a Fortnite tournament —
+before the results exist, and more precisely once the session is running.
 
-No installation, no account, no API key. Open the site, pick this week's
-tournament from the list, type the rank you care about.
+Thresholds are published after the fact. A player deciding whether to keep
+playing, or how aggressively, is guessing. This estimates the answer from the
+tournament's scoring table, its field size, and what earlier editions of
+comparable tournaments did.
 
-Two builds of the same source:
+No installation, no account, no API key. There are two ways to have it:
 
-- **`index.html` + `model.js` + `calendar.js`** — the site. The model is a
-  separate file so it can grow; the calendar is what is on this week.
-- **`standalone.html`** — everything in one file, no network needed. Right-click,
-  save, double-click. The calendar inside it is frozen at the date it was built,
-  and says so.
+- **the site** — [open it](https://anonymous4724.github.io/threshold-ladder/)
+  and it works, on a phone as well as a desktop;
+- **[`standalone.html`](https://anonymous4724.github.io/threshold-ladder/standalone.html)**
+  — the whole thing in one file. Right-click that link, *Save link as…*,
+  double-click the file: it runs with no network at all. The calendar inside it
+  is frozen at the date it was built, and says so.
 
 ---
 
-## What it does
+## Using it
 
 The page opens on **what is on this week**: every tournament in the calendar,
 filtered by region and mode, searchable by name, with the ones running right now
-marked live. Click one and the form fills itself — name, region, team size, mode,
-number of games, session length, and the scoring table — and the answer comes
-with the click: the settings are confirmed for you, since every one of them is
-Epic's own, and the rank asked is **the cut that matters**. Each cup carries the
-cuts it pays out on, read from its payout table: the top 2,000 go through to
-Round 2, the top 25 reach the final, money from 8th place, a cosmetic down to
-500th. They sit above the answer as chips — click one to price it — the widest
-qualification cut is what the page asks first, and the ladder names them so
-"top 2,000 · qualifies for Round 2" is a line you can find rather than a number
-you have to know. A cut given as a share of the field (the top 25 %) is turned
-into a rank with the field the forecast uses, and says so.
+marked live. Click one and the form fills itself — name, region, team size,
+mode, number of games, session length, and the scoring table — and the answer
+comes with the click, because every one of those settings is Epic's own.
 
-A final played by qualified teams in one lobby is recognised as a closed lobby:
-the format is set to sealed and the field to the lobby size, and the page says
-so under the field. The recognition uses the same loose name match as the
-forecast, so a cup the model knows under a slightly different spelling is
-still read right.
+The rank it prices first is **the cut that matters**. Each cup carries the cuts
+it pays out on, read from its payout table: the top 2,000 go through to Round 2,
+the top 25 reach the final, money from 8th place, a cosmetic down to 500th.
+They sit above the answer as chips — click one to price it — and the ladder
+names them, so "top 2,000 · qualifies for Round 2" is a line to find rather than
+a number to know by heart. A cut given as a share of the field (the top 25 %)
+becomes a rank, and says so.
 
-Or fill it in by hand — name, region, team size, mode, open window or sealed, how
-long the session runs and how long a game takes, the field size if you know it —
-and paste the scoring table straight from the rules (the parser accepts `1 = 60`,
-`1st 60`, `Top 1 : 60` and the rest). Then press **Confirm the settings**, which
-freezes them so nothing shifts under you by accident.
+A final played by qualified teams in a single lobby is recognised as such: the
+format switches to sealed, the field becomes the lobby size, and the page says
+so under the field.
 
-Type the rank you care about, press **Predict**, and you get the number with the
-range around it. Change the rank, press again — the settings stay put. Below the
-answer, the whole ladder from the top 1 down, with the rank you asked for
-marked.
+A tournament that is not in the calendar can be typed in by hand — name, region,
+team size, mode, open window or sealed, how long the session runs and how long a
+game takes, the field size if it is known — and the scoring table pastes
+straight from the rules (`1 = 60`, `1st 60`, `Top 1 : 60` and the rest all
+parse). **Confirm the settings** freezes them so nothing shifts by accident.
 
 The name field knows the tournaments in the model and matches loosely, so "FNCS
 Div 2" finds "FNCS Division 2" — but never "FNCS Division 3", because the
-numbers have to agree. When the name covers several stages, a second box lists
-them — Round 1, Qualification — with the number of editions behind each, and
-picking one fills in how many games that stage usually runs.
+numbers have to agree. When a name covers several stages, a second box lists
+them with the number of editions behind each, and picking one fills in how many
+games that stage usually runs.
 
-**The number of games is the single most important field.** The level scales
-with it, so getting it wrong scales every threshold on the page. The rules cap
-is what counts; the session length and the game length are a cross-check, and
-the page says so out loud when the clock does not leave room for the games the
-rules allow.
+**The number of games is the field that matters most.** The level scales with
+it, so getting it wrong scales every threshold on the page. The rules cap is
+what counts; the session length and the game length are a cross-check, and the
+page says so when the clock does not leave room for the games the rules allow.
 
-Then, while you play, you follow it game by game. After each game you type what
-the standings show at two or three ranks and press **Confirm**: that is the
-moment the forecast moves — nothing shifts while you are still typing. The
-reading is filed in a list with its game number and the time, the points clear,
-the ranks stay where you put them, and the counter goes to the next game. So
-from one game to the next there is nothing to do but type three numbers and
-press one button. When it is over, **Finish and save** keeps the evening in the
-browser and writes it to a file that `import_session.py` in the research
-repository reads back into the database — which is how a followed evening
-becomes the one thing the live model has never had: a tournament watched all
-the way to the end with the answer known.
+Type a rank, press **Predict**, and the number comes with the range around it.
+Below the answer, the whole ladder from the top 1 down, with the rank asked for
+marked.
 
-Each reading says how this cup is running against its history — a top-5 at 153
+### While the tournament runs
+
+After each game, type what the standings show at two or three ranks and press
+**Confirm**. That is the moment the forecast moves — nothing shifts while the
+boxes are still being filled in. The reading is filed in a list with its game
+number and the time, the points clear, the ranks stay where they were put, and
+the counter goes to the next game. From one game to the next there is nothing to
+do but type three numbers and press one button.
+
+Each reading says how this cup is running against its history: a top-5 at 153
 points after 3 of 6 games, in a cup whose previous edition closed at 246, is
 running 23 % hot. How far along a threshold is at that point of the session is
-measured, not assumed: `analysis/live.py` replays harvested boards game by game
-and finds that at half the games a threshold sits at half its final value, give
-or take fifteen per cent from one cup to the next. Readings and history are then
-combined by precision — whichever is sharper weighs more — so at the last game
-the readings are the answer, and the page says what share of it they carried.
+measured rather than assumed — replaying past leaderboards game by game shows
+that at half the games a threshold sits at half its final value, give or take
+fifteen per cent from one cup to the next. Readings and history are then
+combined by precision, whichever is sharper weighing more, so on the last game
+the readings are the answer; the page says what share of it they carried.
 
-How far a reading travels along the ladder is measured too, and the two formats
-answer differently. In an open queue of thousands the whole board moves
-together, so a reading at rank 20 prices rank 500 almost exactly (slope 0.86
-between ranks, measured). Inside one closed lobby it does not: the same twenty
-teams share out a fixed pot, so a team running away with the top takes the
-points that would have landed at rank 10, and the measured slope is zero. There
-a reading prices its own rank and the rest of the ladder keeps its forecast from
-history — which is what the page does, and says.
+How far a reading travels along the ladder was measured the same way, and the
+two formats answer differently. In an open queue of thousands the whole board
+moves together, so a reading at rank 20 prices rank 500 almost exactly. Inside
+one closed lobby it does not: the same twenty teams share out a fixed pot, so a
+team running away with the top takes the points that would have landed at rank
+10. There a reading prices its own rank, the rest of the ladder keeps its
+forecast from history, and the page says which of the two it is doing.
+
+**Finish and save** keeps the evening in the browser — a list of the tournaments
+followed, reopenable — and downloads it as a small file.
 
 Both languages, EN/FR, switched in the header.
 
@@ -111,8 +109,9 @@ above it cannot:
 4. **The scoring table alone**, for a cup nobody has seen — the widest band, and
    the page says when it is in that mode.
 
-The model ships with 7,232 tournaments and 1,765 categories read from Osirion's
-public API, and knows which rung it answered from: the page shows it.
+The model is built from several thousand tournaments read from Osirion's public
+API — the page shows exactly how many it was trained on, and which rung it
+answered from.
 
 ## How well it works
 
@@ -121,67 +120,36 @@ before them, nothing seeing the future.
 
 | rank band | median error, cup seen before |
 |---|---:|
-| top 1 – 5 | 5.5 % |
-| top 6 – 25 | 5.0 % |
-| top 26 – 100 | 5.6 % |
-| top 101 – 500 | 6.2 % |
-| beyond 500 | 9.7 % |
-| **overall** | **5.7 %** |
+| top 1 – 5 | 5.4 % |
+| top 6 – 25 | 4.4 % |
+| top 26 – 100 | 3.6 % |
+| top 101 – 500 | 5.2 % |
+| beyond 500 | 8.7 % |
+| **overall** | **5.0 %** |
 
-82 % of real thresholds land inside a band that claims 80 %.
+83 % of real thresholds land inside a band that claims 80 %.
 
-These numbers are not typed into the page. `analysis/validate.py` writes them
-to `validation.json`, the export carries them into `model.json`, and the
-"what this rests on" panel prints what is there — with the date they were
-measured, and a dash when they have not been.
+These numbers are not typed into the page: they are carried in the model file
+from the run that measured them, shown with that date, and shown as a dash when
+there is nothing to show.
 
 Two caveats the page repeats where they apply:
 
-- A cup the model has never seen — half of a new season's tournaments — is
-  forecast from its scoring table alone, at about 19 % median error rather than
-  6 %. The page says when it is in that mode.
-- The live refinement's pace curve is measured on replayed boards (44 at the
-  time of writing; the full harvest is a command away), but the rule that blends
-  readings with history has not yet been validated on held-out tournaments.
-  Treat the live number as an indication with a measured band, not a result.
-
-Everything above comes from the research repository this file is built from,
-which holds the data, the cross-validation and the methodology note.
-
-## Building it, and putting it on the web
-
-The built files are generated and committed, so the site is the repository.
-
-```
-python build.py          # src/app.html + model.json (+ calendar.js)
-                         #   ->  index.html, model.js, standalone.html
-python build.py --check  # fails if any of them is behind its sources
-python publish.py        # first time only: repository, push, GitHub Pages on
-```
-
-Hosting takes no server: three static files and a CDN. `publish.py` does the
-one-time setup — makes the folder a repository, commits under the account name,
-creates it on GitHub (with `gh` if it is installed, otherwise it says which two
-clicks to make), pushes, and turns Pages on. The site then lives at
-`https://<account>.github.io/threshold-ladder/`, up whether or not anything of
-yours is running. Afterwards `refresh.py --publish` in the research repository
-rebuilds and pushes in one command; the calendar covers seven days, so that
-wants to run at least weekly. Anyone who would rather have a file than a link
-takes `standalone.html`: the whole thing in one page, no network at all.
-
-`model.json` is written by `export_model.py` in the research repository, which
-refuses to write it until it has reproduced the Python model to the decimal on a
-sample of the training set. `calendar.js` is written by `calendar_snapshot.py`
-there, from the week ahead. The JavaScript in `src/app.html` is a line-by-line
-port of `predict_from_model()` — if you change one, change the other; the export
-will refuse to write until they agree again.
+- A cup never seen before — half of a new season's tournaments — is forecast
+  from its scoring table alone, at about 20 % median error rather than 5 %. The
+  page says when it is in that mode.
+- The pace curve behind the live refinement is measured, but the rule that
+  blends readings with history has not been validated on held-out tournaments.
+  The live number is an indication with a measured band, not a result.
 
 ## Privacy
 
-Nothing leaves the page. There is no analytics, no request to anyone but the
-host serving the page itself, no storage beyond your own browser remembering the
-last tournament you typed. The standalone file behaves identically with the
-network off, apart from falling back to a system font.
+Nothing leaves the page. No analytics, no request to anyone but the host serving
+the page itself, no storage beyond the browser remembering the last tournament
+typed and the evenings followed. The standalone file behaves identically with
+the network off, apart from falling back to a system font.
+
+Tournament data comes from [Osirion](https://osirion.gg)'s public Fortnite API.
 
 ---
 

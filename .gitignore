@@ -4,3 +4,11 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Publishing this particular copy: which account, which repository, which two
+# clicks. Operating notes for whoever owns the site, not documentation of the
+# project — and a page explaining how to put a site online has no business
+# being on that site. They stay on disk and keep working; they just do not ship.
+publish.py
+publish.bat
+*.local.md

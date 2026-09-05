@@ -2,7 +2,11 @@
 # produce identical diffs and Git stops warning about the conversion.
 * text=auto eol=lf
 
-# Generated, and committed so that downloading it is one click. Marking it means
-# GitHub reports the repository's language honestly instead of counting the
-# embedded model as hand-written code.
-index.html linguist-generated=true
+# Generated, and committed so that downloading them is one click. Marking them
+# means GitHub reports the repository's language honestly instead of counting
+# the embedded model as hand-written code.
+index.html      linguist-generated=true
+standalone.html linguist-generated=true
+model.js        linguist-generated=true
+model.json      linguist-generated=true
+calendar.js     linguist-generated=true

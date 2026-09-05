@@ -387,8 +387,8 @@ footer a { color: var(--ink-dim); }
   <div class="panel" id="p-sessions" hidden>
     <h2><span data-t="h.sessions">Tournaments you have followed</span></h2>
     <div class="log" id="sessions"></div>
-    <p class="hint" data-t="hint.sessions">Kept in this browser. The arrow downloads one as a file
-      the research repository can import, which is how a followed evening reaches the model.</p>
+    <p class="hint" data-t="hint.sessions">Kept in this browser. Click one to reopen it; the arrow
+      downloads it as a small file.</p>
   </div>
 </section>
 
@@ -428,7 +428,7 @@ footer a { color: var(--ink-dim); }
 
 <script>
 /* ==================================================================
- * The model, written by export_model.py in the research repository.
+ * The model, exported from the research code that trains it.
  * Every number in it was measured; none was tuned by hand.
  * ================================================================== */
 const MODEL = __MODEL_JSON__;
@@ -452,7 +452,7 @@ const FR = {
   "h.log": "Relevés enregistrés", "h.sessions": "Tournois que tu as suivis",
   "l.acquisitions": "relevés", "l.finished": "terminé",
   "hint.confirmGame": "Saisis ce qu'affiche le classement, puis confirme : rien ne bouge avant.",
-  "hint.sessions": "Gardés dans ce navigateur. La flèche en télécharge un sous forme de fichier que le dépôt de recherche sait importer : c'est comme ça qu'une soirée suivie rejoint le modèle.",
+  "hint.sessions": "Gardés dans ce navigateur. Un clic pour en rouvrir un ; la flèche le télécharge sous forme de petit fichier.",
   "l.readRank": "Rang dans le classement", "l.readPoints": "Points qu'il totalise",
   "l.rank": "Rang à prédire", "l.variant": "De quelle manche s'agit-il",
   "h.calendar": "Ce qui arrive", "l.calfind": "Chercher un nom",
@@ -542,14 +542,13 @@ function T(key, fallback) {
 }
 
 /* ==================================================================
- * The model, in the browser. Line-by-line port of
- * predict_from_model() in export_model.py, which is checked against
- * the Python model on every tournament in the training set. Change
- * one and you must change the other.
+ * The model, in the browser: a line-by-line port of the Python model
+ * it was exported from. The two are compared on the training set
+ * before every export, and the export refuses to write until they
+ * agree to the decimal.
  * ================================================================== */
 /* Indexed on the fields asked for, because the ladder asks a few dozen times
- * per render and the tables are thousands of rows long. Same trick as
- * row_for() in export_model.py, which says a port should do exactly this. */
+ * per render and the tables are thousands of rows long. */
 const LOOKUPS = new Map();
 function rowFor(rows, match) {
   const fields = Object.keys(match).sort();
@@ -604,12 +603,12 @@ function guessField(t) {
  * anchored on the family and a shape read off one category would be describing
  * two different populations and calling the result one tournament.
  *
- * The port of shape_from() in calibration.py. The scope order, the minimum
+ * A port of the Python model's shape lookup. The scope order, the minimum
  * edition count and the blending weight all come out of MODEL rather than being
  * retyped, so a change on the Python side arrives through the file. */
-/* The measured ranks either side of one the table does not hold. The port
- * of calibration.bracket: the harvest keeps ranks 1, 3, 5, 10, 20, 25, 50,
- * 100 and so on, and a rank between two of them is read off both, log-linear
+/* The measured ranks either side of one the table does not hold. The
+ * tables keep ranks 1, 3, 5, 10, 20, 25, 50, 100 and so on, and a rank
+ * between two of them is read off both, log-linear
  * in the rank - the interpolation the curve itself is a straight line under.
  * Falling through to the curve instead priced rank 8 of a twenty-team lobby
  * above rank 5. Beyond the deepest measured rank: null, as before. */
@@ -660,9 +659,9 @@ function shapeFrom(t, rank, source) {
   }
   return null;
 }
-/* What a cup nobody has seen before is most like. The port of
- * calibration.cold_signature: read from the name and the category label,
- * which are the two fields both sides have. */
+/* What a cup nobody has seen before is most like. Read from the name and
+ * the category label, which are the two fields both sides have, the same
+ * way the Python model reads them. */
 const COLD_KINDS = [["fncs", "fncs"], ["champion series", "fncs"], ["cash cup", "cash-cup"],
                     ["elite series", "elite-series"], ["victory cup", "victory-cup"],
                     ["practice", "practice"], ["blitz", "blitz"]];
@@ -677,10 +676,10 @@ function coldSignature(t) {
   return [t.game_mode || "", t.team_mode || "", kind, platform, stage];
 }
 
-/* Rung zero: this cup, this region, this rank, last time. The port of
- * calibration.direct_from - nothing modelled, because measured, that beats
- * modelling it: a strong evening lifts every rank together, and a reading
- * taken whole keeps that where a level times a ratio loses it. */
+/* Rung zero: this cup, this region, this rank, last time. Nothing modelled,
+ * because measured, which beats modelling it: a strong evening lifts every
+ * rank together, and a reading taken whole keeps that where a level times a
+ * ratio loses it. */
 function directReading(t, rank) {
   const row = rowFor(MODEL.categories, { category: t.category, region: t.region });
   const table = (row || {}).direct || {};
@@ -734,9 +733,9 @@ function anchorLevel(t) {
   if (t.scoring_known !== false && (scoring.placement || []).length) {
     const best = maxGameScore(scoring);
     let entry = null, factor = widen.prior_only;
-    // Most specific first, the port of calibration.anchor_level: this kind of
-    // cup on this platform at this stage in this region, then without the
-    // region, then game mode and team size, then game mode alone.
+    // Most specific first, in the Python model's order: this kind of cup on
+    // this platform at this stage in this region, then without the region,
+    // then game mode and team size, then game mode alone.
     const sig = coldSignature(t);
     const probes = [
       [() => rowFor(MODEL.cold_starts, { game_mode: sig[0], team_mode: sig[1], kind: sig[2],
@@ -770,11 +769,17 @@ function anchorLevel(t) {
   }
   return measured("mode", rowFor(MODEL.modes, { game_mode: t.game_mode, team_mode: t.team_mode }));
 }
+/* Why there is no number. The English comes with the model, so the page
+ * explains a refusal in the words of the model that refused; the two spelled
+ * out here are the ones an older model file phrases for a form this page
+ * does not have. */
 function whyNoAnchor(t) {
   if ((Number(t.max_games) || 0) <= 0) return T("noGames", MODEL.messages.no_games);
-  if (!((t.scoring || {}).placement || []).length) return T("noReference", MODEL.messages.no_reference);
+  if (!((t.scoring || {}).placement || []).length) {
+    return T("noReference", "No reference at all: no comparable edition, and no scoring table entered.");
+  }
   if (t.scoring_known === false) return T("unconfirmedScoring", MODEL.messages.unconfirmed_scoring);
-  return T("noAnchor", MODEL.messages.no_anchor);
+  return T("noAnchor", "No usable reference.");
 }
 function predictOne(t, rank) {
   let field = Math.max(0, Math.round(Number(t.field_size) || 0));
@@ -799,7 +804,7 @@ function predictOne(t, rank) {
   // Measured first, modelled second. Where editions of this cup have actually
   // been to this rank, their median says what it was worth; the curve answers
   // only for ranks none of them reached. Line for line the same cascade as
-  // shape_from() in calibration.py - change one, change the other.
+  // the Python model, which the export compares this port against.
   const found = shapeFrom(t, rank, top.source);
   let ratio, shapeRel, shapeSource, fieldPart;
   if (found) {
@@ -957,10 +962,10 @@ function matchTournament(name, region) {
  * curve, whichever rung answered - because that is the shape the cup
  * actually has. An earlier version pushed every reading through the
  * open-queue curve to a level at rank 20 and back out again; in a
- * twenty-team lobby that curve is five times too steep, and a top-5
- * reading of 153 came out as 506. The second comes from MODEL.pace,
- * measured by analysis/live.py replaying harvested boards game by
- * game: at half the games a threshold sits at half its final value,
+ * twenty-team lobby that curve is five times too steep, and a rank-5
+ * reading came out at twice its worth. The second comes from MODEL.pace,
+ * measured by replaying past leaderboards game by game: at half the
+ * games a threshold sits at half its final value,
  * give or take fifteen per cent from one cup to the next.
  *
  * So each reading becomes a ratio - this cup against its history, at
@@ -968,20 +973,20 @@ function matchTournament(name, region) {
  * and the answer is the cold ladder scaled by that ratio, combined with
  * the cold forecast by precision: whichever of the two is sharper weighs
  * more. At the last game the readings are the answer. */
-const PACE_DEFAULT = {                     // used until analysis/live.py has run
+const PACE_DEFAULT = {                     // used until the pace has been measured
   curve: { open_by_time: {}, closed_by_game: {} },
   dispersion: { open_by_time: {}, closed_by_game: {} },
   carry: { open_by_time: {}, closed_by_game: {} }
 };
 const PACE_MIN_SHARE = 0.2;                // one game of six says nothing about six
 /* Below this, a reading says nothing about a rank it was not read at, and the
- * ladder keeps its cold forecast there. Measured (analysis/live.py): in an
- * open queue of thousands the whole board moves together and a reading at rank
- * 5 prices rank 20 almost exactly (slope 0.86); inside one closed lobby it
- * does not, and the slope is zero — the twenty teams share out a fixed pot, so
- * a team running away with the top takes the points that would have landed at
- * rank 10. Carrying the ratio down a sealed final's ladder is how a top-5 read
- * hot turned rank 10 into 234 where it finished at 207. */
+ * ladder keeps its cold forecast there. Measured on replayed leaderboards: in
+ * an open queue of thousands the whole board moves together and a reading at
+ * rank 5 prices rank 20 almost exactly (slope 0.86); inside one closed lobby
+ * it does not, and the slope is zero — the twenty teams share out a fixed pot,
+ * so a team running away with the top takes the points that would have landed
+ * at rank 10. Carrying a ratio down a sealed final's ladder prices the middle
+ * of the board off one team's evening. */
 const CARRY_MIN = 0.05;
 
 function paceKind(t) {
@@ -1009,10 +1014,10 @@ function liveShare(s, entry) {
    * A sealed lobby plays its games one after another, so games played is the
    * clock and every team is on the same one. An open queue is thousands of
    * teams playing at their own pace: what a threshold has reached depends on
-   * how much of the *window* has gone, not on how many games you personally
-   * got through. Reading your own game count there said "half way" twenty
-   * minutes into a three-hour window, which is where the pace curve was being
-   * asked the wrong question. */
+   * how much of the *window* has gone, not on how many games one player
+   * got through. A player's own game count there says "half way" twenty
+   * minutes into a three-hour window, and the pace curve is asked the wrong
+   * question. */
   if (String(s.format) === "sealed") {
     const games = gameCount(s);
     return games ? Math.min(entry.game / games, 1) : 0;
@@ -1655,9 +1660,8 @@ function explainBlock(live, cold, answer, rank) {
 
 function basisRows() {
   const s = MODEL.source || {};
-  // Measured by analysis/validate.py and carried in the model, so the page
-  // cannot quote an error the current model never had. Two of these numbers
-  // were typed in once and outlived the model they described.
+  // Carried in the model from the run that measured it, so the page cannot
+  // quote an error the current model never had.
   const q = MODEL.quality || null;
   const pct = (x, digits) => (x === null || x === undefined || isNaN(x)) ? "—"
     : new Intl.NumberFormat(LANG === "fr" ? "fr-FR" : "en-GB",
@@ -1703,9 +1707,9 @@ function liveChanged() {
  * Sessions: a followed evening, kept and exported.
  *
  * The page has no server, so "saved" means this browser — and a file,
- * because a browser is not a record. The file is what the research
- * repository imports (`import_session.py`), which is how an evening
- * spent typing readings turns into the one thing the live model has
+ * because a browser is not a record. The file is what the research code
+ * behind the model reads back, which is how an evening spent typing
+ * readings turns into the one thing the live model has
  * never had: tournaments where the standings were watched all the way
  * to the end, and the answer is known.
  * ------------------------------------------------------------------ */
@@ -1848,8 +1852,8 @@ function applyLanguage(code) {
 /* ------------------------------------------------------------------
  * What is on this week.
  *
- * The list comes from calendar.js, written next to this page by the
- * tracker. It cannot be fetched from here: Osirion's API answers a
+ * The list comes from calendar.js, written next to this page from
+ * Osirion's calendar. It cannot be fetched from here: the API answers a
  * browser's request but sends no Access-Control-Allow-Origin, so every
  * browser refuses to hand the response to the script that asked for it.
  * Measured, from a local file and from a real origin alike. So the
@@ -1966,7 +1970,7 @@ function drawCalendar() {
 
 /* One lobby holds this many teams. A final played by qualified teams in a
  * single lobby cannot rank more than this, whatever the sign-up count says.
- * Measured on the harvest: Duo finals sit at 46-50 teams, Trio at 29-33, Solo
+ * Measured on the training set: Duo finals sit at 46-50 teams, Trio at 29-33, Solo
  * at 96-100 - the cap, less a few no-shows. Reload lobbies seat forty players,
  * not a hundred: its Duo finals sit at 19-20. Blitz is a Reload-sized lobby too. */
 const LOBBY = { Solo: 100, Duo: 50, Trio: 33, Squad: 25 };

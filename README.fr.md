@@ -103,13 +103,20 @@ rang 500 presque exactement. Dans un lobby fermé, non : les mêmes vingt équip
 se partagent un pot fixe, donc une équipe qui s'échappe en tête prend les points
 qui seraient tombés au rang 10. Là, un relevé ne chiffre que son propre rang, le
 reste de l'échelle garde sa prédiction issue de l'historique, et la page dit
-laquelle des deux situations elle traite.
+laquelle des deux situations elle traite. Un rang relevé des deux côtés est un
+troisième cas, le plus simple : le top 160 est entre un top 100 et un top 250
+lus dans le classement, donc il est estimé entre les deux, log-linéairement en
+rang — une interpolation qui se trompe de 1 à 3 % en médiane sur les tournois
+passés jusqu'au top 250, de 5 à 7 % plus bas, contre une fourchette d'allure de
+dix et plus. L'échelle marque ces barreaux d'un point creux.
 
 Quand la cup est en cours et que le flux en direct du site est actif, le
-classement est lu pour toi toutes les quelques minutes — les points à une
-poignée de rangs — et enregistré comme relevés marqués *auto* : la prédiction
-les suit sans que personne ne tape rien. Un relevé saisi à la main marche
-toujours et prend le dessus tant qu'il est le plus récent.
+classement est lu pour toi toutes les quelques minutes — les points aux top 1,
+3, 5, 10, 20, 25, 50 et 100, à chaque palier que la cup paie (le rang de
+qualification d'abord) et aux barreaux plus profonds de l'échelle, aussi loin
+que quelques pages le permettent — et enregistré comme relevés marqués *auto* :
+la prédiction les suit sans que personne ne tape rien. Un relevé saisi à la
+main marche toujours et prend le dessus tant qu'il est le plus récent.
 
 À partir du deuxième relevé, un graphique sous l'échelle montre comment ça a
 bougé : les points aux rangs relevés, relevé après relevé, et ce que la

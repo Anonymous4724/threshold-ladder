@@ -5,9 +5,10 @@
  *
  * On a schedule (every 10 minutes): the week's calendar comes from the site,
  * the windows that are live now are picked out, each one's standings are
- * asked of Osirion's public API - the first page, and the page holding the
- * widest cut - and the result is kept under one key. On request: that key,
- * as JSON, from any origin.
+ * asked of Osirion's public API - the first page, then the pages holding the
+ * cups' cuts (qualification first, then money, then cosmetics) and the
+ * ladder's deeper rungs, a few pages at most - and the result is kept under
+ * one key. On request: that key, as JSON, from any origin.
  *
  * Two things are kept. `live`, replaced at every run: the current reading of
  * the cups under way, what the page shows. And one key per day, `history-
@@ -21,7 +22,9 @@ const API = "https://fnapi.osirion.gg/v1";
 const AGENT = "threshold-ladder-live/1.0 (+https://github.com/Anonymous4724/threshold-ladder)";
 const PAGE_SIZE = 100;                 // entries per leaderboard page
 const RANKS = [1, 3, 5, 10, 20, 25, 50, 100];
+const DEEP = [250, 500, 1000, 2500];   // the ladder's deeper rungs, read when a page is to spare
 const MAX_CUT = 5000;                  // deeper cuts are not fetched: too many pages
+const MAX_PAGES = 3;                   // pages read per window beyond the first
 const LEAD_MINUTES = 5;                // a window is watched from this long before it opens
 const TAIL_MINUTES = 25;               // ... until this long after it closes, for the final standing
 const GAP_MS = 250;                    // between requests; the API allows 60 a minute
@@ -157,50 +160,66 @@ function keep(previous, row, out) {
   if (old) out.push(old);
 }
 
-/* The widest cut the cup pays out on, as a rank: what the page asks for by
- * default, so its threshold is read straight off the standings. */
+/* The ranks a cup pays out on, as ranks, the ones that matter most first:
+ * qualification, then money, then cosmetics. What the page asks for by
+ * default, so their thresholds are read straight off the standings. */
+function cutRanks(row) {
+  const order = { q: 0, c: 1, i: 2 };
+  return (row.tiers || [])
+    .filter(t => order[t[0]] !== undefined && Number(t[1]) > 0 && Number(t[1]) <= MAX_CUT)
+    .sort((a, b) => order[a[0]] - order[b[0]] || Number(a[1]) - Number(b[1]))
+    .map(t => Number(t[1]))
+    .filter((r, i, all) => all.indexOf(r) === i);
+}
+
+/* The widest of them: kept for the tests and the curious. */
 function widestCut(row) {
-  let cut = 0;
-  for (const tier of row.tiers || []) {
-    if ((tier[0] === "q" || tier[0] === "c" || tier[0] === "i") && Number(tier[1]) > cut) cut = Number(tier[1]);
+  return Math.max(0, ...cutRanks(row));
+}
+
+/* The pages worth reading after the first, in the order they matter: the
+ * cuts' pages first, then the ladder's deeper rungs, never past the board's
+ * last page, and never more than MAX_PAGES. */
+function pagesToRead(row, totalPages) {
+  const last = totalPages > 0 ? totalPages * PAGE_SIZE : Infinity;
+  const wanted = cutRanks(row).concat(DEEP).filter(r => r > PAGE_SIZE && r <= last);
+  const pages = [];
+  for (const rank of wanted) {
+    const page = Math.floor((rank - 1) / PAGE_SIZE);
+    if (!pages.includes(page)) pages.push(page);
+    if (pages.length >= MAX_PAGES) break;
   }
-  return cut > 0 && cut <= MAX_CUT ? cut : 0;
+  return pages;
 }
 
 async function readWindow(row, now) {
   const first = await board(row.event, row.window, 0);
-  if (!first) return null;
-  const entries = first.entries || [];
-  if (!entries.length) return null;
+  if (!first || !first.teams) return null;
   const readings = [];
   const seen = new Set();
-  const take = (entry) => {
-    const rank = Number(entry.rank), points = Number(entry.pointsEarned);
-    if (rank >= 1 && points > 0 && !seen.has(rank)) { seen.add(rank); readings.push([rank, points]); }
+  const wanted = RANKS.concat(cutRanks(row)).concat(DEEP);
+  const takeFrom = (pairs) => {
+    for (const [rank, points] of pairs) {
+      if (rank >= 1 && points > 0 && wanted.includes(rank) && !seen.has(rank)) {
+        seen.add(rank);
+        readings.push([rank, points]);
+      }
+    }
   };
-  for (const rank of RANKS) {
-    const entry = entries.find(e => Number(e.rank) === rank);
-    if (entry) take(entry);
-  }
-  const cut = widestCut(row);
-  if (cut > PAGE_SIZE && !seen.has(cut)) {
+  takeFrom(first.pairs);
+  for (const number of pagesToRead(row, first.totalPages)) {
     await sleep(GAP_MS);
-    const page = await board(row.event, row.window, Math.floor((cut - 1) / PAGE_SIZE));
-    const entry = ((page || {}).entries || []).find(e => Number(e.rank) === cut);
-    if (entry) take(entry);
-  } else if (cut && !seen.has(cut)) {
-    const entry = entries.find(e => Number(e.rank) === cut);
-    if (entry) take(entry);
+    const page = await board(row.event, row.window, number);
+    if (page) takeFrom(page.pairs);
   }
   readings.sort((a, b) => a[0] - b[0]);
-  // How many games the leaders have completed: the clock of a sealed lobby.
-  const games = Math.max(0, ...entries.slice(0, 10).map(e => (e.sessionHistory || []).length));
   const end = Date.parse(row.end);
   return {
     event: row.event, window: row.window, name: row.name, region: row.region,
     begin: row.begin, end: row.end,
     updated: first.updatedAt || new Date(now).toISOString(),
-    games: games, teams: entries.length, pages: first.totalPages || null,
+    // How many games the leaders have completed: the clock of a sealed lobby.
+    games: first.games, teams: first.teams, pages: first.totalPages || null,
     readings: readings,
     final: isFinite(end) && now > end,
   };
@@ -213,18 +232,86 @@ async function board(eventId, windowId, page) {
     const res = await fetch(url, { headers: { "User-Agent": AGENT, "Accept": "application/json" } });
     if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     if (!res.ok) return null;
-    const payload = await res.json();
-    if (payload && payload.success === false) return null;
-    const inner = payload && payload.leaderboard;
-    if (inner && Array.isArray(inner.entries)) return inner;
-    if (payload && Array.isArray(payload.leaderboardData)) {
-      return { entries: payload.leaderboardData, totalPages: payload.totalPages, updatedAt: payload.updatedAt };
-    }
-    return null;
+    return readPage(await res.text(), page);
   }
   return null;
 }
 
+/* What a page says: the (rank, points) of every roster on it, how many games
+ * the leaders have played, the board's page count and its timestamp.
+ *
+ * A page is a hundred rosters with their game histories, a third of a
+ * megabyte, and parsing it in full costs more of the CPU time the free plan
+ * allows a run than reading several pages can afford. So the fast path picks
+ * the few numbers it needs straight out of the text: every roster carries one
+ * "rank" and one "pointsEarned", the two are paired as they come, and the
+ * pairs are trusted only when they come out page-shaped - every pair in the
+ * same order as the first, ranks consecutive from the page's first, points
+ * never rising. Anything else, and the page is parsed properly. */
+function readPage(text, page) {
+  return scan(text, page) || parsePage(text);
+}
+
+function scan(text, page) {
+  const re = /"(rank|pointsEarned)"\s*:\s*(-?\d+(?:\.\d+)?)/g;
+  const pairs = [];
+  let order = null, rank = null, points = null, m;
+  while ((m = re.exec(text))) {
+    const key = m[1];
+    if (rank === null && points === null) {
+      if (order === null) order = key;
+      else if (key !== order) return null;              // a roster missing one of the two
+    }
+    if (key === "rank") { if (rank !== null) return null; rank = Number(m[2]); }
+    else { if (points !== null) return null; points = Number(m[2]); }
+    if (rank !== null && points !== null) { pairs.push([rank, points]); rank = points = null; }
+  }
+  if (rank !== null || points !== null) return null;
+  if (!pairs.length || pairs.length > PAGE_SIZE) return null;
+  for (let i = 0; i < pairs.length; i++) {
+    if (pairs[i][0] !== page * PAGE_SIZE + i + 1) return null;
+    if (i && pairs[i][1] > pairs[i - 1][1]) return null;
+  }
+  // The leaders' games: the sessions inside the first ten rosters' histories.
+  const histories = /"sessionHistory"\s*:\s*\[/g;
+  let games = 0, rosters = 0, h;
+  while ((h = histories.exec(text))) {
+    rosters++;
+    if (rosters > 10) continue;
+    const from = h.index + h[0].length, close = text.indexOf("]", from);
+    if (close < 0) return null;
+    const inside = text.slice(from, close);
+    if (inside.indexOf("[") >= 0) return null;           // a shape this reader does not know
+    const count = Math.max((inside.match(/"sessionId"/g) || []).length, (inside.match(/"endTime"/g) || []).length);
+    if (count > games) games = count;
+  }
+  if (rosters && rosters !== pairs.length) return null;
+  const total = text.match(/"totalPages"\s*:\s*(\d+)/);
+  const updated = text.match(/"updatedAt"\s*:\s*"([^"]+)"/);
+  return { pairs: pairs, teams: pairs.length, games: games,
+           totalPages: total ? Number(total[1]) : 0, updatedAt: updated ? updated[1] : null, fast: true };
+}
+
+function parsePage(text) {
+  let payload;
+  try { payload = JSON.parse(text); } catch (err) { return null; }
+  if (!payload || payload.success === false) return null;
+  let inner = payload.leaderboard;
+  if (!inner || !Array.isArray(inner.entries)) {
+    if (!Array.isArray(payload.leaderboardData)) return null;
+    inner = { entries: payload.leaderboardData, totalPages: payload.totalPages, updatedAt: payload.updatedAt };
+  }
+  const entries = inner.entries;
+  return {
+    pairs: entries.map(e => [Number(e.rank), Number(e.pointsEarned)]),
+    teams: entries.length,
+    games: Math.max(0, ...entries.slice(0, 10).map(e => (e.sessionHistory || []).length)),
+    totalPages: Number(inner.totalPages) || 0,
+    updatedAt: inner.updatedAt || null,
+    fast: false,
+  };
+}
+
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export { run, watched, widestCut, readWindow, loadCalendar };
+export { run, watched, widestCut, cutRanks, pagesToRead, readWindow, readPage, loadCalendar };

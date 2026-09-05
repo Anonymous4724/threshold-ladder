@@ -218,6 +218,9 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
 .rung.seen .band u { background: var(--measured); }
 .rung.seen .pts { color: var(--measured); }
 .rung.seen .rank::after { content: " \25CF"; color: var(--measured); font-size: 9px; }
+.rung.near .band i { background: var(--measured-sw); }
+.rung.near .band u { background: var(--measured); }
+.rung.near .rank::after { content: " \25CB"; color: var(--measured); font-size: 9px; }
 .rung.aim { background: var(--raise); }
 .rung.aim .rank, .rung.aim .pts { color: var(--ink); }
 .rung.aim .rank::before { content: "\25B8 "; color: var(--forecast); }
@@ -510,6 +513,7 @@ footer a { color: var(--ink-dim); }
     <div class="legend">
       <span><i style="background:var(--forecast-sw)"></i><span data-t="lg.forecast">Forecast, with its plausible range</span></span>
       <span><i style="background:var(--measured-sw)"></i><span data-t="lg.measured">Read off the live standings</span></span>
+      <span><i style="background:var(--measured-sw);opacity:.55"></i><span data-t="lg.between">Between two ranks read</span></span>
     </div>
   </div>
 
@@ -621,6 +625,7 @@ const FR = {
   "hint.live": "Après chaque partie, relève les points de deux ou trois rangs et appuie sur Confirmer : la prédiction se met à jour à ce moment-là, le relevé s'enregistre, les points s'effacent et le compteur avance. Les rangs, eux, restent.",
   "lg.forecast": "Prédiction, avec sa fourchette",
   "lg.measured": "Relevé dans le classement",
+  "lg.between": "Entre deux rangs relevés",
   "confirmFirst": "Renseigne le tournoi et confirme les paramètres pour obtenir une prédiction.",
   "confirmed": "Paramètres gelés. Change le rang et appuie sur Prédire autant de fois que tu veux.",
   "askRank": "Entre un rang et appuie sur Prédire.",
@@ -656,6 +661,7 @@ const FR = {
   "liveAssumed": "supposé linéaire — le rythme n'a pas encore été mesuré",
   "liveBlend": "Relevés et historique sont combinés selon leur précision : ici les relevés pèsent {w} % de la réponse.",
   "liveCarried": "Ce rang n'a pas été relevé ; {c} % de ce que disent les relevés lui est reporté — mesuré, et dans une file ouverte tout le classement bouge ensemble.",
+  "liveBetween": "Ce rang n'a pas été relevé, mais le top {a} ({pa} pts) et le top {b} ({pb} pts) l'ont été, et il est estimé entre les deux d'après le classement — une interpolation qui se trompe de quelques pour cent sur les tournois passés, davantage quand l'écart est large.",
   "liveApart": "Ce rang n'a pas été relevé, et dans un lobby fermé un relevé ne vaut que pour son propre rang : les rangs y bougent indépendamment — une équipe qui s'échappe en tête prend les points qui seraient tombés plus bas. Ce chiffre est donc la prédiction issue de l'historique, intacte.",
   "untested": "La courbe de rythme est mesurée ; la façon de la combiner à l'historique n'a pas encore été validée sur des tournois tenus à l'écart.",
   "basis.model": "Modèle", "basis.trained": "Entraîné sur",
@@ -1163,6 +1169,11 @@ const PACE_MIN_SHARE = 0.2;                // one game of six says nothing about
  * at rank 10. Carrying a ratio down a sealed final's ladder prices the middle
  * of the board off one team's evening. */
 const CARRY_MIN = 0.05;
+// A rank read on both sides is priced between the two readings, log-linear in
+// rank. On the harvest's final boards that interpolation is off by 1 to 3 %
+// at the median up to the top 250 and 5 to 7 % deeper, growing with the gap:
+// this much per unit of log-gap, on top of the pace's own uncertainty.
+const INTERP_REL = 0.04;
 
 function paceKind(t) {
   return String(STATE.format) === "sealed" ? "closed_by_game" : "open_by_time";
@@ -1237,14 +1248,38 @@ function refine(t, log) {
   // Readings that disagree about the pace widen the band: median absolute deviation.
   const dev = sorted.map(x => Math.abs(x - ratio) / Math.max(ratio, 1e-9)).sort((a, b) => a - b);
   const mad = dev.length ? dev[Math.floor(dev.length / 2)] : 0;
-  const byRank = {};
+  const byRank = {}, points = {};
   ratios.forEach(x => { byRank[x.rank] = x.ratio; });
+  usable.forEach(r => { points[r.rank] = r.points; });
+  const read = Object.keys(points).map(Number).sort((a, b) => a - b);
   // A rank that was read carries only the pace's own uncertainty; a rank that
   // was not also carries the readings' disagreement about the pace.
   return { ratio: ratio, rel: Math.sqrt(relPace * relPace + mad * mad), relOwn: relPace,
            carry: carried === undefined ? 0 : carried,
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
-           game: entry.game, played: entry.game, games: games, byRank: byRank, kind: kind };
+           game: entry.game, played: entry.game, games: games, byRank: byRank, kind: kind,
+           points: points, read: read };
+}
+
+/* The nearest ranks read on either side of one that was not, with their
+ * points - or null when the rank is above the shallowest or below the
+ * deepest reading. */
+function bracketRead(live, rank) {
+  const read = live.read || [];
+  let a = 0, b = 0;
+  for (const r of read) {
+    if (r < rank) a = r;
+    else if (r > rank) { b = r; break; }
+  }
+  if (!a || !b) return null;
+  return { a: a, b: b, pa: live.points[a], pb: live.points[b] };
+}
+
+/* Log-linear in rank between two readings: what the standings say at a rank
+ * they were not read at. */
+function betweenReads(between, rank) {
+  const f = Math.log(rank / between.a) / Math.log(between.b / between.a);
+  return Math.exp(Math.log(between.pa) + (Math.log(between.pb) - Math.log(between.pa)) * f);
 }
 
 /* The cold forecast at a rank, refined by the readings when there are any.
@@ -1255,9 +1290,16 @@ function forecastAt(t, rank, live) {
   if (!cold || !cold.ok) return null;
   if (!live) return { value: cold.value, rel: cold.rel, weight: 0 };
   const own = live.byRank[rank];
+  const between = own === undefined ? bracketRead(live, rank) : null;
   let ratio, relLive;
   if (own !== undefined) {
     ratio = own; relLive = live.relOwn;          // read here: the reading is the evidence
+  } else if (between) {
+    // Read on both sides: the standings themselves price the rank, between
+    // the two readings, and the band widens with the gap between them.
+    ratio = betweenReads(between, rank) / (cold.value * live.expected);
+    const gap = INTERP_REL * Math.log(between.b / between.a);
+    relLive = Math.sqrt(live.relOwn * live.relOwn + gap * gap);
   } else if (live.carry >= CARRY_MIN) {
     // Read elsewhere: carry the measured share of it, in log space, so a carry
     // of zero leaves the cold forecast exactly where it was.
@@ -1270,7 +1312,7 @@ function forecastAt(t, rank, live) {
   const fromReadings = cold.value * ratio;
   const wl = 1 / Math.max(relLive, 0.01) ** 2, wc = 1 / Math.max(cold.rel, 0.01) ** 2;
   const value = (fromReadings * wl + cold.value * wc) / (wl + wc);
-  return { value: value, rel: 1 / Math.sqrt(wl + wc), weight: wl / (wl + wc) };
+  return { value: value, rel: 1 / Math.sqrt(wl + wc), weight: wl / (wl + wc), between: between };
 }
 
 /* ==================================================================
@@ -1846,7 +1888,8 @@ function render() {
                       .sort((a, b) => a - b);
   const rows = ranks.map(r => {
     const p = at(r);
-    return { rank: r, value: p.value, rel: p.rel, seen: seen[r] !== undefined, cut: cutAt(r, field) };
+    return { rank: r, value: p.value, rel: p.rel, seen: seen[r] !== undefined, near: !!p.between,
+             cut: cutAt(r, field) };
   });
   // A ladder cannot fold: a rank read hot lifts the ranks above it, which are
   // worth at least as much by definition. Walked from the deepest rung up.
@@ -1857,7 +1900,7 @@ function render() {
   const widest = Math.max.apply(null, rows.map(r => r.high).concat([1]));
   $("ladder").innerHTML = rows.map(r => {
     const left = 100 * r.low / widest, width = Math.max(100 * (r.high - r.low) / widest, 1.2);
-    return '<div class="rung' + (r.seen ? " seen" : "") + (r.rank === rank ? " aim" : "") + '">' +
+    return '<div class="rung' + (r.seen ? " seen" : r.near ? " near" : "") + (r.rank === rank ? " aim" : "") + '">' +
       '<div class="rank">' + T("top", "top") + " " + nf().format(r.rank) +
         (r.cut ? "<small>" + esc(cutWhat(r.cut)) + "</small>" : "") + "</div>" +
       '<div class="band"><i style="left:' + left.toFixed(2) + "%;width:" + width.toFixed(2) + '%"></i>' +
@@ -2007,10 +2050,17 @@ function explainBlock(live, cold, answer, rank) {
           ", ±" + Math.round(100 * live.rel) + " %)."
         : " (" + T("liveAssumed", "assumed linear — the pace has not been measured yet") + ")."));
     const readHere = live.byRank[rank] !== undefined;
-    if (readHere || live.carry >= CARRY_MIN) {
+    const between = readHere ? null : bracketRead(live, rank);
+    if (readHere || between || live.carry >= CARRY_MIN) {
       lines.push(T("liveBlend", "Readings and history are combined by precision: here the readings "
         + "weigh {w} % of the answer.").replace("{w}", Math.round(100 * (answer ? answer.weight : 0)))
-        + (readHere ? "" : " " + T("liveCarried", "This rank was not read; {c} % of what the "
+        + (readHere ? ""
+          : between ? " " + T("liveBetween", "This rank was not read, but the top {a} ({pa} pts) and "
+              + "the top {b} ({pb} pts) were, and it is priced between them off the standings — an "
+              + "interpolation off by a few per cent on past boards, more the wider the gap.")
+              .replace("{a}", nf().format(between.a)).replace("{pa}", num(between.pa))
+              .replace("{b}", nf().format(between.b)).replace("{pb}", num(between.pb))
+          : " " + T("liveCarried", "This rank was not read; {c} % of what the "
             + "readings say carries to it — measured, and in an open queue the whole board moves "
             + "together.").replace("{c}", Math.round(100 * live.carry))));
     } else {

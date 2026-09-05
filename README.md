@@ -97,12 +97,19 @@ moves together, so a reading at rank 20 prices rank 500 almost exactly. Inside
 one closed lobby it does not: the same twenty teams share out a fixed pot, so a
 team running away with the top takes the points that would have landed at rank
 10. There a reading prices its own rank, the rest of the ladder keeps its
-forecast from history, and the page says which of the two it is doing.
+forecast from history, and the page says which of the two it is doing. A rank
+read on both sides is a third case, and the easiest: the top 160 sits between
+a top 100 and a top 250 read off the standings, so it is priced between them,
+log-linear in rank — an interpolation that is off by 1 to 3 % at the median on
+past boards down to the top 250, 5 to 7 % deeper, against a pace band of ten
+and more. The ladder marks those rungs with a hollow dot.
 
 When the cup is under way and the site's live feed is on, the standings are
-read for you every few minutes — the points at a handful of ranks — and filed
-as readings marked *auto*: the forecast follows them without anyone typing. A
-reading typed by hand still works and takes over while it is the fresher one.
+read for you every few minutes — the points at the top 1, 3, 5, 10, 20, 25, 50
+and 100, at every cut the cup pays out on (the qualification rank first) and at
+the ladder's deeper rungs as far as a few pages reach — and filed as readings
+marked *auto*: the forecast follows them without anyone typing. A reading typed
+by hand still works and takes over while it is the fresher one.
 
 From the second reading on, a chart under the ladder shows how it moved: the
 points at the ranks read, reading by reading, and what the forecast said each

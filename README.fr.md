@@ -26,8 +26,9 @@ Aucune installation, aucun compte, aucune clé d'API. Deux façons de l'avoir :
 
 La page s'ouvre sur **ce qui se joue cette semaine** : tous les tournois du
 calendrier encore à venir, filtrables par région, par mode et par taille
-d'équipe, cherchables par nom, ceux en cours marqués comme tels et ceux déjà
-finis écartés. Un clic et la prédiction s'ouvre sur son propre écran : nom,
+d'équipe, cherchables par nom, ceux en cours marqués comme tels. Les cups de la
+journée déjà finies restent dans la liste, grisées, un cran plus haut ; les
+plus anciennes disparaissent. Un clic et la prédiction s'ouvre sur son propre écran : nom,
 région, taille d'équipe, mode, nombre de parties, durée de la session et
 barème sont remplis, et la réponse est déjà là, puisque chacun de ces réglages
 est celui d'Epic. **Tous les tournois**, en haut, ou le bouton retour du
@@ -49,9 +50,9 @@ et la page le dit sous le champ.
 Un tournoi absent du calendrier se saisit à la main, par le bouton sous la
 liste — nom, région, taille d'équipe, mode, fenêtre ouverte ou scellée, durée
 de la session et durée d'une partie, l'effectif s'il est connu — et le barème
-se colle directement depuis le règlement (`1 = 60`, `1er 60`, `Top 1 : 60` et
-le reste se lisent tous). **Confirmer les paramètres** les gèle, pour que rien
-ne bouge par accident.
+se colle directement depuis osirion.gg ou le règlement (`1 = 60`, `1er 60`,
+`Top 1 : 60`, `Victory Royale - 60` et le reste se lisent tous). **Confirmer
+les paramètres** les gèle, pour que rien ne bouge par accident.
 
 Le champ du nom connaît les tournois du modèle et rapproche largement : « FNCS
 Div 2 » trouve « FNCS Division 2 » — mais jamais « FNCS Division 3 », parce que
@@ -66,16 +67,24 @@ partie servent de recoupement, et la page le signale quand l'horloge ne laisse
 pas la place aux parties que le règlement autorise.
 
 Un rang, **Prédire**, et le nombre arrive avec sa fourchette.
-Sous la réponse, toute l'échelle depuis le top 1, le rang demandé marqué.
+Sous la réponse, toute l'échelle depuis le top 1, le rang demandé marqué — et
+l'échelle dans l'autre sens : les points qu'on pense finir avec, et la page dit
+à quel rang ils mènent, avec la marge que la fourchette laisse.
 
 ### Pendant le tournoi
 
-Après chaque partie, on saisit ce qu'affiche le classement à deux ou trois rangs
-et on appuie sur **Confirmer**. C'est à ce moment-là que la prédiction bouge — rien ne
-bouge tant que les cases se remplissent. Le relevé s'enregistre dans une liste
-avec son numéro de partie et l'heure, les points s'effacent, les rangs restent
-où ils sont, et le compteur passe à la partie suivante. D'une partie à l'autre,
-il n'y a donc que trois nombres à taper et un bouton à presser.
+Une ligne sous la barre de progression dit quand la prédiction a bougé pour la
+dernière fois et quand elle bougera la prochaine — classement lu à 18 h 40,
+prochaine lecture vers 18 h 52 — ou que c'est encore la prédiction d'avant
+tournoi.
+
+**Prédire maintenant** déplie la saisie manuelle : après chaque partie, on saisit
+ce qu'affiche le classement à deux ou trois rangs et on appuie sur
+**Confirmer**. C'est à ce moment-là que la prédiction bouge — rien ne bouge tant
+que les cases se remplissent. Le relevé s'enregistre dans une liste avec son
+numéro de partie et l'heure, les points s'effacent, les rangs restent où ils
+sont, et le compteur passe à la partie suivante. D'une partie à l'autre, il n'y
+a donc que trois nombres à taper et un bouton à presser.
 
 Chaque relevé dit comment cette cup tourne par rapport à son historique : un top
 5 à 153 points après 3 parties sur 6, dans une cup dont l'édition précédente a
@@ -101,6 +110,12 @@ classement est lu pour toi toutes les quelques minutes — les points à une
 poignée de rangs — et enregistré comme relevés marqués *auto* : la prédiction
 les suit sans que personne ne tape rien. Un relevé saisi à la main marche
 toujours et prend le dessus tant qu'il est le plus récent.
+
+À partir du deuxième relevé, un graphique sous l'échelle montre comment ça a
+bougé : les points aux rangs relevés, relevé après relevé, et ce que la
+prédiction disait à chaque fois avec sa fourchette — en parties pour un lobby
+scellé, en minutes pour une file ouverte — face à la prédiction d'avant tournoi
+tracée en filet.
 
 **Terminer** garde la soirée dans le navigateur et revient à la liste, où les
 tournois suivis attendent sous le calendrier, prêts à être rouverts ; la flèche

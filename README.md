@@ -26,7 +26,8 @@ No installation, no account, no API key. There are two ways to have it:
 
 The page opens on **what is on this week**: every tournament still to come in
 the calendar, filtered by region, mode and team size, searchable by name, with
-the ones running right now marked live and the ones already over left out.
+the ones running right now marked live. The day's finished cups stay in the list,
+greyed, a scroll above; older ones are gone.
 Click one and the forecast opens on its own screen: name, region, team size,
 mode, number of games, session length and scoring table are filled in, and the
 answer is already there, because every one of those settings is Epic's own.
@@ -48,9 +49,9 @@ so under the field.
 A tournament that is not in the calendar can be typed in by hand, from the
 button under the list — name, region, team size, mode, open window or sealed,
 how long the session runs and how long a game takes, the field size if it is
-known — and the scoring table pastes straight from the rules (`1 = 60`,
-`1st 60`, `Top 1 : 60` and the rest all parse). **Confirm the settings**
-freezes them so nothing shifts by accident.
+known — and the scoring table pastes straight from osirion.gg or the rules
+(`1 = 60`, `1st 60`, `Top 1 : 60`, `Victory Royale - 60` and the rest all
+parse). **Confirm the settings** freezes them so nothing shifts by accident.
 
 The name field knows the tournaments in the model and matches loosely, so "FNCS
 Div 2" finds "FNCS Division 2" — but never "FNCS Division 3", because the
@@ -65,16 +66,21 @@ page says so when the clock does not leave room for the games the rules allow.
 
 Type a rank, press **Predict**, and the number comes with the range around it.
 Below the answer, the whole ladder from the top 1 down, with the rank asked for
-marked.
+marked — and the ladder read the other way: type the points you expect to finish
+with and the page says which rank they land at, with the range the band allows.
 
 ### While the tournament runs
 
-After each game, type what the standings show at two or three ranks and press
-**Confirm**. That is the moment the forecast moves — nothing shifts while the
-boxes are still being filled in. The reading is filed in a list with its game
-number and the time, the points clear, the ranks stay where they were put, and
-the counter goes to the next game. From one game to the next there is nothing to
-do but type three numbers and press one button.
+A line under the progress bar says when the forecast last moved and when it
+will next — the standings read at 18:40, the next reading around 18:52 — or that
+it is still the pre-tournament forecast.
+
+**Predict now** unfolds the manual entry: after each game, type what the standings
+show at two or three ranks and press **Confirm**. That is the moment the forecast
+moves — nothing shifts while the boxes are still being filled in. The reading is
+filed in a list with its game number and the time, the points clear, the ranks
+stay where they were put, and the counter goes to the next game. From one game
+to the next there is nothing to do but type three numbers and press one button.
 
 Each reading says how this cup is running against its history: a top-5 at 153
 points after 3 of 6 games, in a cup whose previous edition closed at 246, is
@@ -97,6 +103,11 @@ When the cup is under way and the site's live feed is on, the standings are
 read for you every few minutes — the points at a handful of ranks — and filed
 as readings marked *auto*: the forecast follows them without anyone typing. A
 reading typed by hand still works and takes over while it is the fresher one.
+
+From the second reading on, a chart under the ladder shows how it moved: the
+points at the ranks read, reading by reading, and what the forecast said each
+time with its range — over games in a sealed lobby, over minutes in an open
+queue — against the pre-tournament forecast drawn as a hairline.
 
 **Finish** keeps the evening in the browser and goes back to the list, where
 the tournaments followed sit under the calendar, reopenable; the arrow next to

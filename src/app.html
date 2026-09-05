@@ -130,6 +130,8 @@ textarea { font: 400 13px/1.5 var(--mono); resize: vertical; min-height: 88px; }
 .cal-name { font-size: 13px; }
 .cal-tags { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
 .cal-live { color: var(--measured); font-weight: 600; }
+.cal-row.cal-past { opacity: .55; }
+.cal-list { position: relative; }
 .cal-empty { padding: 14px; font-size: 13px; color: var(--ink-faint); }
 @media (max-width: 620px) {
   .cal-filters { grid-template-columns: 1fr 1fr 1fr; }
@@ -160,6 +162,10 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
 .answer { border: 1px solid var(--line); border-radius: var(--radius);
           background: var(--surface); padding: 20px var(--pad); }
 .ask { display: grid; grid-template-columns: 130px auto 1fr; gap: 12px; align-items: end; }
+.points-ask { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+              grid-template-columns: 130px 1fr; }
+.points-ask .hint { margin-bottom: 8px; }
+.points-ask .hint b { color: var(--ink); font-family: var(--mono); }
 .ask .field { margin-bottom: 0; }
 .headline { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
 .headline .big { font: 300 52px/1 var(--mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
@@ -215,6 +221,33 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
           font-size: 12px; color: var(--ink-faint); }
 .legend i { display: inline-block; width: 22px; height: 6px; border-radius: 3px;
             vertical-align: middle; margin-right: 6px; }
+
+/* ------------------------------------------------------------- chart */
+/* Five hues, checked together for colour-blind separation and contrast on
+   both surfaces: the page's amber for the forecast, then the ranks read. */
+:root { --chart-0: #b9761b; --chart-1: #1f7fa6; --chart-2: #4a3aa7; --chart-3: #d55181; --chart-4: #2e8b2e; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --chart-0: #c07f24; --chart-1: #3596c4; --chart-2: #7a63dd; --chart-3: #cf4f87; --chart-4: #379637; }
+}
+:root[data-theme="dark"] { --chart-0: #c07f24; --chart-1: #3596c4; --chart-2: #7a63dd; --chart-3: #cf4f87; --chart-4: #379637; }
+#p-chart { margin-top: 18px; }
+.chart-wrap { position: relative; margin-top: 10px; }
+#chart { display: block; width: 100%; height: auto; font: 11px var(--sans, system-ui, sans-serif); }
+#chart .grid { stroke: var(--line); stroke-width: 1; }
+#chart .axis { fill: var(--ink-faint); }
+#chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+#chart .dot { stroke: var(--surface); stroke-width: 2; }
+#chart .band { fill: var(--chart-0); opacity: .12; }
+#chart .ref { stroke: var(--ink-faint); stroke-width: 1; }
+#chart .label { fill: var(--ink-dim); font-size: 11px; }
+#chart .cross { stroke: var(--ink-faint); stroke-width: 1; pointer-events: none; }
+.chart-tip { position: absolute; top: 8px; right: 8px; background: var(--surface); border: 1px solid var(--line);
+             border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--ink-dim); pointer-events: none;
+             box-shadow: 0 2px 8px rgba(0,0,0,.08); min-width: 150px; }
+.chart-tip b { color: var(--ink); font-family: var(--mono); }
+.chart-tip .row { display: flex; justify-content: space-between; gap: 12px; }
+.chart-tip i { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; vertical-align: -1px; }
+#chart-legend i { height: 8px; border-radius: 4px; }
 
 /* --------------------------------------------------------- live readings */
 h3.sub { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
@@ -396,29 +429,38 @@ footer a { color: var(--ink-dim); }
 
   <div class="panel off" id="p-live">
     <h2><span class="step">3</span><span data-t="h.live">While it is running</span></h2>
-    <p class="hint" data-t="hint.live">After each game, read two or three ranks off the standings and
-      press Confirm: that is when the forecast moves, the reading is filed, the points clear and the
-      counter advances. The ranks stay where you put them.</p>
-    <div class="row2" style="margin-top:12px">
-      <div class="field"><label for="f-game" data-t="l.game">Game just played</label>
-        <input id="f-game" type="number" min="1" max="60" step="1" value="1" disabled></div>
-      <div class="field" id="elapsed-field"><label for="f-elapsed" data-t="l.elapsed">Minutes elapsed</label>
-        <input id="f-elapsed" type="number" min="0" max="1200" step="5" value="0" disabled></div>
-    </div>
     <div class="progress"><i id="bar" style="width:0%"></i></div>
     <p class="hint" id="progress-text"></p>
     <p class="hint good" id="auto-note" hidden></p>
+    <p class="hint" id="status-line"></p>
+    <div class="actions" style="margin-top:12px" id="manual-open">
+      <button type="button" class="go" id="predict-now" data-t="btn.predictNow">Predict now</button>
+      <span class="hint" data-t="hint.predictNow">Read the standings yourself: two or three ranks,
+        and the forecast moves.</span>
+    </div>
 
-    <div class="reading-head" style="margin-top:12px">
-      <span class="hint" data-t="l.readRank">Rank in the standings</span>
-      <span class="hint" data-t="l.readPoints">Points it holds</span><span></span>
+    <div id="manual" hidden>
+      <p class="hint" data-t="hint.live" style="margin-top:12px">After each game, read two or three
+        ranks off the standings and press Confirm: that is when the forecast moves, the reading is
+        filed, the points clear and the counter advances. The ranks stay where you put them.</p>
+      <div class="row2" style="margin-top:12px">
+        <div class="field"><label for="f-game" data-t="l.game">Game just played</label>
+          <input id="f-game" type="number" min="1" max="60" step="1" value="1" disabled></div>
+        <div class="field" id="elapsed-field"><label for="f-elapsed" data-t="l.elapsed">Minutes elapsed</label>
+          <input id="f-elapsed" type="number" min="0" max="1200" step="5" value="0" disabled></div>
+      </div>
+      <div class="reading-head" style="margin-top:12px">
+        <span class="hint" data-t="l.readRank">Rank in the standings</span>
+        <span class="hint" data-t="l.readPoints">Points it holds</span><span></span>
+      </div>
+      <div id="readings"></div>
+      <div class="actions">
+        <button type="button" class="go" id="confirm-game" disabled data-t="btn.confirmGame">Confirm</button>
+        <button type="button" class="ghost" id="add-reading" disabled data-t="btn.addReading">Add a rank</button>
+        <button type="button" class="ghost" id="manual-close" data-t="btn.manualClose">Hide</button>
+      </div>
+      <p class="hint" id="confirm-hint-live"></p>
     </div>
-    <div id="readings"></div>
-    <div class="actions">
-      <button type="button" class="go" id="confirm-game" disabled data-t="btn.confirmGame">Confirm</button>
-      <button type="button" class="ghost" id="add-reading" disabled data-t="btn.addReading">Add a rank</button>
-    </div>
-    <p class="hint" id="confirm-hint-live"></p>
 
     <div id="log-wrap" hidden>
       <h3 class="sub" data-t="h.log">Recorded so far</h3>
@@ -449,6 +491,14 @@ footer a { color: var(--ink-dim); }
       <div class="chips" id="chips"></div>
     </div>
     <div id="verdict"></div>
+    <div class="ask points-ask" id="points-ask" hidden>
+      <div class="field">
+        <label for="f-points" data-t="l.points">Your points at the end</label>
+        <input id="f-points" type="number" min="0" step="1" placeholder="—">
+      </div>
+      <p class="hint" id="points-rank"></p>
+      <span></span>
+    </div>
   </div>
 
   <div id="ladder-wrap" hidden>
@@ -457,6 +507,17 @@ footer a { color: var(--ink-dim); }
       <span><i style="background:var(--forecast-sw)"></i><span data-t="lg.forecast">Forecast, with its plausible range</span></span>
       <span><i style="background:var(--measured-sw)"></i><span data-t="lg.measured">Read off the live standings</span></span>
     </div>
+  </div>
+
+  <div class="panel" id="p-chart" hidden>
+    <h2><span data-t="h.chart">How it moved</span></h2>
+    <p class="hint" data-t="hint.chart">Points at the ranks read, reading by reading, and what the
+      forecast said each time, with its range.</p>
+    <div class="chart-wrap" id="chart-wrap">
+      <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="readings and forecast over the session"></svg>
+      <div class="chart-tip" id="chart-tip" hidden></div>
+    </div>
+    <div class="legend" id="chart-legend"></div>
   </div>
 
   <div class="panel" style="margin-top:18px">
@@ -536,6 +597,22 @@ const FR = {
   "btn.confirm": "Confirmer les paramètres", "btn.edit": "Modifier les paramètres",
   "btn.new": "Saisir un tournoi à la main", "btn.predict": "Prédire",
   "btn.addReading": "Ajouter un rang", "btn.clearLive": "Recommencer",
+  "btn.predictNow": "Prédire maintenant", "btn.manualClose": "Replier",
+  "hint.predictNow": "Relève le classement toi-même : deux ou trois rangs, et la prédiction bouge.",
+  "l.points": "Tes points à la fin",
+  "points.rank": "≈ rang {r}", "points.range": "entre {a} et {b} selon la fourchette",
+  "points.top": "au-dessus du top 1 prévu", "points.deep": "au-delà du rang {r}, le plus profond que l'échelle chiffre",
+  "points.last": "vers la dernière place (rang {r})",
+  "points.need": "Saisis des points pour savoir quel rang ils donnent.",
+  "status.auto": "Classement lu à {t} · prochaine lecture vers {n}",
+  "status.manual": "Dernier relevé saisi à {t}",
+  "status.cold": "Prédiction d'avant tournoi",
+  "status.willAuto": " · le classement sera lu automatiquement toutes les 10 min une fois la cup lancée",
+  "status.final": "Classement final lu à {t}",
+  "l.calover": "terminée",
+  "h.chart": "Comment ça a bougé",
+  "hint.chart": "Les points aux rangs relevés, relevé après relevé, et ce que la prédiction disait à chaque fois, avec sa fourchette.",
+  "chart.forecast": "prédiction top {r}", "chart.before": "avant la cup", "chart.games": "parties", "chart.minutes": "min",
   "hint.field": "Laisse vide et un effectif plausible sera supposé. Doubler le nombre d'équipes ne déplace un seuil que d'environ 3,5 %, une estimation grossière suffit.",
   "hint.live": "Après chaque partie, relève les points de deux ou trois rangs et appuie sur Confirmer : la prédiction se met à jour à ce moment-là, le relevé s'enregistre, les points s'effacent et le compteur avance. Les rangs, eux, restent.",
   "lg.forecast": "Prédiction, avec sa fourchette",
@@ -550,7 +627,7 @@ const FR = {
   "games": "parties", "played": "jouées",
   "tiers": "paliers", "ranksRecognised": "rangs reconnus",
   "noTiers": "Aucun palier reconnu - une ligne par rang, par exemple « 1 = 60 ».",
-  "tiersHint": "Une ligne par rang, par exemple « 1 = 60 » - ou colle le tableau du règlement.",
+  "tiersHint": "Colle le barème tel qu'osirion.gg l'affiche, ou celui du règlement : une ligne par rang, par exemple « 1 = 60 ».",
   "gamesAllowed": "les règles en autorisent",
   "gamesClock": "la durée en permet",
   "gamesSealed": "fixées par le format scellé",
@@ -1200,12 +1277,21 @@ function parseScoring(text) {
   let kill = null;
   (text || "").split(/\r?\n/).forEach(line => {
     if (!line.trim()) return;
-    const elim = line.match(/(?:elim|kill|élim)\w*[^\d\-+]*([+-]?\d+(?:[.,]\d+)?)/i);
+    const elim = line.match(/(?:elim|kill|élim)\w*[^\d]*?(\d+(?:[.,]\d+)?)/i);
     if (elim && !/^\s*(?:top\s*)?#?\d/.test(line)) {
       kill = parseFloat(elim[1].replace(",", ".")); return;
     }
+    // "Victory Royale: 60", "Win 60", "Victoire - 60": first place by name.
+    const win = line.match(/^\s*(?:victory\s*royale|victory|victoire|win)\b[^\d]*?(\d+(?:[.,]\d+)?)/i);
+    if (win) { rows.push([1, 1, parseFloat(win[1].replace(",", "."))]); return; }
     const m = line.match(/^\s*(?:top\s*|place\s*|#)?(\d+)\s*(?:st|nd|rd|th|ers?|ères?|èmes?|emes?|e)?\s*(?:[-–—]\s*(?:top\s*|#)?(\d+)\s*(?:st|nd|rd|th|ers?|èmes?|emes?|e)?)?\s*[=:\t ]\s*(.+)$/i);
-    if (!m) return;
+    if (!m) {
+      // "1 - 60", "3: 45", "5 – 30 pts": a rank, a dash and its points, with
+      // nothing after them. A range without points is not a row of a table.
+      const pair = line.match(/^\s*(?:top\s*|place\s*|#)?(\d+)\s*(?:st|nd|rd|th|ers?|ères?|èmes?|emes?|e)?\s*[-–—:=]\s*(-?\d+(?:[.,]\d+)?)\s*(?:pts?|points?)?\s*$/i);
+      if (pair) rows.push([parseInt(pair[1], 10), parseInt(pair[1], 10), parseFloat(pair[2].replace(",", "."))]);
+      return;
+    }
     const low = parseInt(m[1], 10);
     const high = m[2] ? parseInt(m[2], 10) : low;
     const values = (m[3].replace(/\([^)]*\)/g, " ").match(/-?\d+(?:[.,]\d+)?/g) || [])
@@ -1391,8 +1477,7 @@ function confirmGame() {
   // The forecast this acquisition produced, kept beside it: the record of what
   // the page said at the time is the only thing that can score it afterwards.
   const t = asTournament(STATE);
-  const said = forecastAt(t, STATE.asked || STATE.rank || 0, refine(t, liveLog(STATE)));
-  if (said) entry.said = { rank: STATE.asked || STATE.rank, value: Math.round(said.value) };
+  entry.said = saidNow(t, STATE.asked || STATE.rank || 0, refine(t, liveLog(STATE)));
   const games = gameCount(STATE);
   if (STATE.game < Math.max(games, 1)) STATE.game += 1;
   document.querySelectorAll("#readings .r-pts").forEach(box => { box.value = ""; });
@@ -1419,6 +1504,7 @@ function fillLive() {
     : STATE.game + "/" + gameCount(STATE) + " " + T("games", "games"));
   $("confirm-game").disabled = !canConfirm();
   drawAutoNote();
+  drawStatus();
   $("confirm-game").textContent = T("btn.confirmGame", "Confirm") +
     (String(STATE.format) === "sealed" ? " " + T("l.gameShort", "game") + " " + STATE.game : "");
   $("confirm-hint-live").textContent = canConfirm() ? ""
@@ -1564,7 +1650,7 @@ function settingsChanged() {
     ? "<b>" + parsed.length + "</b> " + T("tiers", "tiers") + " · " +
       T("ranksRecognised", "ranks recognised") + " 1–" + parsed[parsed.length - 1][1]
     : typed ? T("noTiers", 'No tier recognised - one line per rank, e.g. "1 = 60".')
-            : T("tiersHint", 'One line per rank, e.g. "1 = 60" - or paste the table from the rules.');
+            : T("tiersHint", 'Paste the scoring table as osirion.gg shows it, or the rules: one line per rank, e.g. "1 = 60".');
 
   drawVariants();
   const matched = STATE.variant ? { label: STATE.variant, kind: "picked" }
@@ -1702,6 +1788,7 @@ function render() {
 
   if (!STATE.confirmed || !STATE.asked) {
     drawCuts(fieldNow(), Math.round(Number($("f-rank").value) || 0));
+    $("points-ask").hidden = true;
     board.innerHTML = '<p class="hint" style="margin-top:16px">' + (STATE.confirmed
       ? T("askRank", "Enter a rank and press Predict.")
       : T("confirmFirst", "Fill in the tournament and confirm the settings to get a forecast."))
@@ -1742,6 +1829,7 @@ function render() {
       (asked ? ' · <span class="cut">' + esc(cutWhat(asked)) + "</span>" : "") + "</p>" +
     explainBlock(live, cold, answer, rank);
 
+  drawPointsRank();
   const seen = {};
   const merged = liveLog(STATE);
   const latest = merged.length ? merged[merged.length - 1].readings : [];
@@ -1773,6 +1861,129 @@ function render() {
       '<div class="pts">' + num(r.value) + "</div></div>";
   }).join("");
   $("ladder-wrap").hidden = false;
+  drawChart(t, cold);
+}
+
+/* The forecast an acquisition produced, kept beside it with its band: the
+ * record of what the page said at the time is the only thing that can score
+ * it afterwards, and the only thing the chart can draw. */
+function saidNow(t, rank, live) {
+  const f = rank > 0 ? forecastAt(t, rank, live) : null;
+  if (!f) return undefined;
+  return { rank: rank, value: Math.round(f.value),
+           low: Math.round(Math.max(0, f.value * (1 - f.rel))), high: Math.round(f.value * (1 + f.rel)) };
+}
+
+/* ==================================================================
+ * The chart: what the standings did, and what the forecast said
+ *
+ * One line per rank read (the asked rank first, then the ranks read most
+ * often, four at most), the forecast for the asked rank in the page's amber
+ * with its band as a wash, and the pre-tournament forecast as a hairline.
+ * Sealed lobbies run on games, open queues on minutes. Plain SVG.
+ * ================================================================== */
+function chartEntries() {
+  const manual = (STATE.log || []).map(e => Object.assign({}, e, { auto: false }));
+  const auto = (STATE.autoLog || []).map(e => Object.assign({}, e, { auto: true }));
+  return manual.concat(auto)
+    .filter(e => (e.readings || []).length)
+    .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0));
+}
+
+function drawChart(t, cold) {
+  const panel = $("p-chart"), svg = $("chart");
+  const entries = chartEntries();
+  if (entries.length < 2) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const sealed = String(STATE.format) === "sealed";
+  const xOf = e => sealed ? Number(e.game) || 0 : Number(e.elapsed) || 0;
+  const asked = STATE.asked || STATE.rank || 0;
+
+  // The ranks worth a line: the one asked for, then the most read.
+  const count = {};
+  entries.forEach(e => e.readings.forEach(r => { count[r.rank] = (count[r.rank] || 0) + 1; }));
+  const ranks = Object.keys(count).map(Number)
+    .sort((a, b) => (b === asked) - (a === asked) || count[b] - count[a] || a - b).slice(0, 4);
+  const series = ranks.map((rank, i) => ({
+    key: "r" + rank, label: T("top", "top") + " " + rank, hue: 1 + i, kind: "reading",
+    points: entries.map(e => { const r = e.readings.find(x => x.rank === rank); return r ? { x: xOf(e), y: r.points, e: e } : null; }).filter(Boolean)
+  }));
+  const said = entries.filter(e => e.said && e.said.rank === asked && e.said.value > 0)
+    .map(e => ({ x: xOf(e), y: e.said.value, lo: e.said.low, hi: e.said.high, e: e }));
+  if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked), hue: 0, kind: "forecast", points: said });
+
+  // Scales. The x axis runs the whole session; y from zero to a clean tick.
+  const W = 640, H = 260, L = 46, R = 70, TOP = 14, B = 30;
+  const xMax = Math.max(sealed ? gameCount(STATE) : (Number(STATE.duration) || 0), ...entries.map(xOf), 1);
+  const yTop = Math.max(1, ...series.flatMap(s => s.points.map(p => Math.max(p.y, p.hi || 0))), cold && cold.ok ? cold.value : 0);
+  const step = niceStep(yTop / 4);
+  const yMax = Math.ceil(yTop * 1.04 / step) * step;
+  const sx = x => L + (W - L - R) * x / xMax, sy = y => TOP + (H - TOP - B) * (1 - y / yMax);
+  let out = "";
+  for (let y = 0; y <= yMax + 1e-9; y += step) {
+    out += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(y).toFixed(1) + '" y2="' + sy(y).toFixed(1) + '"/>';
+    out += '<text class="axis" x="' + (L - 6) + '" y="' + (sy(y) + 4).toFixed(1) + '" text-anchor="end">' + num(y) + "</text>";
+  }
+  const xStep = sealed ? Math.max(1, Math.ceil(xMax / 8)) : niceStep(xMax / 6);
+  for (let x = 0; x <= xMax + 1e-9; x += xStep) {
+    out += '<text class="axis" x="' + sx(x).toFixed(1) + '" y="' + (H - B + 16) + '" text-anchor="middle">' + Math.round(x) + "</text>";
+  }
+  out += '<text class="axis" x="' + (W - R) + '" y="' + (H - 2) + '" text-anchor="end">' +
+    esc(sealed ? T("chart.games", "games") : T("chart.minutes", "min")) + "</text>";
+  // The forecast before the cup: a hairline to measure the rest against.
+  if (cold && cold.ok && cold.value <= yMax) {
+    out += '<line class="ref" x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(cold.value).toFixed(1) + '" y2="' + sy(cold.value).toFixed(1) + '"/>';
+    out += '<text class="label" x="' + (L + 4) + '" y="' + (sy(cold.value) - 4).toFixed(1) + '">' + esc(T("chart.before", "before the cup")) + " · " + num(cold.value) + "</text>";
+  }
+  const path = pts => pts.map((p, i) => (i ? "L" : "M") + sx(p.x).toFixed(1) + " " + sy(p.y).toFixed(1)).join(" ");
+  const labels = [];
+  series.forEach(s => {
+    const colour = "var(--chart-" + s.hue + ")";
+    if (s.kind === "forecast") {
+      const withBand = s.points.filter(p => p.lo !== undefined && p.hi !== undefined);
+      if (withBand.length > 1) {
+        out += '<path class="band" d="' + withBand.map((p, i) => (i ? "L" : "M") + sx(p.x).toFixed(1) + " " + sy(Math.min(p.hi, yMax)).toFixed(1)).join(" ")
+          + " " + withBand.slice().reverse().map(p => "L" + sx(p.x).toFixed(1) + " " + sy(p.lo).toFixed(1)).join(" ") + ' Z"/>';
+      }
+    }
+    if (s.points.length > 1) out += '<path class="line" style="stroke:' + colour + '" d="' + path(s.points) + '"/>';
+    s.points.forEach(p => { out += '<circle class="dot" r="4" cx="' + sx(p.x).toFixed(1) + '" cy="' + sy(p.y).toFixed(1) + '" style="fill:' + colour + '"/>'; });
+    const last = s.points[s.points.length - 1];
+    labels.push({ y: sy(last.y), text: s.label, colour: colour });
+  });
+  // End labels, only where they do not collide: the legend carries the rest.
+  labels.sort((a, b) => a.y - b.y);
+  labels.forEach((l, i) => {
+    const crowded = labels.some((m, j) => j !== i && Math.abs(m.y - l.y) < 13);
+    if (!crowded) out += '<text class="label" x="' + (W - R + 6) + '" y="' + (l.y + 4).toFixed(1) + '">' + esc(l.text) + "</text>";
+  });
+  out += '<line class="cross" id="chart-cross" x1="0" x2="0" y1="' + TOP + '" y2="' + (H - B) + '" hidden/>';
+  svg.innerHTML = out;
+  $("chart-legend").innerHTML = series.map(s =>
+    '<span><i style="background:var(--chart-' + s.hue + ')"></i>' + esc(s.label) + "</span>").join("");
+
+  // Hover: the nearest reading's x, every series at it.
+  const xs = entries.map(xOf).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b);
+  const tip = $("chart-tip"), cross = $("chart-cross");
+  svg.onpointermove = ev => {
+    const box = svg.getBoundingClientRect();
+    const px = (ev.clientX - box.left) * W / box.width;
+    const x = xs.reduce((best, v) => Math.abs(sx(v) - px) < Math.abs(sx(best) - px) ? v : best, xs[0]);
+    cross.setAttribute("x1", sx(x).toFixed(1)); cross.setAttribute("x2", sx(x).toFixed(1)); cross.hidden = false;
+    const rows = series.map(s => { const p = s.points.find(q => q.x === x); return p ? { s: s, p: p } : null; }).filter(Boolean);
+    tip.innerHTML = "<div>" + esc(sealed ? T("l.gameShort", "game") + " " + x : x + " " + T("chart.minutes", "min")) + "</div>" +
+      rows.map(r => '<div class="row"><span><i style="background:var(--chart-' + r.s.hue + ')"></i>' + esc(r.s.label) + "</span><b>" + num(r.p.y) +
+        (r.p.lo !== undefined && r.p.hi !== undefined ? " <small>" + num(r.p.lo) + "–" + num(r.p.hi) + "</small>" : "") + "</b></div>").join("");
+    tip.hidden = false;
+  };
+  svg.onpointerleave = () => { tip.hidden = true; cross.hidden = true; };
+}
+
+function niceStep(raw) {
+  if (!(raw > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const m = raw / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
 }
 
 function explainBlock(live, cold, answer, rank) {
@@ -2113,12 +2324,19 @@ function pointless(row) {
   return /victory cup/i.test(row.name || "") && Number(row.stage) >= 2;
 }
 
-/* Over, as opposed to live or still to come. The list is for deciding what to
- * play; a cup that finished this morning is not a decision. */
+/* Over, as opposed to live or still to come. */
 function calOver(row) {
   const end = Date.parse(row.end);
   if (isFinite(end)) return end < Date.now();
   return calWhen(row) < Date.now() - 3 * 3600e3;
+}
+/* Over and from before today: gone from the list. The day's earlier cups
+ * stay, greyed, above the ones to come - a scroll up, not a search. */
+function calStale(row) {
+  if (!calOver(row)) return false;
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const end = Date.parse(row.end);
+  return (isFinite(end) ? end : calWhen(row)) < midnight.getTime();
 }
 
 function drawCalendar() {
@@ -2136,7 +2354,7 @@ function drawCalendar() {
 
   const region = $("c-region").value, mode = $("c-mode").value, team = $("c-team").value;
   const needle = ($("c-find").value || "").trim().toLowerCase();
-  const upcoming = CAL.events.filter(e => calWhen(e) && !calOver(e) && !pointless(e));
+  const upcoming = CAL.events.filter(e => calWhen(e) && !calStale(e) && !pointless(e));
   const rows = upcoming
     .filter(e => region === "*" || e.region === region)
     .filter(e => mode === "*" || e.mode === mode)
@@ -2157,11 +2375,13 @@ function drawCalendar() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "cal-row";
-    const live = calLive(row);
+    const live = calLive(row), over = calOver(row);
+    if (over) button.classList.add("cal-past");
     const tags = [row.region, calModeLabel(row.mode), row.team, row.games ? row.games + "×" : ""]
       .filter(Boolean).join(" · ")
       + (row.scoring === null || row.scoring === undefined
-          ? " · " + T("l.calpartial", "no scoring") : "");
+          ? " · " + T("l.calpartial", "no scoring") : "")
+      + (over ? " · " + T("l.calover", "over") : "");
     button.innerHTML =
       '<span class="cal-when' + (live ? " cal-live" : "") + '">'
       + esc(live ? T("l.callive", "live") : calLabel(row)) + "</span>"
@@ -2170,6 +2390,10 @@ function drawCalendar() {
     button.addEventListener("click", () => pickFromCalendar(row));
     list.appendChild(button);
   });
+
+  // Open on what is next: the day's finished cups sit above, a scroll away.
+  const first = list.querySelector(".cal-row:not(.cal-past)");
+  list.scrollTop = first ? first.offsetTop - list.offsetTop : 0;
 
   const when = (CAL.generated || "").slice(0, 10);
   const key = upcoming.length ? "l.calnote" : "l.calstale";
@@ -2500,11 +2724,105 @@ function takeLive(feed) {
                   at: found.updated, updated: found.updated, readings: readings, auto: true };
   entry.share = found.final ? 1 : liveShare(STATE, entry);
   STATE.auto = entry;
+  const tNow = asTournament(STATE);
+  entry.said = saidNow(tNow, STATE.asked || STATE.rank || 0, refine(tNow, liveLog(STATE)));
   STATE.autoLog = (STATE.autoLog || []).filter(e => e.updated !== entry.updated).concat([entry]).slice(-120);
   if (sealed && STATE.game <= games) STATE.game = Math.min(games + 1, Math.max(gameCount(STATE), 1));
   save();
   fillLive();
   render();
+}
+
+/* When the forecast last moved, and when it will next: the answer's clock.
+ * Automatic readings come every ten minutes; typed ones whenever they were
+ * typed; before any, the forecast is the one from history. */
+function drawStatus() {
+  const line = $("status-line");
+  const clock = iso => {
+    const d = new Date(iso);
+    return isFinite(d.getTime()) ? d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB",
+                                                        { hour: "2-digit", minute: "2-digit" }) : "—";
+  };
+  const auto = STATE.auto, manual = (STATE.log || []).length ? STATE.log[STATE.log.length - 1] : null;
+  let text;
+  if (auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0))) {
+    if (auto.share >= 1) {
+      text = T("status.final", "Final standings read at {t}").replace("{t}", clock(auto.updated));
+    } else {
+      const next = new Date(Math.floor(Date.parse(auto.updated) / 600e3) * 600e3 + 12 * 60e3);
+      text = T("status.auto", "Standings read at {t} · next reading around {n}")
+        .replace("{t}", clock(auto.updated)).replace("{n}", clock(next.toISOString()));
+    }
+  } else if (manual) {
+    text = T("status.manual", "Last reading typed at {t}").replace("{t}", clock(manual.at));
+  } else {
+    text = T("status.cold", "Pre-tournament forecast");
+    const begins = Date.parse(STATE.begin || "");
+    if (liveUrl() && STATE.window && isFinite(begins) && begins > Date.now()) {
+      text += T("status.willAuto", " · the standings will be read automatically every 10 min once the cup starts");
+    }
+  }
+  line.textContent = text;
+}
+
+/* The ladder the other way round: the rank a number of points finishes at.
+ * Read off the live forecast at a dense set of ranks, log-linear between
+ * two of them; the band gives the range - thresholds running high push the
+ * same points deeper, running low pull them up. */
+function rankForPoints(t, live, points) {
+  const field = fieldNow() || 0;
+  const grid = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300,
+                400, 500, 600, 750, 1000, 1250, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7500, 10000,
+                12500, 15000, 20000].filter(r => !field || r <= field);
+  const rows = grid.map(r => {
+    const f = forecastAt(t, r, live);
+    return f ? { r: r, v: f.value, lo: Math.max(0, f.value * (1 - f.rel)), hi: f.value * (1 + f.rel) } : null;
+  }).filter(Boolean);
+  if (rows.length < 2) return null;
+  const cross = key => {
+    if (points >= rows[0][key]) return 1;
+    for (let i = 0; i + 1 < rows.length; i++) {
+      const a = rows[i], b = rows[i + 1];
+      if (points <= a[key] && points >= b[key]) {
+        if (a[key] === b[key]) return a.r;
+        const f = (Math.log(a[key]) - Math.log(Math.max(points, 1e-9))) / (Math.log(a[key]) - Math.log(Math.max(b[key], 1e-9)));
+        return Math.round(Math.exp(Math.log(a.r) + f * (Math.log(b.r) - Math.log(a.r))));
+      }
+    }
+    return null;                          // deeper than the ladder goes
+  };
+  return { rank: cross("v"), best: cross("lo"), worst: cross("hi"), deepest: rows[rows.length - 1].r,
+           top: rows[0].v };
+}
+
+function drawPointsRank() {
+  const box = $("points-ask");
+  if (!STATE.confirmed || !STATE.asked) { box.hidden = true; return; }
+  box.hidden = false;
+  const points = Number($("f-points").value) || 0;
+  const out = $("points-rank");
+  if (!(points > 0)) { out.textContent = T("points.need", "Type points to see which rank they finish at."); return; }
+  const t = asTournament(STATE);
+  const found = rankForPoints(t, refine(t, liveLog(STATE)), points);
+  if (!found) { out.textContent = "—"; return; }
+  if (found.rank === null) {
+    const field = fieldNow() || 0;
+    out.textContent = field && found.deepest >= field
+      ? T("points.last", "around the last place (rank {r})").replace("{r}", num(found.deepest))
+      : T("points.deep", "deeper than rank {r}, the deepest the ladder prices").replace("{r}", num(found.deepest));
+    return;
+  }
+  let text = "<b>" + T("points.rank", "≈ rank {r}").replace("{r}", num(found.rank)) + "</b>";
+  if (found.rank === 1 && points > found.top) text += " · " + T("points.top", "above the forecast top 1");
+  // Thresholds running low pull the same points up the board; running high,
+  // they push them deeper - past the deepest rank priced, at worst.
+  const a = found.best === null ? found.rank : found.best;
+  const b = found.worst === null ? found.deepest : found.worst;
+  if (Math.min(a, b) !== Math.max(a, b)) {
+    text += " · " + T("points.range", "between {a} and {b} within the band")
+      .replace("{a}", num(Math.min(a, b))).replace("{b}", num(Math.max(a, b)));
+  }
+  out.innerHTML = text;
 }
 
 function drawAutoNote() {
@@ -2608,6 +2926,13 @@ function start() {
     drawReadings(); fillLive(); save(); render();
   };
   $("f-game").addEventListener("input", liveChanged);
+  $("predict-now").onclick = () => {
+    $("manual").hidden = false; $("manual-open").hidden = true;
+    const first = document.querySelector("#readings .r-pts");
+    if (first) first.focus();
+  };
+  $("manual-close").onclick = () => { $("manual").hidden = true; $("manual-open").hidden = false; };
+  $("f-points").addEventListener("input", drawPointsRank);
   $("f-elapsed").addEventListener("input", () => { STATE.touchedElapsed = true; liveChanged(); });
   drawSessions();
   $("new").onclick = () => {

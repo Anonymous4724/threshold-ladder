@@ -9,8 +9,12 @@
  * widest cut - and the result is kept under one key. On request: that key,
  * as JSON, from any origin.
  *
- * Nothing is archived: each run replaces the last, so what exists at any
- * moment is the current reading of the cups under way, a few numbers each.
+ * Two things are kept. `live`, replaced at every run: the current reading of
+ * the cups under way, what the page shows. And one key per day, `history-
+ * YYYY-MM-DD`, to which every run appends its readings and which expires
+ * after a month: what the research side pulls back into its database, so an
+ * evening followed by the feed becomes a tournament with a reading every ten
+ * minutes without anyone pressing anything.
  */
 
 const API = "https://fnapi.osirion.gg/v1";
@@ -22,6 +26,8 @@ const LEAD_MINUTES = 5;                // a window is watched from this long bef
 const TAIL_MINUTES = 25;               // ... until this long after it closes, for the final standing
 const GAP_MS = 250;                    // between requests; the API allows 60 a minute
 const KEY = "live";
+const HISTORY_DAYS = 31;               // a day's history expires after this
+const HISTORY_MAX = 400;               // readings kept per window per day (a run every 10 min is 144)
 // Where the calendar comes from when the dashboard sets no variables: the
 // site itself, then the repository's copy of the same file.
 const DEFAULT_SITE = "https://fortnitepredcomp.com";
@@ -45,6 +51,12 @@ export default {
       const body = (await env.LIVE.get(KEY)) || JSON.stringify({ generated: null, windows: [] });
       return new Response(body, { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8",
                                              "Cache-Control": "public, max-age=60" } });
+    }
+    const day = url.pathname.match(/^\/history\/(\d{4}-\d{2}-\d{2})\.json$/);
+    if (day) {
+      const body = (await env.LIVE.get("history-" + day[1])) || JSON.stringify({ day: day[1], windows: {} });
+      return new Response(body, { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8",
+                                             "Cache-Control": "public, max-age=300" } });
     }
     if (url.pathname === "/refresh" && env.REFRESH_TOKEN && url.searchParams.get("token") === env.REFRESH_TOKEN) {
       const out = await run(env);
@@ -74,7 +86,32 @@ async function run(env) {
   }
   const doc = { generated: new Date(now).toISOString().slice(0, 16) + "Z", windows: out };
   await env.LIVE.put(KEY, JSON.stringify(doc));
-  return { watched: windows.length, published: out.length };
+  const kept = await remember(env, out, now);
+  return { watched: windows.length, published: out.length, remembered: kept };
+}
+
+/* The day's history: every window read today, with each distinct reading
+ * the feed took of it. One read and one write per run, whatever the number
+ * of cups, so the free plan's daily write allowance is never in question. */
+async function remember(env, out, now) {
+  const day = new Date(now).toISOString().slice(0, 10);
+  const key = "history-" + day;
+  let doc;
+  try { doc = JSON.parse((await env.LIVE.get(key)) || "null"); } catch (err) { doc = null; }
+  if (!doc || typeof doc !== "object" || !doc.windows) doc = { day: day, windows: {} };
+  let added = 0;
+  for (const w of out) {
+    if (!w.readings || !w.readings.length) continue;
+    const id = w.event + "|" + w.window;
+    const kept = doc.windows[id] || (doc.windows[id] = {
+      event: w.event, window: w.window, name: w.name, region: w.region, begin: w.begin, end: w.end, readings: [] });
+    if (kept.readings.some(r => r.updated === w.updated)) continue;
+    kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, final: w.final, readings: w.readings });
+    if (kept.readings.length > HISTORY_MAX) kept.readings = kept.readings.slice(-HISTORY_MAX);
+    added++;
+  }
+  if (added) await env.LIVE.put(key, JSON.stringify(doc), { expirationTtl: HISTORY_DAYS * 86400 });
+  return added;
 }
 
 /* The window is worth asking about: open now, give or take the minutes it

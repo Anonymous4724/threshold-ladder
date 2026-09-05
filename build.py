@@ -96,9 +96,11 @@ def ads() -> dict:
         return {}
     if not re.fullmatch(r"ca-pub-\d{16}", client):
         raise SystemExit(f"{ADS.name}: 'client' should look like ca-pub-0000000000000000, not {client!r}.")
-    if not re.fullmatch(r"\d{6,12}", slot):
+    if slot and not re.fullmatch(r"\d{6,12}", slot):
         raise SystemExit(f"{ADS.name}: 'slot' should be the unit's number, not {slot!r}.")
-    return {"client": client, "slot": slot}
+    # An account without a unit yet: the head tags and ads.txt go up, which is
+    # what the account's site check looks for; the banner waits for the unit.
+    return {"client": client, "slot": slot} if slot else {"client": client}
 
 
 def site() -> dict:
@@ -208,8 +210,10 @@ def main() -> int:
     else:
         print("                no calendar.js — the what-is-on panel stays hidden")
     print(f"standalone.html {size(alone):>8}   one file, no network, no banner")
-    print("banner          " + (f"{ads()['client']} unit {ads()['slot']}, ads.txt written"
-                                if ads() else "none (ads.json empty or absent)"))
+    given = ads()
+    print("banner          " + (f"{given['client']} unit {given['slot']}, ads.txt written" if given.get("slot")
+                                else f"{given['client']}: account tags and ads.txt only, no unit yet" if given
+                                else "none (ads.json empty or absent)"))
     print("live feed       " + (site().get("live") or "none (site.json empty or absent)"))
     print(f"                model of {model['source']['tournaments']} tournaments, "
           f"{len(model['categories'])} categories, {len(model['families'])} families")

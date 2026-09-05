@@ -7,7 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300;0,400;0,600;0,800;1,400&family=Chivo+Mono:wght@300;400;600&display=swap">
+<meta name="google-adsense-account" content="ca-pub-3205233819198856">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3205233819198856" crossorigin="anonymous"></script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23e8a13a'/><path d='M22 72h14V40H22zm20 0h14V26H42zm20 0h14V52H62z' fill='%23161a24'/></svg>">
+<script src="model.js"></script>
+<script src="calendar.js"></script>
 <style>
 /* ------------------------------------------------------------------ *
  * Tokens. Light is the base; the two blocks below restate the same
@@ -472,8 +476,6 @@ footer a { color: var(--ink-dim); }
 
 <footer><p id="foot"></p><p id="credit"></p><p id="legal"></p><p id="privacy-link"></p></footer>
 
-<script src="model.js"></script>
-<script src="calendar.js"></script>
 <script>
 /* ==================================================================
  * The model, exported from the research code that trains it.
@@ -482,7 +484,7 @@ footer a { color: var(--ink-dim); }
 const MODEL = (window.MODEL || (() => { throw new Error("model.js did not load"); })());
 /* The advertising account and unit, from ads.json at build time; empty means
  * no banner, and the standalone file always gets empty. */
-const ADS = {};
+const ADS = {"client": "ca-pub-3205233819198856"};
 /* The site's own settings, from site.json at build time: the address of the
  * live feed that reads the standings of the cups under way. Empty means the
  * page works on readings typed by hand, and the standalone file always gets

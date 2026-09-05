@@ -1,6 +1,6 @@
 # Threshold Ladder
 
-**→ [Open the site](https://anonymous4724.github.io/threshold-ladder/)** ·
+**→ [Open the site](https://fortnitepredcomp.com/)** ·
 *[Version française](README.fr.md)*
 
 How many points a given finishing rank will take in a Fortnite tournament —
@@ -13,9 +13,9 @@ comparable tournaments did.
 
 No installation, no account, no API key. There are two ways to have it:
 
-- **the site** — [open it](https://anonymous4724.github.io/threshold-ladder/)
+- **the site** — [open it](https://fortnitepredcomp.com/)
   and it works, on a phone as well as a desktop;
-- **[`standalone.html`](https://anonymous4724.github.io/threshold-ladder/standalone.html)**
+- **[`standalone.html`](https://fortnitepredcomp.com/standalone.html)**
   — the whole thing in one file. Right-click that link, *Save link as…*,
   double-click the file: it runs with no network at all. The calendar inside it
   is frozen at the date it was built, and says so.
@@ -111,7 +111,12 @@ above it cannot:
 2. **The cup's level times a measured shape** — what each rank was worth
    relative to rank 20 across the cup's editions. A lookup, not a curve.
 3. **The level times a fitted curve**, for ranks nobody has measured.
-4. **The scoring table alone**, for a cup nobody has seen — the widest band, and
+4. **The finals of the same format, by share of the lobby**, for a final played
+   in a single lobby that no edition has been seen of — the usual case for a
+   Round 2 whose Round 1 the model knows. The two rungs either side of it are
+   measured on open queues of thousands and price a twenty-team lobby off its
+   last place.
+5. **The scoring table alone**, for a cup nobody has seen — the widest band, and
    the page says when it is in that mode.
 
 The model is built from several thousand tournaments read from Osirion's public
@@ -141,8 +146,9 @@ there is nothing to show.
 Two caveats the page repeats where they apply:
 
 - A cup never seen before — half of a new season's tournaments — is forecast
-  from its scoring table alone, at about 20 % median error rather than 5 %. The
-  page says when it is in that mode.
+  from its scoring table alone, at about 20 % median error rather than 5 %; a
+  final in a single lobby never seen before, from the finals of its format, at
+  about 13 %. The page says which of these it is doing.
 - The pace curve behind the live refinement is measured, but the rule that
   blends readings with history has not been validated on held-out tournaments.
   The live number is an indication with a measured band, not a result.

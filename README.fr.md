@@ -1,6 +1,6 @@
 # Threshold Ladder
 
-**→ [Ouvrir le site](https://anonymous4724.github.io/threshold-ladder/)** ·
+**→ [Ouvrir le site](https://fortnitepredcomp.com/)** ·
 *[English version](README.md)*
 
 Combien de points vaudra un rang donné dans un tournoi Fortnite — avant que les
@@ -13,9 +13,9 @@ tournois comparables.
 
 Aucune installation, aucun compte, aucune clé d'API. Deux façons de l'avoir :
 
-- **le site** — [il s'ouvre ici](https://anonymous4724.github.io/threshold-ladder/)
+- **le site** — [il s'ouvre ici](https://fortnitepredcomp.com/)
   et ça marche, sur téléphone comme sur ordinateur ;
-- **[`standalone.html`](https://anonymous4724.github.io/threshold-ladder/standalone.html)**
+- **[`standalone.html`](https://fortnitepredcomp.com/standalone.html)**
   — le tout en un seul fichier. Clic droit sur ce lien, *Enregistrer le lien
   sous…*, double-clic sur le fichier : ça tourne sans réseau du tout. Le
   calendrier qu'il contient est figé à la date de sa construction, et le dit.
@@ -117,7 +117,12 @@ celui du dessus ne peut pas :
    pas une courbe.
 3. **Le niveau multiplié par une courbe ajustée**, pour les rangs que personne
    n'a mesurés.
-4. **Le barème seul**, pour une cup que personne n'a vue — la fourchette la plus
+4. **Les finales du même format, par part du lobby**, pour une finale jouée dans
+   un seul lobby dont aucune édition n'a été vue — le cas habituel d'un Round 2
+   dont le modèle connaît le Round 1. Les deux échelons qui l'encadrent sont
+   mesurés sur des files ouvertes de milliers d'équipes et chiffrent un lobby
+   de vingt d'après sa dernière place.
+5. **Le barème seul**, pour une cup que personne n'a vue — la fourchette la plus
    large, et la page dit quand elle en est là.
 
 Le modèle est bâti sur plusieurs milliers de tournois lus depuis l'API publique
@@ -148,7 +153,8 @@ Deux réserves que la page répète là où elles s'appliquent :
 
 - Une cup jamais vue — la moitié des tournois d'une nouvelle saison — est
   prédite depuis son seul barème, avec environ 20 % d'erreur médiane au lieu de
-  5 %. La page indique quand elle est dans ce cas.
+  5 % ; une finale à lobby unique jamais vue, depuis les finales de son format,
+  avec environ 13 %. La page indique dans lequel de ces cas elle se trouve.
 - La courbe de rythme du mode direct est mesurée, mais la règle qui combine
   relevés et historique n'a pas été validée sur des tournois tenus à l'écart. Le
   chiffre en direct est une indication avec une fourchette mesurée, pas un

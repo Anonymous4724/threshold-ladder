@@ -553,6 +553,7 @@ const FR = {
   "source.scoring": "le barème, avec un rapport points/barème mesuré",
   "source.scoring (thin sample)": "le barème, rapport mesuré sur peu d'éditions",
   "source.scoring (prior)": "le barème seul - rapport jamais mesuré pour ce format",
+  "source.closed lobby": "des finales de ce format jouées en lobby unique, par part du lobby",
   "basedOn": "Estimé à partir de", "editions": "édition(s)", "matched": "Rapproché de",
   "assumedField": "Effectif supposé", "under": "moins de",
   "fieldEffect": "une erreur de 30 % ne déplace le seuil que de",
@@ -572,6 +573,7 @@ const FR = {
   "basis.measured": "Mesuré sur",
   "basis.split": "les {n} tournois les plus récents, prédits depuis les {m} d'avant",
   "basis.cold": "Erreur médiane, cup jamais jouée",
+  "basis.lobby": "Erreur médiane, finale à lobby unique jamais vue",
   "basis.ofSample": "de l'échantillon",
   "basis.coverage": "Seuils réels dans la fourchette",
   "basis.anchor": "Ancre", "basis.exported": "Modèle exporté le",
@@ -605,7 +607,8 @@ const LOOKUPS = new Map();
 function rowFor(rows, match) {
   const fields = Object.keys(match).sort();
   const key = fields.join("|") + "#" + rows.length + "#" + (rows === MODEL.categories
-    ? "c" : rows === MODEL.families ? "f" : rows === MODEL.modes ? "m" : "x");
+    ? "c" : rows === MODEL.families ? "f" : rows === MODEL.modes ? "m"
+    : rows === MODEL.lobby ? "l" : "x");
   let index = LOOKUPS.get(key);
   if (!index) {
     index = new Map();
@@ -850,6 +853,19 @@ function predictOne(t, rank) {
       shapeSource: "direct", level: v, fieldEffect: 0 };
   }
   const top = anchorLevel(t);
+  // A final in one lobby the model has no editions of: read off the finals of
+  // its mode, by share of the lobby - never off the open-queue anchor and
+  // curve, which in a lobby of twenty make the winner worth ten times the
+  // anchor. Editions of the cup itself, where there are any, still come first.
+  if (singleLobby(t, field) && (!top || (top.source !== "category" && top.source !== "family"))) {
+    const lobby = lobbyEstimate(t, rank, field);
+    if (lobby) {
+      const v = lobby.value, rel = lobby.rel;
+      return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel),
+        rel: rel, n: lobby.n, source: "closed lobby", field: field, guessedField: guessed,
+        shapeSource: "lobby", level: v, fieldEffect: 0 };
+    }
+  }
   if (!top) return { ok: false, reason: whyNoAnchor(t) };
   const curve = MODEL.curve;
   const slope = fieldSensitivity(rank, field, curve);
@@ -936,6 +952,8 @@ function variantsFor(name) {
     if (entry.table !== "categories") return;
     const row = entry.row;
     if (entry.numbers !== want && numbers(row.family) !== want) return;
+    // A stage of the cup that was named, never a cup that merely sounds like it.
+    if (!nameFits(wanted, entry.words) && !nameFits(wanted, entry.familyWords)) return;
     const score = Math.max(scoreAgainst(wanted, entry.words),
                            scoreAgainst(wanted, entry.familyWords));
     if (score < 0.6) return;
@@ -973,6 +991,17 @@ function scoreAgainst(wanted, have) {
   wanted.forEach(w => { if (have.some(v => sameWord(v, w))) shared += 1; });
   return shared / Math.max(wanted.length, have.length);
 }
+/* Two names mean the same cup only when one is the other with words added.
+ * "Solo Victory Cup Battle Royale" holds every word of "Solo Victory Cup" and
+ * matches it; "Mobile Battle Royale Victory Cup" shares three words with it
+ * and is a different cup, because the one word each side lacks is the one
+ * that says which. Sharing most of the words is not enough. */
+function contained(inner, outer) {
+  return inner.length > 0 && inner.every(w => outer.some(v => sameWord(v, w)));
+}
+function nameFits(wanted, have) {
+  return contained(wanted, have) || contained(have, wanted);
+}
 
 function matchTournament(name, region) {
   if (!name || !name.trim()) return null;
@@ -985,6 +1014,7 @@ function matchTournament(name, region) {
   let best = null;
   named().forEach(entry => {
     if (entry.numbers !== want) return;
+    if (!nameFits(wanted, entry.words)) return;
     const score = scoreAgainst(wanted, entry.words);
     if (score < 0.6) return;
     const better = !best || score > best.score + 0.001
@@ -1583,7 +1613,8 @@ function sourceLabel(source) {
     "mode": "tournaments of the same type",
     "scoring": "the scoring, with a measured points-to-scoring ratio",
     "scoring (thin sample)": "the scoring, ratio measured on few editions",
-    "scoring (prior)": "the scoring alone - the ratio was never measured for this format"
+    "scoring (prior)": "the scoring alone - the ratio was never measured for this format",
+    "closed lobby": "finals of this format played in a single lobby, by share of the lobby"
   }[source] || source;
   const key = "source." + source;
   return (LANG === "fr" && FR[key]) ? FR[key] : english;
@@ -1766,6 +1797,11 @@ function basisRows() {
       q && q.cold_median_ape !== null && q.cold_median_ape !== undefined
         ? pct(q.cold_median_ape, 0) + (q.cold_share ? " (" + Math.round(100 * q.cold_share) + " % "
             + T("basis.ofSample", "of the sample") + ")" : "")
+        : "—"],
+    [T("basis.lobby", "Median error, single-lobby final never run before"),
+      q && q.lobby_median_ape !== null && q.lobby_median_ape !== undefined
+        ? pct(q.lobby_median_ape, 0) + (q.lobby_rows ? " (" + q.lobby_rows + " "
+            + T("basis.thresholds", "thresholds") + ")" : "")
         : "—"],
     [T("basis.coverage", "Real thresholds inside the band"),
       q && q.coverage !== undefined ? pct(100 * q.coverage, 0) : "—"],
@@ -2009,6 +2045,19 @@ function calModeLabel(mode) {
   return mode === "Other" ? T("l.calother", "Other") : mode;
 }
 
+function knownCategory(name) {
+  if (!name) return false;
+  const key = fold(name);
+  return MODEL.categories.some(c => fold(c.category) === key)
+      || MODEL.families.some(f => fold(f.category) === key);
+}
+
+/* A Victory Cup's second round is played for first place and nothing else:
+ * no cut to clear, so no threshold worth asking for. */
+function pointless(row) {
+  return /victory cup/i.test(row.name || "") && Number(row.stage) >= 2;
+}
+
 /* Over, as opposed to live or still to come. The list is for deciding what to
  * play; a cup that finished this morning is not a decision. */
 function calOver(row) {
@@ -2032,7 +2081,7 @@ function drawCalendar() {
 
   const region = $("c-region").value, mode = $("c-mode").value, team = $("c-team").value;
   const needle = ($("c-find").value || "").trim().toLowerCase();
-  const upcoming = CAL.events.filter(e => calWhen(e) && !calOver(e));
+  const upcoming = CAL.events.filter(e => calWhen(e) && !calOver(e) && !pointless(e));
   const rows = upcoming
     .filter(e => region === "*" || e.region === region)
     .filter(e => mode === "*" || e.mode === mode)
@@ -2084,7 +2133,52 @@ const LOBBY = { Solo: 100, Duo: 50, Trio: 33, Squad: 25 };
 const LOBBY_SMALL = { Solo: 40, Duo: 20, Trio: 13, Squad: 10 };
 function lobbyCap(team, mode) {
   const small = /reload|blitz/i.test(String(mode || ""));
-  return (small ? LOBBY_SMALL : LOBBY)[team] || 0;
+  const caps = MODEL.lobby_cap || {};
+  return ((small ? caps.small : caps.large) || (small ? LOBBY_SMALL : LOBBY))[team] || 0;
+}
+function singleLobby(t, field) {
+  const cap = lobbyCap(t.team_mode, t.game_mode);
+  return cap > 0 && field > 0 && field <= cap;
+}
+/* The closed-lobby table: per game mode and team size, what a rank is worth
+ * as a share of the most a team could score, by share of the lobby. Read
+ * log-linearly between the two buckets either side; the top bucket holds
+ * above its own share, and below the deepest the board is read as flat with
+ * a wider band, because nothing was measured there. */
+function lobbyRead(rows, q) {
+  if (q <= rows[0][0]) return { share: rows[0][1], rel: rows[0][2], n: rows[0][3] };
+  const last = rows[rows.length - 1];
+  if (q >= last[0]) return { share: last[1], rel: last[2] * 1.5, n: last[3] };
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const lo = rows[i], hi = rows[i + 1];
+    if (lo[0] <= q && q <= hi[0]) {
+      const f = (Math.log(q) - Math.log(lo[0])) / (Math.log(hi[0]) - Math.log(lo[0]));
+      return { share: Math.exp(Math.log(lo[1]) + f * (Math.log(hi[1]) - Math.log(lo[1]))),
+               rel: Math.max(lo[2], hi[2]), n: Math.min(lo[3], hi[3]) };
+    }
+  }
+  return { share: last[1], rel: last[2], n: last[3] };
+}
+function lobbyEstimate(t, rank, field) {
+  const table = MODEL.lobby || [];
+  const games = Number(t.max_games) || 0;
+  const scoring = t.scoring || {};
+  if (games <= 0 || t.scoring_known === false || !(scoring.placement || []).length) return null;
+  const best = maxGameScore(scoring);
+  if (best <= 0) return null;
+  const rule = MODEL.lobby_rule || {}, widenBy = rule.widen || {};
+  const game = t.game_mode || "", team = t.team_mode || "";
+  const tries = [[[game, team], widenBy.team || 1], [[game, ""], widenBy.mode || 1.15],
+                 [["*", ""], widenBy.any || 1.3]];
+  let rows = null, widen = 1;
+  for (const [probe, w] of tries) {
+    const found = rowFor(table, { game_mode: probe[0], team_mode: probe[1] });
+    if (found && (found.rows || []).length >= 2) { rows = found.rows; widen = w; break; }
+  }
+  if (!rows) return null;
+  const read = lobbyRead(rows, rank / field);
+  if (read.n < (rule.thin || 5)) widen *= widenBy.thin || 1.3;
+  return { value: read.share * best * games, rel: read.rel * widen, n: read.n };
 }
 
 /* Is this a closed lobby, and how many teams are in it?
@@ -2097,6 +2191,12 @@ function lobbyCap(team, mode) {
  * guess, because that is what it is. Anything else is an open queue. */
 function closedLobby(row) {
   const cap = lobbyCap(row.team, row.mode);
+  // A later round's field is known outright: it is the cut of the round
+  // before it, and the calendar carries it. Twenty Reload duos is one lobby;
+  // eight hundred solos is still an open queue.
+  if (Number(row.field) > 0) {
+    return cap && row.field <= cap ? { field: Number(row.field), guessed: false } : null;
+  }
   let known = rowFor(MODEL.categories, { category: row.kind, region: row.region })
            || rowFor(MODEL.families, { category: row.kind });
   if (!known) {
@@ -2210,6 +2310,10 @@ function pickFromCalendar(row) {
   // form is laid out, which is why adding a field to the form does not mean
   // remembering to add it here too.
   STATE.name = row.name || STATE.name;
+  // The calendar and the model name a cup and its stage the same way, so the
+  // row says which category this is; the name matching is only for a cup the
+  // model has never seen under that name.
+  STATE.variant = knownCategory(row.kind) ? row.kind : null;
   if (row.region) STATE.region = row.region;
   if (row.team) STATE.team_mode = row.team;
   if (row.mode && row.mode !== "Other") STATE.game_mode = row.mode;
@@ -2221,7 +2325,7 @@ function pickFromCalendar(row) {
   // Open queue: free format, field left for the cascade to guess.
   const closed = closedLobby(row);
   STATE.format = closed ? "sealed" : "free";
-  STATE.field_size = closed ? closed.field : 0;
+  STATE.field_size = closed ? closed.field : (Number(row.field) || 0);
   STATE.field_guessed = closed ? closed.guessed : false;
   const table = (CAL.scorings || [])[row.scoring];
   if (table && table.placement) {

@@ -93,6 +93,11 @@ team running away with the top takes the points that would have landed at rank
 10. There a reading prices its own rank, the rest of the ladder keeps its
 forecast from history, and the page says which of the two it is doing.
 
+When the cup is under way and the site's live feed is on, the standings are
+read for you every few minutes — the points at a handful of ranks — and filed
+as readings marked *auto*: the forecast follows them without anyone typing. A
+reading typed by hand still works and takes over while it is the fresher one.
+
 **Finish** keeps the evening in the browser and goes back to the list, where
 the tournaments followed sit under the calendar, reopenable; the arrow next to
 each one downloads it as a small file.
@@ -161,7 +166,9 @@ page opens on the week's calendar and an empty form.
 
 The hosted page shows one advertising banner, served by Google; visitors in
 Europe are asked for consent first, and the banner has no bearing on anything
-else on the page. The [privacy note](privacy.html) says exactly what it does.
+else on the page. While a tournament under way is open, it also asks the site's
+own feed for that cup's current standings, a request that carries nothing about
+you. The [privacy note](privacy.html) says exactly what each does.
 The standalone file carries no banner and makes no request at all, apart from
 falling back to a system font.
 

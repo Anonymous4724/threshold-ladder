@@ -12,3 +12,6 @@ Thumbs.db
 publish.py
 publish.bat
 *.local.md
+
+# What the live feed serves; it never lives in the repository.
+live.json

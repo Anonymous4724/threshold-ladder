@@ -225,6 +225,8 @@ h3.sub { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
            align-items: center; padding: 7px 11px; border-top: 1px solid var(--line);
            font-size: 12.5px; }
 .log-row:first-child { border-top: 0; }
+.auto-tag { font: 600 9.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+            color: var(--measured); margin-left: 4px; }
 .log-row .when { font: 600 12px/1.2 var(--mono); color: var(--ink-dim);
                  font-variant-numeric: tabular-nums; white-space: nowrap; }
 .log-row .what { color: var(--ink-dim); font-family: var(--mono); font-size: 11.5px;
@@ -405,6 +407,7 @@ footer a { color: var(--ink-dim); }
     </div>
     <div class="progress"><i id="bar" style="width:0%"></i></div>
     <p class="hint" id="progress-text"></p>
+    <p class="hint good" id="auto-note" hidden></p>
 
     <div class="reading-head" style="margin-top:12px">
       <span class="hint" data-t="l.readRank">Rank in the standings</span>
@@ -478,6 +481,11 @@ const MODEL = __MODEL_JSON__;
 /* The advertising account and unit, from ads.json at build time; empty means
  * no banner, and the standalone file always gets empty. */
 const ADS = __ADS_JSON__;
+/* The site's own settings, from site.json at build time: the address of the
+ * live feed that reads the standings of the cups under way. Empty means the
+ * page works on readings typed by hand, and the standalone file always gets
+ * empty. */
+const SITE = __SITE_JSON__;
 
 /* ==================================================================
  * Wording. English is the source, French is looked up by key.
@@ -486,6 +494,8 @@ const FR = {
   "tagline": "Combien de points vaudra un rang, avant que les résultats n'existent.",
   "h.tournament": "Le tournoi", "h.scoring": "Le barème",
   "h.live": "Pendant le tournoi", "h.basis": "Sur quoi ça repose",
+  "l.auto": "auto",
+  "auto.note": "Classement lu automatiquement il y a {n} min : la prédiction le suit. Saisir un relevé soi-même marche toujours et prend le dessus tant qu'il est plus récent.",
   "l.name": "Nom", "l.region": "Région", "l.team": "Équipe", "l.mode": "Mode",
   "l.format": "Format", "l.duration": "Durée de la session (min)",
   "l.glen": "Une partie dure (min)", "l.gamecap": "Parties autorisées",
@@ -579,6 +589,8 @@ const FR = {
   "basis.anchor": "Ancre", "basis.exported": "Modèle exporté le",
   "foot": "Tout se passe dans cette page : rien n'est envoyé nulle part et le fichier fonctionne hors ligne. Les chiffres viennent de tournois réels ; la note de méthodologie dit où le modèle cesse d'être crédible.",
   "footAds": "Tout ce que la page calcule se passe ici : le tournoi saisi ne quitte jamais le navigateur. La seule requête vers l'extérieur est la bannière publicitaire, servie par Google ; la page de confidentialité dit ce qu'elle fait.",
+  "footLive": "Tout ce que la page calcule se passe ici : le tournoi saisi ne quitte jamais le navigateur. Sa seule requête vers l'extérieur demande le classement en direct de la cup en cours, et ne dit rien de toi ; la page de confidentialité en dit plus.",
+  "footBoth": "Tout ce que la page calcule se passe ici : le tournoi saisi ne quitte jamais le navigateur. Ses seules requêtes vers l'extérieur sont la bannière publicitaire, servie par Google, et le classement en direct ; la page de confidentialité dit ce que fait chacune.",
   "privacyLink": "Confidentialité",
   "ad.label": "Publicité",
   "credit": "Données de tournois issues de l'API publique Fortnite d'Osirion.",
@@ -1245,7 +1257,20 @@ function blankState() {
   blank.scoring = { kill: 0, kill_cap: null, placement: [] };
   blank.confirmed = false; blank.asked = null;
   blank.log = []; blank.readings = []; blank.game = 1; blank.elapsed = 0;
+  blank.event = ""; blank.window = ""; blank.auto = null; blank.autoLog = [];
   return blank;
+}
+
+/* The readings the live model works from: the ones typed and confirmed, and
+ * the latest automatic one when it is fresher than the last of those. The
+ * feed is another reader of the same standings, filed the same way. */
+function liveLog(s) {
+  const manual = (s.log || []).slice();
+  const auto = s.auto;
+  if (!auto) return manual;
+  const last = manual.length ? manual[manual.length - 1] : null;
+  if (last && Date.parse(last.at || 0) >= Date.parse(auto.at || 0)) return manual;
+  return manual.concat([auto]);
 }
 let STATE = load() || blankState();
 
@@ -1257,10 +1282,17 @@ function load() {
   try {
     const saved = JSON.parse(localStorage.getItem("threshold-ladder") || "null");
     if (!saved || !saved.scoring) return null;
-    if (!Array.isArray(saved.log) || !saved.log.length) return null;
+    const manual = Array.isArray(saved.log) && saved.log.length;
+    const auto = !!saved.auto;
+    if (!manual && !auto) return null;
+    // An evening followed by the feed alone is over once its window is long
+    // gone; one typed by hand is kept until it is finished or started over.
+    const ended = Date.parse(saved.end || "");
+    if (!manual && isFinite(ended) && Date.now() - ended > 12 * 3600e3) return null;
     if (!saved.game) saved.game = 1;
     if (saved.elapsed === undefined) saved.elapsed = 0;
     if (!Array.isArray(saved.readings)) saved.readings = [];
+    if (!Array.isArray(saved.autoLog)) saved.autoLog = [];
     return saved;
   } catch (e) { return null; }
 }
@@ -1359,7 +1391,7 @@ function confirmGame() {
   // The forecast this acquisition produced, kept beside it: the record of what
   // the page said at the time is the only thing that can score it afterwards.
   const t = asTournament(STATE);
-  const said = forecastAt(t, STATE.asked || STATE.rank || 0, refine(t, STATE.log));
+  const said = forecastAt(t, STATE.asked || STATE.rank || 0, refine(t, liveLog(STATE)));
   if (said) entry.said = { rank: STATE.asked || STATE.rank, value: Math.round(said.value) };
   const games = gameCount(STATE);
   if (STATE.game < Math.max(games, 1)) STATE.game += 1;
@@ -1386,6 +1418,7 @@ function fillLive() {
     ? (STATE.elapsed || 0) + "/" + (STATE.duration || 0) + " min"
     : STATE.game + "/" + gameCount(STATE) + " " + T("games", "games"));
   $("confirm-game").disabled = !canConfirm();
+  drawAutoNote();
   $("confirm-game").textContent = T("btn.confirmGame", "Confirm") +
     (String(STATE.format) === "sealed" ? " " + T("l.gameShort", "game") + " " + STATE.game : "");
   $("confirm-hint-live").textContent = canConfirm() ? ""
@@ -1394,7 +1427,7 @@ function fillLive() {
 }
 
 function drawLog() {
-  const log = STATE.log || [];
+  const log = liveLog(STATE);
   $("log-wrap").hidden = !log.length;
   $("log").innerHTML = log.slice().reverse().map(entry => {
     const which = String(STATE.format) === "sealed"
@@ -1402,10 +1435,13 @@ function drawLog() {
       : (entry.elapsed || 0) + " min";
     const what = entry.readings.map(r => T("top", "top") + " " + r.rank + " " + num(r.points)).join(" · ");
     const said = entry.said ? num(entry.said.value) : "";
+    const tag = entry.auto ? ' <small class="auto-tag">' + esc(T("l.auto", "auto")) + "</small>" : "";
     return '<div class="log-row"><span class="when' + (entry.share >= 1 ? " final" : "") + '">' +
-      esc(which) + '</span><span class="what">' + esc(what) + '</span>' +
+      esc(which) + tag + '</span><span class="what">' + esc(what) + '</span>' +
       '<span class="said">' + esc(said) + '</span>' +
-      '<button type="button" data-game="' + entry.game + '" aria-label="remove">&times;</button></div>';
+      (entry.auto ? "<span></span>"
+        : '<button type="button" data-game="' + entry.game + '" aria-label="remove">&times;</button>') +
+      "</div>";
   }).join("");
   $("log").querySelectorAll("button[data-game]").forEach(b => {
     b.onclick = () => {
@@ -1445,7 +1481,8 @@ function drawReadings() {
   $("readings").innerHTML = "";
   // The ranks that have been read before, so the boxes come back the way they
   // were left: the same three or four ranks get read every game.
-  const last = (STATE.log || []).length ? STATE.log[STATE.log.length - 1].readings : [];
+  const merged = liveLog(STATE);
+  const last = merged.length ? merged[merged.length - 1].readings : [];
   const rows = STATE.readings.length ? STATE.readings
              : (last.length ? last.map(r => ({ rank: r.rank, points: 0 }))
                             : [{ rank: 20, points: 0 }]);
@@ -1630,10 +1667,19 @@ function predict() {
 
 function render() {
   const board = $("verdict");
-  $("foot").textContent = adsOn()
+  const feed = !!liveUrl();
+  $("foot").textContent = adsOn() && feed
+    ? T("footBoth", "Everything the page computes happens here: the tournament you type never "
+        + "leaves your browser. Its only requests to anyone else are the advertising banner, served "
+        + "by Google, and the live standings feed; the privacy note says what each does.")
+    : adsOn()
     ? T("footAds", "Everything the page computes happens here: the tournament you type never "
         + "leaves your browser. The one request to anyone else is the advertising banner, served "
         + "by Google; the privacy note says what it does.")
+    : feed
+    ? T("footLive", "Everything the page computes happens here: the tournament you type never "
+        + "leaves your browser. Its one request to anyone else is for the live standings of the cup "
+        + "under way, and it carries nothing about you; the privacy note says more.")
     : T("foot", "Everything happens in this page: nothing is sent anywhere "
         + "and the file works offline. The numbers come from real tournaments; the methodology note "
         + "says where the model stops being believable.");
@@ -1666,7 +1712,7 @@ function render() {
   }
 
   const t = asTournament(STATE);
-  const live = refine(t, STATE.log);
+  const live = refine(t, liveLog(STATE));
   const rank = STATE.asked;
   const cold = predictOne(t, rank);
   if (!cold || !cold.ok) {
@@ -1697,7 +1743,8 @@ function render() {
     explainBlock(live, cold, answer, rank);
 
   const seen = {};
-  const latest = (STATE.log || []).length ? STATE.log[STATE.log.length - 1].readings : [];
+  const merged = liveLog(STATE);
+  const latest = merged.length ? merged[merged.length - 1].readings : [];
   latest.forEach(r => { if (r.rank && r.points) seen[r.rank] = r.points; });
   // The cuts sit on the ladder too, named: a reader scanning it finds "top
   // 2,000 · qualifies for Round 2" without having to know the rank by heart.
@@ -1851,10 +1898,16 @@ function sessionOf(state) {
       team_mode: state.team_mode, game_mode: state.game_mode, format: state.format,
       games: gameCount(state), game_minutes: state.game_minutes,
       duration: state.duration, field_size: state.field_size,
-      begin: state.begin || "", end: state.end || "", scoring: state.scoring
+      begin: state.begin || "", end: state.end || "", scoring: state.scoring,
+      event: state.event || "", window: state.window || ""
     },
+    // Typed and automatic readings alike, in the order they were taken; the
+    // automatic ones say so, and every one of them is a measurement.
     log: (state.log || []).map(e => ({ game: e.game, elapsed: e.elapsed, at: e.at,
                                        share: e.share, readings: e.readings, said: e.said }))
+      .concat((state.autoLog || []).map(e => ({ game: e.game, elapsed: e.elapsed, at: e.at,
+                                                 share: e.share, readings: e.readings, auto: true })))
+      .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0))
   };
 }
 
@@ -1875,7 +1928,7 @@ function fileNameFor(session) {
 }
 
 function saveSession() {
-  if (!(STATE.log || []).length) return;
+  if (!(STATE.log || []).length && !(STATE.autoLog || []).length) return;
   const session = sessionOf(STATE);
   const list = sessions();
   // One entry per tournament and start, so saving twice on the same evening
@@ -1931,7 +1984,9 @@ function openSession(session) {
     game_minutes: tour.game_minutes || 0, game_cap: tour.games || 0,
     field_size: tour.field_size || 0, begin: tour.begin || "", end: tour.end || "",
     scoring: tour.scoring || { kill: 0, kill_cap: null, placement: [] },
-    log: session.log || [], readings: [], confirmed: true
+    event: tour.event || "", window: tour.window || "",
+    log: (session.log || []).filter(e => !e.auto), readings: [], confirmed: true,
+    auto: null, autoLog: (session.log || []).filter(e => e.auto)
   });
   const last = STATE.log.length ? STATE.log[STATE.log.length - 1] : null;
   STATE.game = last ? last.game : 1;
@@ -2338,8 +2393,10 @@ function pickFromCalendar(row) {
   // Another tournament, another evening: the window's own clock, and no
   // acquisitions carried over from the last one.
   STATE.begin = row.begin || ""; STATE.end = row.end || "";
+  STATE.event = row.event || ""; STATE.window = row.window || "";
   STATE.log = []; STATE.readings = []; STATE.game = 1;
   STATE.elapsed = 0; STATE.touchedElapsed = false;
+  STATE.auto = null; STATE.autoLog = [];
   STATE.confirmed = false;
   setFrozen(false);
   fillForm();
@@ -2375,6 +2432,7 @@ function showView(view, push) {
     if (push && view === "predict") PUSHED++;
   } catch (e) { /* a file opened on its own may refuse; the screen still changes */ }
   window.scrollTo(0, 0);
+  if (view === "predict") setTimeout(pollLive, 0);
 }
 /* The page's own back button is the browser's when the forecast was reached
  * from the list, so the two agree; otherwise the list simply replaces it. */
@@ -2389,6 +2447,75 @@ window.addEventListener("popstate", () => {
   document.querySelector("main").dataset.view = view;
   window.scrollTo(0, 0);
 });
+
+/* ==================================================================
+ * The live feed
+ *
+ * A small worker reads the standings of every cup under way every few
+ * minutes and publishes, per window, the thresholds at a handful of ranks
+ * and how far along the session is. The page asks for that file when it
+ * is on a tournament the feed covers and files what it gets as one more
+ * reading - the same shape as a reading typed by hand, tagged automatic -
+ * so the live model, the log and the session file need no second path.
+ * ================================================================== */
+const LIVE_EVERY = 5 * 60e3;
+let LIVE_TIMER = null;
+
+function liveUrl() {
+  return SITE && SITE.live && /^https?:$/.test(location.protocol) ? SITE.live + "/live.json" : "";
+}
+
+function startLive() {
+  if (!liveUrl()) return;
+  pollLive();
+  LIVE_TIMER = setInterval(pollLive, LIVE_EVERY);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollLive(); });
+}
+
+function pollLive() {
+  if (!liveUrl() || !STATE.window) return;
+  if (document.querySelector("main").dataset.view !== "predict") return;
+  fetch(liveUrl(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(feed => { if (feed) takeLive(feed); })
+    .catch(() => { /* no feed, no change: the page keeps what it has */ });
+}
+
+/* One feed entry becomes one reading. Sealed lobbies are on the games the
+ * leaders have completed; open queues on the minutes gone by the standings'
+ * own timestamp. A feed entry taken after the window closed is the final
+ * standing, and says so with a share of one. */
+function takeLive(feed) {
+  const found = (feed.windows || []).find(w => w.window === STATE.window && w.event === STATE.event);
+  if (!found || !found.updated || (STATE.auto && STATE.auto.updated === found.updated)) return;
+  const readings = (found.readings || []).map(r => ({ rank: Number(r[0]), points: Number(r[1]) }))
+    .filter(r => r.rank >= 1 && r.points > 0).sort((a, b) => a.rank - b.rank);
+  if (!readings.length) return;
+  const sealed = String(STATE.format) === "sealed";
+  const games = Number(found.games) || 0;
+  if (sealed && games < 1) return;
+  const gone = (Date.parse(found.updated) - Date.parse(STATE.begin || found.begin || "")) / 60000;
+  const entry = { game: sealed ? games : Math.max(1, games || 1),
+                  elapsed: isFinite(gone) ? Math.max(0, Math.round(gone)) : 0,
+                  at: found.updated, updated: found.updated, readings: readings, auto: true };
+  entry.share = found.final ? 1 : liveShare(STATE, entry);
+  STATE.auto = entry;
+  STATE.autoLog = (STATE.autoLog || []).filter(e => e.updated !== entry.updated).concat([entry]).slice(-120);
+  if (sealed && STATE.game <= games) STATE.game = Math.min(games + 1, Math.max(gameCount(STATE), 1));
+  save();
+  fillLive();
+  render();
+}
+
+function drawAutoNote() {
+  const note = $("auto-note");
+  if (!STATE.auto) { note.hidden = true; return; }
+  const minutes = Math.max(0, Math.round((Date.now() - Date.parse(STATE.auto.updated)) / 60000));
+  note.hidden = false;
+  note.textContent = T("auto.note", "Standings read automatically, {n} min ago: the forecast follows them. "
+    + "Typing a reading yourself still works and takes over while it is fresher.")
+    .replace("{n}", String(minutes));
+}
 
 /* ==================================================================
  * The banner
@@ -2477,6 +2604,7 @@ function start() {
   $("clear-live").onclick = () => {
     STATE.log = []; STATE.readings = []; STATE.game = 1;
     STATE.elapsed = 0; STATE.touchedElapsed = false;
+    STATE.auto = null; STATE.autoLog = [];
     drawReadings(); fillLive(); save(); render();
   };
   $("f-game").addEventListener("input", liveChanged);
@@ -2497,8 +2625,9 @@ function start() {
   setFrozen(!!STATE.confirmed);
   applyLanguage(saved);
   // An evening in progress reopens where it was; anything else starts at the list.
-  showView((STATE.log || []).length ? "predict" : "home", false);
+  showView((STATE.log || []).length || STATE.auto ? "predict" : "home", false);
   mountAd();
+  startLive();
 }
 start();
 </script>

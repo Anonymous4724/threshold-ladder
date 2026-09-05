@@ -26,6 +26,12 @@ Keeping the page and the model apart matters more than it looks: the page is
 edited by hand and the model is regenerated whenever the training set grows, and
 neither should force a merge on the other.
 
+`site.json` beside this file names the live feed, if any: `{"live": "https://..."}`,
+the address of the worker that reads the standings of the cups under way every
+few minutes. Given, the hosted page asks it for `live.json`; empty, or absent,
+the page works the way it always has, on readings typed by hand. The standalone
+file never asks: it is the copy that makes no request at all.
+
 `ads.json` beside this file names the advertising account and unit, if any:
 `{"client": "ca-pub-...", "slot": "..."}`. Given both, the hosted page carries
 the account's tags in its head, one banner above the footer, and an `ads.txt`
@@ -56,6 +62,8 @@ ADS = HERE / "ads.json"
 ADS_TXT = HERE / "ads.txt"
 ADS_JSON = "__ADS_JSON__"
 ADS_HEAD = "__ADS_HEAD__"
+SITE = HERE / "site.json"
+SITE_JSON = "__SITE_JSON__"
 # The seller id every AdSense ads.txt line ends with; it names Google, not the account.
 ADS_TAG = "f08c47fec0942fa0"
 
@@ -93,6 +101,20 @@ def ads() -> dict:
     return {"client": client, "slot": slot}
 
 
+def site() -> dict:
+    """The site's own settings: the live feed's address, or nothing."""
+    if not SITE.exists():
+        return {}
+    try:
+        given = json.loads(SITE.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise SystemExit(f"{SITE.name} is not valid JSON: {exc}")
+    live = str(given.get("live") or "").strip().rstrip("/")
+    if live and not re.fullmatch(r"(?:https://[A-Za-z0-9.\-]+|http://(?:127\.0\.0\.1|localhost)(?::\d+)?)(?:/[^\s]*)?", live):
+        raise SystemExit(f"{SITE.name}: 'live' should be an https address, not {live!r}.")
+    return {"live": live} if live else {}
+
+
 def ads_head(settings: dict) -> str:
     """What the account's own snippet puts in the head: the meta tag its site
     check looks for, and the script that serves the unit."""
@@ -125,13 +147,14 @@ def render() -> tuple[str, str, str, str]:
     if "<script" not in page:
         raise SystemExit(f"{SOURCE.name} has no script tag to load the model before.")
 
-    for marker in (ADS_JSON, ADS_HEAD):
+    for marker in (ADS_JSON, ADS_HEAD, SITE_JSON):
         if marker not in page:
             raise SystemExit(f"{SOURCE.name} has no {marker} to fill.")
     settings = ads()
+    own = site()
 
     hosted = page.replace(PLACEHOLDER, LOAD).replace(ADS_JSON, json.dumps(settings)) \
-                 .replace(ADS_HEAD, ads_head(settings))
+                 .replace(ADS_HEAD, ads_head(settings)).replace(SITE_JSON, json.dumps(own))
     # The head tags come first, so the account script is loading while the
     # rest of the head parses; the model still precedes the page's own script.
     hosted = hosted.replace(
@@ -140,7 +163,8 @@ def render() -> tuple[str, str, str, str]:
         "<style>", '<script src="model.js"></script>\n'
                    '<script src="calendar.js"></script>\n<style>', 1)
 
-    alone = page.replace(PLACEHOLDER, data).replace(ADS_JSON, "{}").replace(ADS_HEAD, "")
+    alone = page.replace(PLACEHOLDER, data).replace(ADS_JSON, "{}").replace(ADS_HEAD, "") \
+               .replace(SITE_JSON, "{}")
     if CALENDAR.exists():
         frozen = CALENDAR.read_text(encoding="utf-8").replace("</", "<\\/")
         alone = alone.replace("<script", "<script>\n" + frozen + "</script>\n<script", 1)
@@ -186,6 +210,7 @@ def main() -> int:
     print(f"standalone.html {size(alone):>8}   one file, no network, no banner")
     print("banner          " + (f"{ads()['client']} unit {ads()['slot']}, ads.txt written"
                                 if ads() else "none (ads.json empty or absent)"))
+    print("live feed       " + (site().get("live") or "none (site.json empty or absent)"))
     print(f"                model of {model['source']['tournaments']} tournaments, "
           f"{len(model['categories'])} categories, {len(model['families'])} families")
     return 0

@@ -52,9 +52,15 @@ uses data from sites that show its ads is described at
 <p>The banner has no bearing on the forecasts: nothing on the page waits for it, and a blocked banner
 leaves an empty strip and a working page.</p>
 
+<h2>Live standings</h2>
+<p>While a tournament that is under way is open on the hosted page, the page asks a small service run
+for this site, every few minutes, for the current standings of that cup — the points at a handful of
+ranks, read from Osirion's public API. The request carries nothing about you, and the service keeps
+only the current standings of the cups under way, a few numbers each, replaced at every reading.</p>
+
 <h2>The standalone file</h2>
 <p><code>standalone.html</code> is the whole page in one file, for use with no network. It carries no
-banner, loads nothing from anyone, and makes no request at all.</p>
+banner, asks for no standings, loads nothing from anyone, and makes no request at all.</p>
 
 <h2>Where the numbers come from</h2>
 <p>The model is built from public tournament results read from
@@ -92,9 +98,17 @@ Google fait des données des sites qui affichent ses annonces est décrit sur
 <p>La bannière n'a aucun effet sur les prédictions : rien sur la page ne l'attend, et une bannière
 bloquée laisse une bande vide et une page qui marche.</p>
 
+<h2>Classement en direct</h2>
+<p>Tant qu'un tournoi en cours est ouvert sur la page hébergée, celle-ci demande toutes les quelques
+minutes, à un petit service tenu pour ce site, le classement actuel de cette cup — les points à une
+poignée de rangs, lus dans l'API publique d'Osirion. La requête ne contient rien sur vous, et le
+service ne garde que le classement actuel des cups en cours, quelques nombres chacune, remplacés à
+chaque lecture.</p>
+
 <h2>Le fichier autonome</h2>
 <p><code>standalone.html</code> est la page entière en un seul fichier, pour un usage sans réseau. Il ne
-porte aucune bannière, ne charge rien de personne et ne fait aucune requête.</p>
+porte aucune bannière, ne demande aucun classement, ne charge rien de personne et ne fait aucune
+requête.</p>
 
 <h2>D'où viennent les chiffres</h2>
 <p>Le modèle est bâti sur des résultats publics de tournois lus depuis l'API

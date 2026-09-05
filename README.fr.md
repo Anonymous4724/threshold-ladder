@@ -96,6 +96,12 @@ qui seraient tombés au rang 10. Là, un relevé ne chiffre que son propre rang,
 reste de l'échelle garde sa prédiction issue de l'historique, et la page dit
 laquelle des deux situations elle traite.
 
+Quand la cup est en cours et que le flux en direct du site est actif, le
+classement est lu pour toi toutes les quelques minutes — les points à une
+poignée de rangs — et enregistré comme relevés marqués *auto* : la prédiction
+les suit sans que personne ne tape rien. Un relevé saisi à la main marche
+toujours et prend le dessus tant qu'il est le plus récent.
+
 **Terminer** garde la soirée dans le navigateur et revient à la liste, où les
 tournois suivis attendent sous le calendrier, prêts à être rouverts ; la flèche
 à côté de chacun le télécharge sous forme de petit fichier.
@@ -169,8 +175,10 @@ la semaine et un formulaire vide.
 
 La page hébergée affiche une bannière publicitaire, servie par Google ; les
 visiteurs européens se voient demander leur consentement d'abord, et la
-bannière n'a d'effet sur rien d'autre dans la page. La [note de
-confidentialité](privacy.html) dit exactement ce qu'elle fait. Le fichier
+bannière n'a d'effet sur rien d'autre dans la page. Quand un tournoi en cours
+est ouvert, elle demande aussi au flux du site le classement actuel de cette
+cup, une requête qui ne contient rien sur toi. La [note de
+confidentialité](privacy.html) dit exactement ce que fait chacune. Le fichier
 autonome ne porte aucune bannière et ne fait aucune requête, à la police
 système près.
 

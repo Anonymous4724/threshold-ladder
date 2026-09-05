@@ -1,0 +1,20 @@
+# The live feed's settings, for `wrangler deploy`. The dashboard route does
+# the same thing by hand: a Worker with this code, a KV namespace bound as
+# LIVE, a cron trigger every ten minutes, and SITE set to the site's address.
+name = "threshold-ladder-live"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+# Optional: the code carries the same two addresses as defaults.
+[vars]
+SITE = "https://fortnitepredcomp.com"
+CALENDAR_URL = "https://raw.githubusercontent.com/Anonymous4724/threshold-ladder/main/calendar.js"
+
+# Create the namespace once (`wrangler kv namespace create LIVE`) and put its
+# id here; the dashboard shows the same id under Storage & Databases → KV.
+[[kv_namespaces]]
+binding = "LIVE"
+id = "REPLACE_WITH_THE_NAMESPACE_ID"

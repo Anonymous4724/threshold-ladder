@@ -28,11 +28,14 @@ The page opens on **what is on this week**: every tournament still to come in
 the calendar, filtered by region, mode and team size, searchable by name, with
 the ones running right now marked live. The day's finished cups stay in the list,
 greyed, a scroll above; older ones are gone.
-Click one and the forecast opens on its own screen: name, region, team size,
-mode, number of games, session length and scoring table are filled in, and the
-answer is already there, because every one of those settings is Epic's own.
-**All tournaments** at the top, or the browser's back button, returns to the
-list.
+Click one and the forecast opens on its own screen, in three tabs so nothing
+sits stacked under anything else: **Forecast** — the rank asked, the answer,
+the ladder; **Live** — the evening as it runs, its chart and its readings;
+**Settings** — name, region, team size, mode, number of games, session length,
+who may enter and the scoring table, all filled in, so the answer is already
+there, because every one of those settings is Epic's own. **All tournaments**
+at the top, or the browser's back button, returns to the list; **Full standings
+on osirion.gg** opens the whole board there, in a new tab.
 
 The rank it prices first is **the cut that matters**. Each cup carries the cuts
 it pays out on, read from its payout table: the top 2,000 go through to Round 2,
@@ -109,7 +112,18 @@ read for you every few minutes — the points at the top 1, 3, 5, 10, 20, 25, 50
 and 100, at every cut the cup pays out on (the qualification rank first) and at
 the ladder's deeper rungs as far as a few pages reach — and filed as readings
 marked *auto*: the forecast follows them without anyone typing. A reading typed
-by hand still works and takes over while it is the fresher one.
+by hand still works and takes over while it is the fresher one. The feed keeps
+every reading it took, so a cup opened late, on another device, or after it
+ended shows the whole evening, not what this browser happened to see.
+
+In a sealed lobby the board is half updated while a game runs — the teams
+already out have their game added, the teams still alive, the ones about to
+take the most points, do not — so the feed reads the board as it stood when
+the last game ended, rebuilt from each team's own games (the same match is the
+same session for everyone in the lobby, and a game is over once a winner is
+recorded in it; a team that missed a game is simply a team with one fewer).
+The status line then says which game is under way and which standing the
+forecast rests on.
 
 From the second reading on, a chart under the ladder shows how it moved: the
 points at the ranks read, reading by reading, and what the forecast said each
@@ -135,7 +149,14 @@ above it cannot:
 1. **The previous edition of this cup, at this rank, read straight.** With a
    band measured from how much that rank moved between editions. This is first
    because nothing beat it: a strong evening lifts every rank together, and a
-   number read whole keeps that where a level times a ratio loses it.
+   number read whole keeps that where a level times a ratio loses it. Two
+   corrections, both said out loud on the page. Who was let in: the same cup
+   admitting Unreal alone one week and Diamond upwards the next is two fields
+   of different sizes, so the edition read is the last one with the same entry
+   bar, and when none exists the band is widened by half. And the field: when
+   the number of teams is known — typed in, or a later round's cut — and is not
+   the edition's, the value moves along the curve from the edition's share of
+   its field to this cup's share of its own, capped at about a fifth.
 2. **The cup's level times a measured shape** — what each rank was worth
    relative to rank 20 across the cup's editions. A lookup, not a curve.
 3. **The level times a fitted curve**, for ranks nobody has measured.
@@ -158,14 +179,16 @@ before them, nothing seeing the future.
 
 | rank band | median error, cup seen before |
 |---|---:|
-| top 1 – 5 | 5.4 % |
-| top 6 – 25 | 4.4 % |
-| top 26 – 100 | 3.6 % |
-| top 101 – 500 | 5.2 % |
-| beyond 500 | 8.7 % |
-| **overall** | **5.0 %** |
+| top 1 – 5 | 5.3 % |
+| top 6 – 25 | 3.6 % |
+| top 26 – 100 | 2.5 % |
+| top 101 – 500 | 4.1 % |
+| beyond 500 | 7.3 % |
+| **overall** | **4.2 %** |
 
-83 % of real thresholds land inside a band that claims 80 %.
+85 % of real thresholds land inside a band that claims 80 %. Reading last
+week's result straight gives 5.0 %; the field correction of the first rung is
+what puts the model ahead of it.
 
 These numbers are not typed into the page: they are carried in the model file
 from the run that measured them, shown with that date, and shown as a dash when
@@ -174,7 +197,7 @@ there is nothing to show.
 Two caveats the page repeats where they apply:
 
 - A cup never seen before — half of a new season's tournaments — is forecast
-  from its scoring table alone, at about 20 % median error rather than 5 %; a
+  from its scoring table alone, at about 20 % median error rather than 4 %; a
   final in a single lobby never seen before, from the finals of its format, at
   about 13 %. The page says which of these it is doing.
 - The pace curve behind the live refinement is measured, but the rule that

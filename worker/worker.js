@@ -8,7 +8,9 @@
  * asked of Osirion's public API - the first page, then the pages holding the
  * cups' cuts (qualification first, then money, then cosmetics) and the
  * ladder's deeper rungs, a few pages at most - and the result is kept under
- * one key. On request: that key, as JSON, from any origin.
+ * one key. On request: that key, as JSON, from any origin. A closed lobby's
+ * board is rebuilt as it stood when its last game ended (see `settle`), so
+ * a reading taken mid-game does not carry half a game.
  *
  * Two things are kept. `live`, replaced at every run: the current reading of
  * the cups under way, what the page shows. And one key per day, `history-
@@ -25,6 +27,12 @@ const RANKS = [1, 3, 5, 10, 20, 25, 50, 100];
 const DEEP = [250, 500, 1000, 2500];   // the ladder's deeper rungs, read when a page is to spare
 const MAX_CUT = 5000;                  // deeper cuts are not fetched: too many pages
 const MAX_PAGES = 3;                   // pages read per window beyond the first
+// One lobby holds this many teams; Reload and Blitz lobbies seat forty players.
+const LOBBY = { Solo: 100, Duo: 50, Trio: 33, Squad: 25 };
+const LOBBY_SMALL = { Solo: 40, Duo: 20, Trio: 13, Squad: 10 };
+const GAME_OVER_MS = 35 * 60e3;        // a game whose first death is this old is over, winner seen or not
+const LOBBY_SHARE = 0.5;               // a match fewer teams than this played is not the lobby's game
+const SCORING_AGREE = 0.8;             // share of rosters whose points the scoring table reproduces
 const LEAD_MINUTES = 5;                // a window is watched from this long before it opens
 const TAIL_MINUTES = 25;               // ... until this long after it closes, for the final standing
 const GAP_MS = 250;                    // between requests; the API allows 60 a minute
@@ -57,9 +65,19 @@ export default {
     }
     const day = url.pathname.match(/^\/history\/(\d{4}-\d{2}-\d{2})\.json$/);
     if (day) {
-      const body = (await env.LIVE.get("history-" + day[1])) || JSON.stringify({ day: day[1], windows: {} });
+      let body = (await env.LIVE.get("history-" + day[1])) || JSON.stringify({ day: day[1], windows: {} });
+      // One window's day, when asked for: what the page loads to draw an
+      // evening it did not sit through.
+      const eventId = url.searchParams.get("event"), windowId = url.searchParams.get("window");
+      if (eventId && windowId) {
+        let doc;
+        try { doc = JSON.parse(body); } catch (err) { doc = { day: day[1], windows: {} }; }
+        const id = eventId + "|" + windowId;
+        const one = (doc.windows || {})[id];
+        body = JSON.stringify({ day: doc.day || day[1], windows: one ? { [id]: one } : {} });
+      }
       return new Response(body, { headers: { ...CORS, "Content-Type": "application/json; charset=utf-8",
-                                             "Cache-Control": "public, max-age=300" } });
+                                             "Cache-Control": "public, max-age=120" } });
     }
     if (url.pathname === "/refresh" && env.REFRESH_TOKEN && url.searchParams.get("token") === env.REFRESH_TOKEN) {
       const out = await run(env);
@@ -79,7 +97,7 @@ async function run(env) {
   const out = [];
   for (const row of windows) {
     try {
-      const entry = await readWindow(row, now);
+      const entry = await readWindow(row, now, calendar);
       if (entry) out.push(entry);
       else keep(previous, row, out);
     } catch (err) {
@@ -109,7 +127,8 @@ async function remember(env, out, now) {
     const kept = doc.windows[id] || (doc.windows[id] = {
       event: w.event, window: w.window, name: w.name, region: w.region, begin: w.begin, end: w.end, readings: [] });
     if (kept.readings.some(r => r.updated === w.updated)) continue;
-    kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, final: w.final, readings: w.readings });
+    kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, final: w.final,
+                         partial: w.partial === undefined ? null : w.partial, readings: w.readings });
     if (kept.readings.length > HISTORY_MAX) kept.readings = kept.readings.slice(-HISTORY_MAX);
     added++;
   }
@@ -192,9 +211,110 @@ function pagesToRead(row, totalPages) {
   return pages;
 }
 
-async function readWindow(row, now) {
-  const first = await board(row.event, row.window, 0);
+function lobbyCap(team, mode) {
+  return (/reload|blitz/i.test(mode || "") ? LOBBY_SMALL : LOBBY)[team] || 0;
+}
+
+/* One closed lobby, playing its games one after another: the calendar says
+ * so when it knows the field, and a final whose field it does not know is
+ * one when its board fits on a page and inside a lobby. */
+function sealed(row, first) {
+  const cap = lobbyCap(row.team, row.mode);
+  if (!cap) return false;
+  if (Number(row.field) > 0) return Number(row.field) <= cap;
+  return Number(row.stage) >= 8 && (first.totalPages || 1) <= 1 && first.teams <= cap;
+}
+
+function stat(session, name) {
+  const holder = session && typeof session.trackedStats === "object" && session.trackedStats ? session.trackedStats : session || {};
+  const value = Number(holder[name]);
+  return isFinite(value) ? value : 0;
+}
+
+function pointsFor(scoring, placement, elims) {
+  let total = 0;
+  for (const row of scoring.placement || []) {
+    if (placement >= row[0] && placement <= row[1]) { total += Number(row[2]) || 0; break; }
+  }
+  const cap = scoring.kill_cap;
+  const counted = cap ? Math.min(elims, Number(cap)) : elims;
+  return total + counted * (Number(scoring.kill) || 0);
+}
+
+/* The standings of a closed lobby at the end of its last finished game.
+ *
+ * Mid-game, the board is half updated: the teams already out have their
+ * placement and eliminations added, the teams still alive - the ones about
+ * to take the most points - do not. Read then, a threshold is wrong by a
+ * game's worth, in the wrong direction. Every roster carries its games one
+ * by one, and the same match is the same session id for everyone in the
+ * lobby, so the board can be rebuilt as it stood when the last game ended:
+ * a game is over once a winner has been recorded in it (or once its first
+ * death is half an hour old, for a match nobody won), and a team's settled
+ * points are the sum of its finished games under the scoring table. A team
+ * that missed a game is simply a team with one game fewer; nothing here
+ * asks everyone to have played the same number.
+ *
+ * Returns null when the scoring table does not reproduce the rosters'
+ * totals, so a table the calendar got wrong is never used to rewrite the
+ * board. */
+function settle(entries, scoring, now) {
+  if (!scoring || !(scoring.placement || []).length) return null;
+  const matches = new Map();
+  const rosters = entries.map(e => (e.sessionHistory || []).filter(s => s && typeof s === "object"));
+  rosters.forEach(sessions => sessions.forEach(s => {
+    const id = String(s.sessionId || "");
+    if (!id) return;
+    const m = matches.get(id) || { won: false, teams: 0, first: Infinity };
+    m.teams++;
+    if (stat(s, "PLACEMENT_STAT_INDEX") === 1 || stat(s, "VICTORY_ROYALE_STAT") >= 1) m.won = true;
+    const ended = Date.parse(s.endTime || "");
+    if (isFinite(ended) && ended < m.first) m.first = ended;
+    matches.set(id, m);
+  }));
+  const lobby = Math.max(1, Math.round(entries.length * LOBBY_SHARE));
+  const over = new Set(), pending = new Set();
+  matches.forEach((m, id) => {
+    if (m.teams < lobby) return;                       // a stray match, not the lobby's game
+    if (m.won || (isFinite(m.first) && now - m.first > GAME_OVER_MS)) over.add(id); else pending.add(id);
+  });
+  let agree = 0;
+  const settled = entries.map((e, i) => {
+    let all = 0, done = 0;
+    rosters[i].forEach(s => {
+      const points = pointsFor(scoring, stat(s, "PLACEMENT_STAT_INDEX") || 999, stat(s, "TEAM_ELIMS_STAT_INDEX"));
+      all += points;
+      if (over.has(String(s.sessionId || ""))) done += points;
+    });
+    if (Math.abs(all - (Number(e.pointsEarned) || 0)) <= 0.5) agree++;
+    return { points: done, total: Number(e.pointsEarned) || 0, rank: Number(e.rank) || 0 };
+  });
+  if (!entries.length || agree / entries.length < SCORING_AGREE) return null;
+  settled.sort((a, b) => b.points - a.points || b.total - a.total || a.rank - b.rank);
+  return {
+    pairs: settled.map((s, i) => [i + 1, s.points]),
+    games: over.size,
+    partial: pending.size > 0,
+  };
+}
+
+async function readWindow(row, now, calendar) {
+  const text = await board(row.event, row.window, 0);
+  if (!text) return null;
+  let first = readPage(text, 0);
   if (!first || !first.teams) return null;
+  let partial = null;
+  if (sealed(row, first)) {
+    // The whole lobby is on the first page: rebuild it as of the last
+    // finished game, when the scoring table lets us.
+    const full = first.entries ? first : parsePage(text);
+    const scoring = ((calendar || {}).scorings || [])[Number(row.scoring)];
+    const stood = full && full.entries ? settle(full.entries, scoring, now) : null;
+    if (stood) {
+      first = { ...full, pairs: stood.pairs, games: stood.games };
+      partial = stood.partial;
+    }
+  }
   const readings = [];
   const seen = new Set();
   const wanted = RANKS.concat(cutRanks(row)).concat(DEEP);
@@ -209,7 +329,8 @@ async function readWindow(row, now) {
   takeFrom(first.pairs);
   for (const number of pagesToRead(row, first.totalPages)) {
     await sleep(GAP_MS);
-    const page = await board(row.event, row.window, number);
+    const more = await board(row.event, row.window, number);
+    const page = more ? readPage(more, number) : null;
     if (page) takeFrom(page.pairs);
   }
   readings.sort((a, b) => a[0] - b[0]);
@@ -226,8 +347,13 @@ async function readWindow(row, now) {
     event: row.event, window: row.window, name: row.name, region: row.region,
     begin: row.begin, end: row.end,
     updated: first.updatedAt || new Date(now).toISOString(),
-    // How many games the leaders have completed: the clock of a sealed lobby.
+    // How many games are finished: the clock of a sealed lobby. In an open
+    // queue, the most the leaders have completed.
     games: first.games, teams: first.teams, pages: first.totalPages || null,
+    // In a sealed lobby: whether a game is under way, the standings above
+    // being those at the end of the last finished one. Null where that
+    // reading is not made.
+    partial: partial,
     readings: settled,
     final: isFinite(end) && now > end,
   };
@@ -240,7 +366,7 @@ async function board(eventId, windowId, page) {
     const res = await fetch(url, { headers: { "User-Agent": AGENT, "Accept": "application/json" } });
     if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     if (!res.ok) return null;
-    return readPage(await res.text(), page);
+    return res.text();
   }
   return null;
 }
@@ -316,10 +442,11 @@ function parsePage(text) {
     games: Math.max(0, ...entries.slice(0, 10).map(e => (e.sessionHistory || []).length)),
     totalPages: Number(inner.totalPages) || 0,
     updatedAt: inner.updatedAt || null,
+    entries: entries,
     fast: false,
   };
 }
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export { run, watched, widestCut, cutRanks, pagesToRead, readWindow, readPage, loadCalendar };
+export { run, watched, widestCut, cutRanks, pagesToRead, readWindow, readPage, settle, sealed, loadCalendar };

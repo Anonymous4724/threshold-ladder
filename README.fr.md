@@ -28,11 +28,15 @@ La page s'ouvre sur **ce qui se joue cette semaine** : tous les tournois du
 calendrier encore à venir, filtrables par région, par mode et par taille
 d'équipe, cherchables par nom, ceux en cours marqués comme tels. Les cups de la
 journée déjà finies restent dans la liste, grisées, un cran plus haut ; les
-plus anciennes disparaissent. Un clic et la prédiction s'ouvre sur son propre écran : nom,
-région, taille d'équipe, mode, nombre de parties, durée de la session et
-barème sont remplis, et la réponse est déjà là, puisque chacun de ces réglages
-est celui d'Epic. **Tous les tournois**, en haut, ou le bouton retour du
-navigateur, ramène à la liste.
+plus anciennes disparaissent. Un clic et la prédiction s'ouvre sur son propre
+écran, en trois onglets pour que rien ne s'empile : **Prédiction** — le rang
+demandé, la réponse, l'échelle ; **En direct** — la soirée telle qu'elle se
+joue, son graphique et ses relevés ; **Réglages** — nom, région, taille
+d'équipe, mode, nombre de parties, durée de la session, condition d'accès et
+barème, tous remplis, si bien que la réponse est déjà là, puisque chacun de ces
+réglages est celui d'Epic. **Tous les tournois**, en haut, ou le bouton retour
+du navigateur, ramène à la liste ; **Classement complet sur osirion.gg** ouvre
+tout le classement là-bas, dans un nouvel onglet.
 
 Le rang qu'elle chiffre en premier, c'est **le palier qui compte**. Chaque cup
 emporte les paliers qu'elle fait gagner, lus dans sa table de gains : le top
@@ -116,7 +120,19 @@ classement est lu pour toi toutes les quelques minutes — les points aux top 1,
 qualification d'abord) et aux barreaux plus profonds de l'échelle, aussi loin
 que quelques pages le permettent — et enregistré comme relevés marqués *auto* :
 la prédiction les suit sans que personne ne tape rien. Un relevé saisi à la
-main marche toujours et prend le dessus tant qu'il est le plus récent.
+main marche toujours et prend le dessus tant qu'il est le plus récent. Le flux
+garde chaque lecture qu'il a faite : une cup ouverte tard, sur un autre
+appareil ou après sa fin montre toute la soirée, pas ce que ce navigateur a vu.
+
+Dans un lobby scellé, le classement est à moitié mis à jour tant qu'une partie
+se joue — les équipes déjà éliminées ont leur partie comptée, celles encore en
+vie, celles qui vont ramasser le plus de points, pas encore — donc le flux lit
+le classement tel qu'il était à la fin de la dernière partie terminée, rebâti
+depuis les parties de chaque équipe (le même match est la même session pour
+tout le lobby, et une partie est finie dès qu'un vainqueur y est inscrit ; une
+équipe qui a raté une partie est simplement une équipe avec une partie de
+moins). La ligne d'état dit alors quelle partie est en cours et sur quel
+classement la prédiction repose.
 
 À partir du deuxième relevé, un graphique sous l'échelle montre comment ça a
 bougé : les points aux rangs relevés, relevé après relevé, et ce que la
@@ -144,7 +160,15 @@ celui du dessus ne peut pas :
    fourchette mesurée sur l'ampleur des déplacements de ce rang d'une édition à
    l'autre. En premier parce que rien ne l'a battu : une bonne soirée soulève
    tous les rangs ensemble, et un nombre lu entier garde ça là où un niveau
-   multiplié par un rapport le perd.
+   multiplié par un rapport le perd. Deux corrections, toutes deux dites sur la
+   page. Qui était admis : la même cup réservée aux Unreal une semaine et
+   ouverte dès Diamant la suivante, ce sont deux effectifs de tailles
+   différentes, donc l'édition lue est la dernière avec la même condition
+   d'accès, et s'il n'y en a aucune la fourchette est élargie de moitié. Et
+   l'effectif : quand le nombre d'équipes est connu — saisi, ou le palier du
+   tour d'avant — et n'est pas celui de l'édition, la valeur se déplace le long
+   de la courbe, de la part de l'effectif qu'était ce rang à l'édition à celle
+   qu'il est dans cette cup, plafonnée à un cinquième environ.
 2. **Le niveau de la cup multiplié par une forme mesurée** — ce que valait
    chaque rang par rapport au rang 20, sur les éditions de cette cup. Une table,
    pas une courbe.
@@ -169,14 +193,16 @@ des 6 632 d'avant, sans que rien ne voie le futur.
 
 | tranche de rangs | erreur médiane, cup déjà vue |
 |---|---:|
-| top 1 – 5 | 5,4 % |
-| top 6 – 25 | 4,4 % |
-| top 26 – 100 | 3,6 % |
-| top 101 – 500 | 5,2 % |
-| au-delà de 500 | 8,7 % |
-| **ensemble** | **5,0 %** |
+| top 1 – 5 | 5,3 % |
+| top 6 – 25 | 3,6 % |
+| top 26 – 100 | 2,5 % |
+| top 101 – 500 | 4,1 % |
+| au-delà de 500 | 7,3 % |
+| **ensemble** | **4,2 %** |
 
-83 % des seuils réels tombent dans une fourchette qui en annonce 80 %.
+85 % des seuils réels tombent dans une fourchette qui en annonce 80 %. Lire tel
+quel le résultat de la semaine dernière donne 5,0 % ; c'est la correction
+d'effectif du premier barreau qui met le modèle devant.
 
 Ces chiffres ne sont pas tapés dans la page : ils sont emportés par le fichier
 du modèle depuis la mesure qui les a produits, affichés avec cette date, et
@@ -186,7 +212,7 @@ Deux réserves que la page répète là où elles s'appliquent :
 
 - Une cup jamais vue — la moitié des tournois d'une nouvelle saison — est
   prédite depuis son seul barème, avec environ 20 % d'erreur médiane au lieu de
-  5 % ; une finale à lobby unique jamais vue, depuis les finales de son format,
+  4 % ; une finale à lobby unique jamais vue, depuis les finales de son format,
   avec environ 13 %. La page indique dans lequel de ces cas elle se trouve.
 - La courbe de rythme du mode direct est mesurée, mais la règle qui combine
   relevés et historique n'a pas été validée sur des tournois tenus à l'écart. Le

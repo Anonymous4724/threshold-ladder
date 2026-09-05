@@ -74,29 +74,41 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .langs button[aria-pressed="true"] { background: var(--forecast); color: var(--ground); }
 
 /* ------------------------------------------------------------------ shell */
-main { display: grid; grid-template-columns: minmax(330px, 410px) minmax(0, 1fr);
-       gap: 22px; align-items: start; padding: 22px 24px 60px; max-width: 1260px; margin: 0 auto; }
-@media (max-width: 940px) { main { grid-template-columns: minmax(0, 1fr); } }
+main { display: grid; gap: 22px; align-items: start; padding: 22px 24px 60px; max-width: 1260px; margin: 0 auto; }
 
 .panel { background: var(--surface); border: 1px solid var(--line);
          border-radius: var(--radius); padding: var(--pad); }
 
-/* Two screens in one page. The front page is the week's list and nothing
-   else, one column in the middle; picking a tournament turns the page into
-   the forecast, answer on the left, settings on the right, and the browser's
-   own back button is a way home. */
-main[data-view="home"] { grid-template-columns: minmax(0, 700px); justify-content: center; }
+/* Two screens in one page, both one column in the middle. The front page is
+   the week's list and nothing else; picking a tournament turns the page into
+   the forecast, laid out in three tabs - the answer, the evening as it runs,
+   the settings - so nothing sits stacked under anything else, and the
+   browser's own back button is a way home. */
+main { grid-template-columns: minmax(0, 860px); justify-content: center; }
+main[data-view="home"] { grid-template-columns: minmax(0, 700px); }
 main[data-view="home"] > section.form, main[data-view="home"] > section.board { display: none; }
 main[data-view="home"] .cal-list { max-height: 56vh; }
 main[data-view="predict"] > #calendar-wrap, main[data-view="predict"] > #home-extras { display: none; }
-@media (min-width: 941px) {
-  main[data-view="predict"] > section.board { grid-column: 1; grid-row: 1; }
-  main[data-view="predict"] > section.form { grid-column: 2; grid-row: 1; }
-}
-@media (max-width: 940px) { main[data-view="predict"] > section.board { order: -1; } }
-.nav { margin-bottom: 12px; }
+main[data-view="predict"] > section.board { order: -1; }
+/* The tabs: a panel belongs to one of them, and the one open is the one shown. */
+main[data-view="predict"] [data-tab] { display: none; }
+main[data-view="predict"][data-tab="predict"] [data-tab="predict"],
+main[data-view="predict"][data-tab="live"] [data-tab="live"],
+main[data-view="predict"][data-tab="settings"] [data-tab="settings"] { display: block; }
+.nav { margin-bottom: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 button.back { padding: 6px 12px; font-size: 13px; }
+a.standings { display: inline-block; padding: 6px 12px; font-size: 13px; border: 1px solid var(--line);
+              border-radius: var(--radius); color: var(--ink-dim); text-decoration: none; background: var(--surface); }
+a.standings:hover { border-color: var(--line-strong); color: var(--ink); }
+.tabs { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+               padding: 9px 14px; color: var(--ink-dim); font-weight: 600; font-size: 13px; cursor: pointer; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--forecast); }
+.tabs button .pip { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--measured);
+                    margin-left: 7px; vertical-align: 1px; }
 #home-extras .panel { margin-top: 18px; }
+#p-basis { margin-top: 16px; }
 .panel + .panel { margin-top: 16px; }
 .panel.off { opacity: .5; }
 .panel > h2 { font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
@@ -164,6 +176,7 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
 .ask { display: grid; grid-template-columns: 130px auto 1fr; gap: 12px; align-items: end; }
 .points-ask { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
               grid-template-columns: 130px 1fr; }
+.points-ask { grid-template-columns: 170px 1fr; }
 .points-ask .hint { margin-bottom: 8px; }
 .points-ask .hint b { color: var(--ink); font-family: var(--mono); }
 .ask .field { margin-bottom: 0; }
@@ -234,7 +247,7 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
 }
 :root[data-theme="dark"] { --chart-0: #c07f24; --chart-1: #3596c4; --chart-2: #7a63dd; --chart-3: #cf4f87; --chart-4: #379637; }
 #p-chart { margin-top: 18px; }
-.chart-wrap { position: relative; margin-top: 10px; }
+.chart-wrap { position: relative; margin: 10px auto 0; max-width: 720px; }
 #chart { display: block; width: 100%; height: auto; font: 11px var(--sans, system-ui, sans-serif); }
 #chart .grid { stroke: var(--line); stroke-width: 1; }
 #chart .axis { fill: var(--ink-faint); }
@@ -349,7 +362,7 @@ footer a { color: var(--ink-dim); }
   </div>
 </section>
 
-<section class="form">
+<section class="form" data-tab="settings">
   <div class="panel" id="p-setup">
     <h2><span class="step">1</span><span data-t="h.tournament">The tournament</span></h2>
 
@@ -394,8 +407,9 @@ footer a { color: var(--ink-dim); }
         <label for="f-field" data-t="l.field">Teams entered</label>
         <input id="f-field" type="number" min="0" step="1" placeholder="—">
       </div>
-      <p class="hint" id="field-hint" data-t="hint.field">Leave it empty and a plausible field is assumed. Doubling the
-        number of teams moves a threshold by about 3.5 %, so a rough guess is enough.</p>
+      <p class="hint" id="field-hint" data-t="hint.field">Leave it empty and a plausible field is assumed. When a
+        previous edition is read, a field typed in moves its number along the curve — up to a fifth when the field
+        really changed, as when a cup opens to another rank tier; so type it when you know it.</p>
       <p class="hint" id="lobby-hint" hidden></p>
     </div>
 
@@ -430,12 +444,79 @@ footer a { color: var(--ink-dim); }
   </div>
   <p class="hint" id="confirm-hint" style="margin-top:9px"></p>
 
+  <div class="panel" id="p-basis">
+    <h2><span data-t="h.basis">What this rests on</span></h2>
+    <div class="scroller"><table class="tiers" id="basis"></table></div>
+  </div>
+</section>
+
+<section class="board">
+  <div class="nav">
+    <button type="button" class="ghost back" id="back">&larr; <span data-t="btn.back">All tournaments</span></button>
+    <a class="ghost standings" id="standings-link" target="_blank" rel="noopener noreferrer" hidden>
+      <span data-t="btn.standings">Full standings on osirion.gg</span> &nearr;</a>
+  </div>
+  <div class="tabs" role="tablist" id="tabs">
+    <button type="button" role="tab" data-go="predict" aria-selected="true" data-t="tab.predict">Forecast</button>
+    <button type="button" role="tab" data-go="live" aria-selected="false" data-t="tab.live">Live</button>
+    <button type="button" role="tab" data-go="settings" aria-selected="false" data-t="tab.settings">Settings</button>
+  </div>
+  <div data-tab="predict">
+  <div class="answer">
+    <div class="ask">
+      <div class="field">
+        <label for="f-rank" data-t="l.rank">Rank to predict</label>
+        <input id="f-rank" type="number" min="1" step="1" value="500">
+      </div>
+      <button type="button" class="go" id="predict" data-t="btn.predict">Predict</button>
+      <span></span>
+    </div>
+    <div class="cuts" id="cuts" hidden>
+      <p class="hint" data-t="hint.cuts">What this cup pays out on. Click a cut to price it.</p>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div id="verdict"></div>
+    <div class="ask points-ask" id="points-ask" hidden>
+      <div class="field">
+        <label for="f-points" data-t="l.points">Your points at the end</label>
+        <input id="f-points" type="number" min="0" step="1" placeholder="—">
+      </div>
+      <p class="hint" id="points-rank"></p>
+      <span></span>
+    </div>
+  </div>
+
+  <div id="ladder-wrap" hidden>
+    <div class="ladder" id="ladder"></div>
+    <div class="legend">
+      <span><i style="background:var(--forecast-sw)"></i><span data-t="lg.forecast">Forecast, with its plausible range</span></span>
+      <span><i style="background:var(--measured-sw)"></i><span data-t="lg.measured">Read off the live standings</span></span>
+      <span><i style="background:var(--measured-sw);opacity:.55"></i><span data-t="lg.between">Between two ranks read</span></span>
+    </div>
+  </div>
+  </div>
+
+  <div data-tab="live">
   <div class="panel off" id="p-live">
     <h2><span class="step">3</span><span data-t="h.live">While it is running</span></h2>
     <div class="progress"><i id="bar" style="width:0%"></i></div>
     <p class="hint" id="progress-text"></p>
     <p class="hint good" id="auto-note" hidden></p>
     <p class="hint" id="status-line"></p>
+  </div>
+  <div class="panel" id="p-chart" hidden>
+    <h2><span data-t="h.chart">How it moved</span></h2>
+    <p class="hint" data-t="hint.chart">Points at the ranks read, reading by reading, and what the
+      forecast said each time, with its range.</p>
+    <div class="chart-wrap" id="chart-wrap">
+      <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="readings and forecast over the session"></svg>
+      <div class="chart-tip" id="chart-tip" hidden></div>
+    </div>
+    <div class="legend" id="chart-legend"></div>
+  </div>
+
+  <div class="panel" id="p-readings">
+    <h2><span data-t="h.readings">Readings</span></h2>
     <div class="actions" style="margin-top:12px" id="manual-open">
       <button type="button" class="go" id="predict-now" data-t="btn.predictNow">Predict now</button>
       <span class="hint" data-t="hint.predictNow">Read the standings yourself: two or three ranks,
@@ -474,60 +555,8 @@ footer a { color: var(--ink-dim); }
       </div>
     </div>
   </div>
-</section>
-
-<section class="board">
-  <div class="nav">
-    <button type="button" class="ghost back" id="back">&larr; <span data-t="btn.back">All tournaments</span></button>
-  </div>
-  <div class="answer">
-    <div class="ask">
-      <div class="field">
-        <label for="f-rank" data-t="l.rank">Rank to predict</label>
-        <input id="f-rank" type="number" min="1" step="1" value="500">
-      </div>
-      <button type="button" class="go" id="predict" data-t="btn.predict">Predict</button>
-      <span></span>
-    </div>
-    <div class="cuts" id="cuts" hidden>
-      <p class="hint" data-t="hint.cuts">What this cup pays out on. Click a cut to price it.</p>
-      <div class="chips" id="chips"></div>
-    </div>
-    <div id="verdict"></div>
-    <div class="ask points-ask" id="points-ask" hidden>
-      <div class="field">
-        <label for="f-points" data-t="l.points">Your points at the end</label>
-        <input id="f-points" type="number" min="0" step="1" placeholder="—">
-      </div>
-      <p class="hint" id="points-rank"></p>
-      <span></span>
-    </div>
   </div>
 
-  <div id="ladder-wrap" hidden>
-    <div class="ladder" id="ladder"></div>
-    <div class="legend">
-      <span><i style="background:var(--forecast-sw)"></i><span data-t="lg.forecast">Forecast, with its plausible range</span></span>
-      <span><i style="background:var(--measured-sw)"></i><span data-t="lg.measured">Read off the live standings</span></span>
-      <span><i style="background:var(--measured-sw);opacity:.55"></i><span data-t="lg.between">Between two ranks read</span></span>
-    </div>
-  </div>
-
-  <div class="panel" id="p-chart" hidden>
-    <h2><span data-t="h.chart">How it moved</span></h2>
-    <p class="hint" data-t="hint.chart">Points at the ranks read, reading by reading, and what the
-      forecast said each time, with its range.</p>
-    <div class="chart-wrap" id="chart-wrap">
-      <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="readings and forecast over the session"></svg>
-      <div class="chart-tip" id="chart-tip" hidden></div>
-    </div>
-    <div class="legend" id="chart-legend"></div>
-  </div>
-
-  <div class="panel" style="margin-top:18px">
-    <h2><span data-t="h.basis">What this rests on</span></h2>
-    <div class="scroller"><table class="tiers" id="basis"></table></div>
-  </div>
 </section>
 <aside class="ad-strip" id="ad" hidden>
   <small data-t="ad.label">Advertisement</small>
@@ -617,11 +646,22 @@ const FR = {
   "h.chart": "Comment ça a bougé",
   "hint.chart": "Les points aux rangs relevés, relevé après relevé, et ce que la prédiction disait à chaque fois, avec sa fourchette.",
   "chart.forecast": "prédiction top {r}", "chart.before": "avant la cup", "chart.games": "parties", "chart.minutes": "min",
-  "hint.field": "Laisse vide et un effectif plausible sera supposé. Doubler le nombre d'équipes ne déplace un seuil que d'environ 3,5 %, une estimation grossière suffit.",
+  "hint.field": "Laisse vide et un effectif plausible sera supposé. Quand une édition précédente est lue, un effectif saisi déplace son nombre le long de la courbe — jusqu'à un cinquième quand l'effectif a vraiment changé, comme une cup qui s'ouvre à un autre palier de rang ; donc saisis-le quand tu le connais.",
   "hint.live": "Après chaque partie, relève les points de deux ou trois rangs et appuie sur Confirmer : la prédiction se met à jour à ce moment-là, le relevé s'enregistre, les points s'effacent et le compteur avance. Les rangs, eux, restent.",
   "lg.forecast": "Prédiction, avec sa fourchette",
   "lg.measured": "Relevé dans le classement",
   "lg.between": "Entre deux rangs relevés",
+  "l.entry": "Accès", "entryOpen": "ouvert à tous", "rank.orAbove": "{r} ou plus",
+  "rank.bronze": "Bronze", "rank.silver": "Argent", "rank.gold": "Or", "rank.platinum": "Platine",
+  "rank.diamond": "Diamant", "rank.elite": "Élite", "rank.champion": "Champion",
+  "entrySame": "Lu sur la dernière édition avec la même condition d'accès ({bar}) : la dernière édition en date admettait un autre palier et a réuni un autre effectif.",
+  "entryOther": "La dernière édition admettait {theirs} ; celle-ci admet {bar}. Un autre palier, c'est un autre effectif : la fourchette est élargie de moitié.",
+  "entryBar": "Accès : {bar}, comme pour l'édition lue.",
+  "fieldMoved": "L'effectif saisi ({f} équipes) n'est pas celui de l'édition : lu le long de la courbe, ça déplace le seuil de {p} %.",
+  "tab.predict": "Prédiction", "tab.live": "En direct", "tab.settings": "Réglages",
+  "btn.standings": "Classement complet sur osirion.gg", "h.readings": "Relevés",
+  "chart.forecastShort": "prédiction",
+  "status.partial": "Partie {p} en cours · classement tel qu'il était après la partie {g}, lu à {t} · prochaine lecture vers {n}",
   "confirmFirst": "Renseigne le tournoi et confirme les paramètres pour obtenir une prédiction.",
   "confirmed": "Paramètres gelés. Change le rang et appuie sur Prédire autant de fois que tu veux.",
   "askRank": "Entre un rang et appuie sur Prédire.",
@@ -715,6 +755,15 @@ function rowFor(rows, match) {
   }
   return index.get(fields.map(f => match[f]).join("\u0000")) || null;
 }
+/* Log of how much a threshold at a rank moves when the field changes: the
+ * curve's quantile term alone, capped - see the model's field_move. */
+function fieldMove(rank, fieldNow, fieldThen, curve, cap) {
+  if (rank < 1 || !(fieldNow > 0) || !(fieldThen > 0)) return 0;
+  const qNow = Math.min(Math.max(rank / fieldNow, 1e-9), 1), qThen = Math.min(Math.max(rank / fieldThen, 1e-9), 1);
+  const move = -curve.a * (Math.pow(qNow, curve.b) - Math.pow(qThen, curve.b));
+  return Math.max(-cap, Math.min(cap, move));
+}
+
 function shapeRatio(rank, field, curve) {
   if (!field || field <= 0 || rank < 1) return 1;
   const q = Math.min(Math.max(rank / field, 1e-9), 1);
@@ -834,8 +883,19 @@ function directReading(t, rank) {
   const row = rowFor(MODEL.categories, { category: t.category, region: t.region });
   const table = (row || {}).direct || {};
   const usable = e => !!e && !!e[0];
+  // Which edition is "previous" depends on who was let in: the same cup one
+  // week admitting Unreal alone and the next Diamond upwards is two fields of
+  // different sizes. When the cup states its entry bar, the last edition with
+  // the same bar is read; when none exists, the latest, band widened. Then a
+  // field known outright - typed, or a later round's cut, never the API's
+  // ten-thousand ceiling - moves the value along the curve from the edition's
+  // share of its field to this cup's share of its own.
+  // The page's field is typed or read off a cut: a count, never a ceiling.
+  // (A stored tournament replayed through here can say otherwise.)
+  const want = String(t.entry || "");
+  const fieldNow = t.field_counted === false ? 0 : Math.round(Number(t.field_size) || 0);
   const read = e => {
-    const value = e[0], n = e[1], measured = e[2];
+    let value = e[0]; const n = e[1], measured = e[2];
     const fallback = MODEL.anchor_spread.category;
     let rel;
     if (measured === null || measured === undefined) rel = fallback * MODEL.widen.single_edition;
@@ -843,14 +903,34 @@ function directReading(t, rank) {
       const pairs = Math.max(n - 1, 0), weight = pairs / (pairs + 2);
       rel = Math.sqrt(weight * measured * measured + (1 - weight) * fallback * fallback);
     }
-    return { value: value, rel: rel, n: n };
+    const bars = MODEL.entry_bars || [];
+    let field = e.length > 3 && e[3] ? Math.round(Number(e[3])) : 0;
+    const theirs = e.length > 4 && Number.isInteger(e[4]) && e[4] >= 0 ? String(bars[e[4]] || "") : "";
+    const alt = e.length > 5 && e[5] && typeof e[5] === "object" ? e[5] : {};
+    let note = null;
+    if (want && theirs && want !== theirs) {
+      const other = bars.indexOf(want) >= 0 ? alt[String(bars.indexOf(want))] : null;
+      if (other) { value = Number(other[0]); field = Math.round(Number(other[1]) || 0); note = ["same_entry"]; }
+      else { rel *= MODEL.widen.entry || 1.5; note = ["other_entry", theirs]; }
+    }
+    let effect = 0;
+    if (fieldNow > 0 && field > 0 && field !== fieldNow) {
+      // A model exported before these were measured gets the measured values.
+      const rule = MODEL.field_move || { cap: 0.2, rel: 0.3 };
+      const move = fieldMove(rank, fieldNow, field, MODEL.curve, rule.cap);
+      value *= Math.exp(move);
+      rel = Math.sqrt(rel * rel + Math.pow(rule.rel * move, 2));
+      effect = 100 * (Math.exp(move) - 1);
+    }
+    return { value: value, rel: rel, n: n, note: note, effect: effect };
   };
   const entry = table[String(rank)];
   if (usable(entry)) return read(entry);
   const found = bracketOf(table, rank, usable);
   if (!found) return null;
   const a = read(table[String(found.lo)]), b = read(table[String(found.hi)]);
-  return { value: between(a.value, b.value, found.f), rel: Math.max(a.rel, b.rel), n: Math.min(a.n, b.n) };
+  return { value: between(a.value, b.value, found.f), rel: Math.max(a.rel, b.rel), n: Math.min(a.n, b.n),
+           note: a.note, effect: (1 - found.f) * a.effect + found.f * b.effect };
 }
 
 function anchorLevel(t) {
@@ -945,7 +1025,7 @@ function predictOne(t, rank) {
     const v = straight.value, rel = straight.rel;
     return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel),
       rel: rel, n: straight.n, source: "previous edition", field: field, guessedField: guessed,
-      shapeSource: "direct", level: v, fieldEffect: 0 };
+      shapeSource: "direct", level: v, fieldEffect: Math.round(straight.effect * 10) / 10, entryNote: straight.note };
   }
   const top = anchorLevel(t);
   // A final in one lobby the model has no editions of: read off the finals of
@@ -1386,6 +1466,7 @@ function blankState() {
   blank.confirmed = false; blank.asked = null;
   blank.log = []; blank.readings = []; blank.game = 1; blank.elapsed = 0;
   blank.event = ""; blank.window = ""; blank.auto = null; blank.autoLog = [];
+  blank.entry = "";
   return blank;
 }
 
@@ -1469,6 +1550,7 @@ function asTournament(s) {
     name: s.name || "",
     region: s.region, team_mode: s.team_mode, game_mode: s.game_mode,
     max_games: gameCount(s), field_size: s.field_size, scoring: s.scoring,
+    entry: s.entry || "",
     scoring_known: (s.scoring.placement || []).length > 0,
     matched: matched
   };
@@ -1571,12 +1653,18 @@ function fillLive() {
 }
 
 function drawLog() {
-  const log = liveLog(STATE);
+  // Everything read this evening, newest first: the readings typed and every
+  // automatic one the feed took, the same standing folded into one line.
+  const log = (STATE.log || []).map(e => Object.assign({}, e, { auto: false }))
+    .concat((STATE.autoLog || []).map(e => Object.assign({}, e, { auto: true })))
+    .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0));
   $("log-wrap").hidden = !log.length;
+  const clock = iso => { const d = new Date(iso); return isFinite(d.getTime())
+    ? d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : ""; };
   $("log").innerHTML = log.slice().reverse().map(entry => {
-    const which = String(STATE.format) === "sealed"
+    const which = (String(STATE.format) === "sealed"
       ? T("l.gameShort", "game") + " " + entry.game
-      : (entry.elapsed || 0) + " min";
+      : (entry.elapsed || 0) + " min") + (entry.auto && entry.at ? " · " + clock(entry.at) : "");
     const what = entry.readings.map(r => T("top", "top") + " " + r.rank + " " + num(r.points)).join(" · ");
     const said = entry.said ? num(entry.said.value) : "";
     const tag = entry.auto ? ' <small class="auto-tag">' + esc(T("l.auto", "auto")) + "</small>" : "";
@@ -1769,7 +1857,8 @@ function setFrozen(frozen) {
         ? T("opt.sealed", "Sealed") : T("opt.free", "Open window")).split(" - ")[0]],
       [T("games", "Games"), gameCount(STATE) + " × " +
         (STATE.game_minutes || MODEL.game_minutes[STATE.game_mode]) + " min"],
-      [T("l.field", "Teams entered"), STATE.field_size ? num(STATE.field_size) : "—"]
+      [T("l.field", "Teams entered"), STATE.field_size ? num(STATE.field_size) : "—"],
+      [T("l.entry", "Entry"), rankName(STATE.entry) || T("entryOpen", "open to all")]
     ];
     $("frozen-list").innerHTML = pairs.map(p =>
       "<dt>" + p[0] + "</dt><dd>" + p[1] + "</dd>").join("");
@@ -1982,10 +2071,11 @@ function drawChart(t, cold) {
     const f = live ? forecastAt(t, asked, live) : null;
     return f && f.value > 0 ? { x: xOf(e), y: f.value, lo: Math.max(0, f.value * (1 - f.rel)), hi: f.value * (1 + f.rel), e: e } : null;
   }).filter(Boolean);
-  if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked), hue: 0, kind: "forecast", points: said });
+  if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked),
+                                    short: T("chart.forecastShort", "forecast"), hue: 0, kind: "forecast", points: said });
 
   // Scales. The x axis runs the whole session; y from zero to a clean tick.
-  const W = 640, H = 260, L = 46, R = 70, TOP = 14, B = 30;
+  const W = 640, H = 260, L = 46, R = 76, TOP = 14, B = 30;
   const xMax = Math.max(sealed ? gameCount(STATE) : (Number(STATE.duration) || 0), ...entries.map(xOf), 1);
   const yTop = Math.max(1, ...series.flatMap(s => s.points.map(p => Math.max(p.y, p.hi || 0))), cold && cold.ok ? cold.value : 0);
   const step = niceStep(yTop / 4);
@@ -2021,7 +2111,7 @@ function drawChart(t, cold) {
     if (s.points.length > 1) out += '<path class="line" style="stroke:' + colour + '" d="' + path(s.points) + '"/>';
     s.points.forEach(p => { out += '<circle class="dot" r="4" cx="' + sx(p.x).toFixed(1) + '" cy="' + sy(p.y).toFixed(1) + '" style="fill:' + colour + '"/>'; });
     const last = s.points[s.points.length - 1];
-    labels.push({ y: sy(last.y), text: s.label, colour: colour });
+    labels.push({ y: sy(last.y), text: s.short || s.label, colour: colour });
   });
   // End labels, only where they do not collide: the legend carries the rest.
   labels.sort((a, b) => a.y - b.y);
@@ -2099,6 +2189,25 @@ function explainBlock(live, cold, answer, rank) {
   } else {
     lines.push("<b>" + T("basedOn", "Estimated from") + " " + sourceLabel(cold.source) + "</b>" +
       (cold.n ? " · " + cold.n + " " + T("editions", "edition(s)") : ""));
+    if (cold.source === "previous edition") {
+      const note = cold.entryNote;
+      const bar = rankName(STATE.entry);
+      if (note && note[0] === "same_entry") {
+        lines.push(T("entrySame", "Read from the last edition with the same entry bar ({bar}): the latest "
+          + "edition admitted another tier and drew another field.").replace("{bar}", bar || "—"));
+      } else if (note && note[0] === "other_entry") {
+        lines.push(T("entryOther", "The last edition admitted {theirs}; this one admits {bar}. Another tier "
+          + "is another field, so the band is widened by half.")
+          .replace("{theirs}", rankName(note[1]) || "—").replace("{bar}", bar || "—"));
+      } else if (bar) {
+        lines.push(T("entryBar", "Entry: {bar}, as for the edition read.").replace("{bar}", bar));
+      }
+      if (cold.fieldEffect && Math.abs(cold.fieldEffect) >= 0.05) {
+        lines.push(T("fieldMoved", "The field entered ({f} teams) is not the edition's: read along the curve, "
+          + "that moves the threshold by {p} %.").replace("{f}", num(cold.field))
+          .replace("{p}", (cold.fieldEffect > 0 ? "+" : "−") + Math.abs(cold.fieldEffect).toFixed(1)));
+      }
+    }
     if (cold.guessedField) {
       lines.push(T("assumedField", "Assumed field") + ": " + num(cold.field) + " " +
         T("teams", "teams") + " — " + T("fieldEffect", "a 30 % error moves the threshold by") + " " +
@@ -2489,6 +2598,27 @@ function drawCalendar() {
  * not a hundred: its Duo finals sit at 19-20. Blitz is a Reload-sized lobby too. */
 const LOBBY = { Solo: 100, Duo: 50, Trio: 33, Squad: 25 };
 const LOBBY_SMALL = { Solo: 40, Duo: 20, Trio: 13, Squad: 10 };
+/* "Diamond I or above" for "ranked-br-combined:12"; "" when open to all. The
+ * older ladders stop at Unreal = 17; the "combined" ones split Elite and
+ * Champion into three tiers and put Unreal at 21 - read off Epic's own
+ * requirements, cup by cup. */
+function rankName(entry) {
+  const m = /^([a-z0-9-]+):(\d+)$/.exec(String(entry || ""));
+  if (!m) return "";
+  const ladder = m[1], n = Number(m[2]);
+  if (!(n > 0)) return "";
+  const tiers = [T("rank.bronze", "Bronze"), T("rank.silver", "Silver"), T("rank.gold", "Gold"),
+                 T("rank.platinum", "Platinum"), T("rank.diamond", "Diamond")];
+  const sub = ["I", "II", "III"];
+  const combined = ladder.indexOf("combined") >= 0;
+  let name;
+  if (n < 15) name = tiers[Math.floor(n / 3)] + " " + sub[n % 3];
+  else if (combined && n < 21) name = (n < 18 ? T("rank.elite", "Elite") : T("rank.champion", "Champion")) + " " + sub[n % 3];
+  else if (combined || n >= 17) name = "Unreal";
+  else name = n === 15 ? T("rank.elite", "Elite") : T("rank.champion", "Champion");
+  return name === "Unreal" ? name : T("rank.orAbove", "{r} or above").replace("{r}", name);
+}
+
 function lobbyCap(team, mode) {
   const small = /reload|blitz/i.test(String(mode || ""));
   const caps = MODEL.lobby_cap || {};
@@ -2703,6 +2833,7 @@ function pickFromCalendar(row) {
   }
   STATE.tiers = Array.isArray(row.tiers) ? row.tiers : [];
   STATE.tiersFor = (row.name || "") + "|" + (row.region || "");
+  STATE.entry = String(row.entry || "");
   // Another tournament, another evening: the window's own clock, and no
   // acquisitions carried over from the last one.
   STATE.begin = row.begin || ""; STATE.end = row.end || "";
@@ -2712,6 +2843,7 @@ function pickFromCalendar(row) {
   STATE.auto = null; STATE.autoLog = [];
   STATE.confirmed = false;
   STATE.touched = false;
+  STATE.tab = "predict";
   setFrozen(false);
   fillForm();
   settingsChanged();
@@ -2737,9 +2869,17 @@ function pickFromCalendar(row) {
  * The two screens
  * ================================================================== */
 let PUSHED = 0;                            // forecast screens put on the history by this page
+function showTab(name) {
+  const main = document.querySelector("main");
+  const tab = ["predict", "live", "settings"].includes(name) ? name : "predict";
+  main.dataset.tab = tab;
+  document.querySelectorAll("#tabs [data-go]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.go === tab)));
+  if (STATE.tab !== tab) { STATE.tab = tab; save(); }
+}
 function showView(view, push) {
   const main = document.querySelector("main");
   main.dataset.view = view;
+  if (view === "predict") showTab(STATE.tab || "predict");
   const url = view === "predict" ? "#tournament" : location.pathname + location.search;
   try {
     (push ? history.pushState : history.replaceState).call(history, { view }, "", url);
@@ -2789,39 +2929,118 @@ function startLive() {
 function pollLive() {
   if (!liveUrl() || !STATE.window) return;
   if (document.querySelector("main").dataset.view !== "predict") return;
-  fetch(liveUrl(), { cache: "no-store" })
+  loadHistory().then(() => fetch(liveUrl(), { cache: "no-store" }))
     .then(r => r.ok ? r.json() : null)
     .then(feed => { if (feed) takeLive(feed); })
     .catch(() => { /* no feed, no change: the page keeps what it has */ });
 }
 
-/* One feed entry becomes one reading. Sealed lobbies are on the games the
- * leaders have completed; open queues on the minutes gone by the standings'
- * own timestamp. A feed entry taken after the window closed is the final
- * standing, and says so with a share of one. */
-function takeLive(feed) {
-  const found = (feed.windows || []).find(w => w.window === STATE.window && w.event === STATE.event);
-  if (!found || !found.updated || (STATE.auto && STATE.auto.updated === found.updated)) return;
+/* One feed reading becomes one entry. Sealed lobbies are on the games
+ * finished; open queues on the minutes gone by the standings' own timestamp.
+ * A reading taken after the window closed is the final standing, and says so
+ * with a share of one. Null when the reading carries nothing usable. */
+function entryFrom(found) {
+  if (!found || !found.updated) return null;
   const readings = monotone((found.readings || []).map(r => ({ rank: Number(r[0]), points: Number(r[1]) }))
     .filter(r => r.rank >= 1 && r.points > 0));
-  if (!readings.length) return;
+  if (!readings.length) return null;
   const sealed = String(STATE.format) === "sealed";
   const games = Number(found.games) || 0;
-  if (sealed && games < 1) return;
+  if (sealed && games < 1) return null;
   const gone = (Date.parse(found.updated) - Date.parse(STATE.begin || found.begin || "")) / 60000;
   const entry = { game: sealed ? games : Math.max(1, games || 1),
                   elapsed: isFinite(gone) ? Math.max(0, Math.round(gone)) : 0,
                   at: found.updated, updated: found.updated, readings: readings, auto: true,
-                  final: !!found.final };
+                  final: !!found.final, partial: found.partial === true };
   entry.share = entry.final ? 1 : liveShare(STATE, entry);
+  return entry;
+}
+
+/* The same standing read again is the same reading. A sealed lobby is read
+ * two or three times per game, and while a game runs the feed keeps saying
+ * what the board was when the last one ended: those repeats fold into one,
+ * kept at the time the standing was first seen. */
+function sameStanding(a, b) {
+  if (!a || !b || a.game !== b.game || a.readings.length !== b.readings.length) return false;
+  return a.readings.every((r, i) => r.rank === b.readings[i].rank && r.points === b.readings[i].points);
+}
+
+function foldInto(log, entry) {
+  const kept = (log || []).filter(e => e.updated !== entry.updated);
+  const last = kept.length ? kept[kept.length - 1] : null;
+  if (last && sameStanding(last, entry) && Date.parse(entry.at) >= Date.parse(last.at)) {
+    last.partial = entry.partial; last.final = last.final || entry.final;
+    return kept;
+  }
+  return kept.concat([entry]).sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0)).slice(-400);
+}
+
+function takeLive(feed) {
+  const found = (feed.windows || []).find(w => w.window === STATE.window && w.event === STATE.event);
+  if (!found || (STATE.auto && STATE.auto.updated === found.updated)) return;
+  const entry = entryFrom(found);
+  if (!entry) return;
+  const sealed = String(STATE.format) === "sealed";
   STATE.auto = entry;
   const tNow = asTournament(STATE);
   entry.said = saidNow(tNow, STATE.asked || STATE.rank || 0, refine(tNow, liveLog(STATE)));
-  STATE.autoLog = (STATE.autoLog || []).filter(e => e.updated !== entry.updated).concat([entry]).slice(-120);
-  if (sealed && STATE.game <= games) STATE.game = Math.min(games + 1, Math.max(gameCount(STATE), 1));
+  STATE.autoLog = foldInto(STATE.autoLog, entry);
+  if (sealed && STATE.game <= entry.game) STATE.game = Math.min(entry.game + 1, Math.max(gameCount(STATE), 1));
   save();
   fillLive();
   render();
+}
+
+/* The evening so far, from the feed's own memory: every reading it took of
+ * this window, so a page opened late - or on another device, or after the
+ * cup - draws the whole evening rather than what this browser happened to
+ * see. Asked once per window and again after ten minutes. */
+function historyUrls() {
+  if (!SITE || !SITE.live || !STATE.event || !STATE.window) return [];
+  const begin = Date.parse(STATE.begin || ""), end = Date.parse(STATE.end || "");
+  if (!isFinite(begin)) return [];
+  const last = (isFinite(end) ? end : begin + 4 * 3600e3) + 30 * 60e3;
+  const days = [];
+  for (let d = new Date(begin); d.getTime() <= last; d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10));
+  const lastDay = new Date(last).toISOString().slice(0, 10);
+  if (!days.includes(lastDay)) days.push(lastDay);
+  return days.map(day => SITE.live + "/history/" + day + ".json?event=" + encodeURIComponent(STATE.event) +
+                         "&window=" + encodeURIComponent(STATE.window));
+}
+
+let HISTORY_AT = { window: "", when: 0 };
+function loadHistory() {
+  const urls = historyUrls();
+  if (!urls.length || !/^https?:$/.test(location.protocol)) return Promise.resolve(false);
+  if (HISTORY_AT.window === STATE.window && Date.now() - HISTORY_AT.when < 10 * 60e3) return Promise.resolve(false);
+  HISTORY_AT = { window: STATE.window, when: Date.now() };
+  const asked = STATE.window;
+  return Promise.all(urls.map(u => fetch(u, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null)))
+    .then(docs => {
+      if (STATE.window !== asked) return false;
+      const id = STATE.event + "|" + STATE.window;
+      const readings = [];
+      docs.forEach(doc => { const w = doc && doc.windows && doc.windows[id]; if (w) readings.push(...(w.readings || [])); });
+      if (!readings.length) return false;
+      readings.sort((a, b) => Date.parse(a.updated || 0) - Date.parse(b.updated || 0));
+      let log = [];
+      readings.forEach(r => { const e = entryFrom(r); if (e) log = foldInto(log, e); });
+      if (!log.length) return false;
+      // What this browser saw itself and the feed has not filed yet stays.
+      const newest = Date.parse(log[log.length - 1].at);
+      (STATE.autoLog || []).forEach(e => { if (Date.parse(e.at || 0) > newest) log = foldInto(log, e); });
+      const t = asTournament(STATE);
+      log.forEach(e => { if (!e.said) e.said = saidNow(t, STATE.asked || STATE.rank || 0, refine(t, (STATE.log || []).concat([e]))); });
+      STATE.autoLog = log;
+      const last = log[log.length - 1];
+      if (!STATE.auto || Date.parse(last.at) >= Date.parse(STATE.auto.at || 0)) STATE.auto = last;
+      const sealed = String(STATE.format) === "sealed";
+      if (sealed && STATE.auto && STATE.game <= STATE.auto.game) STATE.game = Math.min(STATE.auto.game + 1, Math.max(gameCount(STATE), 1));
+      save();
+      fillLive();
+      render();
+      return true;
+    });
 }
 
 /* When the forecast last moved, and when it will next: the answer's clock.
@@ -2837,10 +3056,16 @@ function drawStatus() {
   const auto = STATE.auto, manual = (STATE.log || []).length ? STATE.log[STATE.log.length - 1] : null;
   let text;
   if (auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0))) {
+    const next = new Date(Math.floor(Date.parse(auto.updated) / 600e3) * 600e3 + 12 * 60e3);
     if (auto.share >= 1) {
       text = T("status.final", "Final standings read at {t}").replace("{t}", clock(auto.updated));
+    } else if (auto.partial && String(STATE.format) === "sealed") {
+      // A game under way: the board is half updated, and the forecast waits
+      // for the standing at the end of it rather than reading the half.
+      text = T("status.partial", "Game {p} under way · standings as they stood after game {g}, read at {t} · next reading around {n}")
+        .replace("{p}", auto.game + 1).replace("{g}", auto.game)
+        .replace("{t}", clock(auto.updated)).replace("{n}", clock(next.toISOString()));
     } else {
-      const next = new Date(Math.floor(Date.parse(auto.updated) / 600e3) * 600e3 + 12 * 60e3);
       text = T("status.auto", "Standings read at {t} · next reading around {n}")
         .replace("{t}", clock(auto.updated)).replace("{n}", clock(next.toISOString()));
     }
@@ -2854,6 +3079,18 @@ function drawStatus() {
     }
   }
   line.textContent = text;
+  // The Live tab says when there is something live to look at.
+  const pip = document.querySelector('#tabs [data-go="live"] .pip');
+  const on = !!auto && auto.share < 1;
+  if (pip && !on) pip.remove();
+  else if (!pip && on) {
+    const dot = document.createElement("span"); dot.className = "pip";
+    document.querySelector('#tabs [data-go="live"]').appendChild(dot);
+  }
+  // Where the whole board is: Osirion's own page for this window.
+  const link = $("standings-link");
+  link.hidden = !STATE.window;
+  link.href = STATE.window ? "https://osirion.gg/tournaments/" + encodeURIComponent(STATE.window) : "#";
 }
 
 /* The ladder the other way round: the rank a number of points finishes at.
@@ -3038,6 +3275,7 @@ function start() {
     showView("predict", true); $("f-name").focus();
   };
   $("back").onclick = () => { drawCalendar(); drawSessions(); goHome(); };
+  document.querySelectorAll("#tabs [data-go]").forEach(b => { b.onclick = () => showTab(b.dataset.go); });
   document.querySelectorAll("[data-set-lang]").forEach(b => {
     b.onclick = () => applyLanguage(b.dataset.setLang);
   });

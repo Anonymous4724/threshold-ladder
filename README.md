@@ -145,13 +145,16 @@ Two caveats the page repeats where they apply:
 ## Privacy
 
 Nothing leaves the page. No analytics, no request to anyone but the host serving
-the page itself, no storage beyond the browser remembering the last tournament
-typed and the evenings followed. The standalone file behaves identically with
-the network off, apart from falling back to a system font.
+the page itself, no storage beyond the browser keeping an evening in progress
+and the evenings saved. The page opens on the week's calendar and an empty
+form. The standalone file behaves identically with the network off, apart from
+falling back to a system font.
 
 Tournament data comes from [Osirion](https://osirion.gg)'s public Fortnite API.
 
 ---
 
-MIT licensed. Fortnite is a trademark of Epic Games; this project is
-unaffiliated with them and uses no game assets.
+MIT licensed. This project is unaffiliated with Epic Games and uses no game
+assets. Portions of the materials used are trademarks and/or copyrighted works
+of Epic Games, Inc. All rights reserved by Epic. This material is not official
+and is not endorsed by Epic.

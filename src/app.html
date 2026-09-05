@@ -424,7 +424,7 @@ footer a { color: var(--ink-dim); }
 </section>
 </main>
 
-<footer><p id="foot"></p><p id="credit"></p></footer>
+<footer><p id="foot"></p><p id="credit"></p><p id="legal"></p></footer>
 
 <script>
 /* ==================================================================
@@ -492,6 +492,7 @@ const FR = {
   "games": "parties", "played": "jouées",
   "tiers": "paliers", "ranksRecognised": "rangs reconnus",
   "noTiers": "Aucun palier reconnu - une ligne par rang, par exemple « 1 = 60 ».",
+  "tiersHint": "Une ligne par rang, par exemple « 1 = 60 » - ou colle le tableau du règlement.",
   "gamesAllowed": "les règles en autorisent",
   "gamesClock": "la durée en permet",
   "gamesSealed": "fixées par le format scellé",
@@ -1154,17 +1155,31 @@ const EXAMPLE = {
   game: 1, elapsed: 0, readings: [], log: []
 };
 const SESSIONS_KEY = "threshold-ladder-sessions";
-let STATE = load() || JSON.parse(JSON.stringify(EXAMPLE));
 
+/* An empty form: the settings of EXAMPLE, none of its tournament. */
+function blankState() {
+  const blank = JSON.parse(JSON.stringify(EXAMPLE));
+  blank.name = ""; blank.duration = 0; blank.game_cap = 0; blank.game_minutes = 0;
+  blank.region = "EU"; blank.team_mode = "Solo"; blank.game_mode = "Battle Royale";
+  blank.scoring = { kill: 0, kill_cap: null, placement: [] };
+  blank.confirmed = false; blank.asked = null;
+  blank.log = []; blank.readings = []; blank.game = 1; blank.elapsed = 0;
+  return blank;
+}
+let STATE = load() || blankState();
+
+/* The page opens on the week's calendar and an empty form. The one thing it
+ * brings back is an evening in progress: a cup with readings confirmed, so a
+ * reload between two games costs nothing. Anything else is a click away, in
+ * the calendar or the saved sessions. */
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem("threshold-ladder") || "null");
     if (!saved || !saved.scoring) return null;
-    // A tournament saved before the acquisitions existed: keep the settings,
-    // start the log empty rather than guessing what its readings meant.
-    if (!Array.isArray(saved.log)) { saved.log = []; saved.readings = []; }
+    if (!Array.isArray(saved.log) || !saved.log.length) return null;
     if (!saved.game) saved.game = 1;
     if (saved.elapsed === undefined) saved.elapsed = 0;
+    if (!Array.isArray(saved.readings)) saved.readings = [];
     return saved;
   } catch (e) { return null; }
 }
@@ -1424,11 +1439,14 @@ function settingsChanged() {
   $("games-hint").innerHTML = games ? "<b>" + games + " " + T("games", "games") + "</b>" : "";
 
   const parsed = STATE.scoring.placement || [];
-  $("parse-hint").className = "hint" + (parsed.length ? "" : " warn");
+  // An empty box is not a mistake yet: the warning waits for text it cannot read.
+  const typed = ($("f-placement").value || "").trim().length > 0;
+  $("parse-hint").className = "hint" + (parsed.length || !typed ? "" : " warn");
   $("parse-hint").innerHTML = parsed.length
     ? "<b>" + parsed.length + "</b> " + T("tiers", "tiers") + " · " +
       T("ranksRecognised", "ranks recognised") + " 1–" + parsed[parsed.length - 1][1]
-    : T("noTiers", 'No tier recognised - one line per rank, e.g. "1 = 60".');
+    : typed ? T("noTiers", 'No tier recognised - one line per rank, e.g. "1 = 60".')
+            : T("tiersHint", 'One line per rank, e.g. "1 = 60" - or paste the table from the rules.');
 
   drawVariants();
   const matched = STATE.variant ? { label: STATE.variant, kind: "picked" }
@@ -1538,6 +1556,11 @@ function render() {
   // work owes them, and it tells a reader where to check.
   $("credit").innerHTML = T("credit", "Tournament data from Osirion's public Fortnite API.")
     .replace("Osirion", '<a href="https://osirion.gg" target="_blank" rel="noopener noreferrer">Osirion</a>');
+  // The notice Epic's Fan Content Policy asks every fan page to carry, in its
+  // own words, which is why it is not translated.
+  $("legal").textContent = "Portions of the materials used are trademarks and/or copyrighted "
+    + "works of Epic Games, Inc. All rights reserved by Epic. This material is not official "
+    + "and is not endorsed by Epic.";
   $("basis").innerHTML = basisRows();
 
   if (!STATE.confirmed || !STATE.asked) {
@@ -2217,12 +2240,7 @@ function start() {
   $("f-elapsed").addEventListener("input", () => { STATE.touchedElapsed = true; liveChanged(); });
   drawSessions();
   $("new").onclick = () => {
-    const blank = JSON.parse(JSON.stringify(EXAMPLE));
-    blank.name = ""; blank.duration = 0; blank.game_cap = 0;
-    blank.scoring = { kill: 0, kill_cap: null, placement: [] };
-    blank.confirmed = false; blank.asked = null;
-    blank.log = []; blank.readings = []; blank.game = 1; blank.elapsed = 0;
-    STATE = blank;
+    STATE = blankState();
     setFrozen(false); fillForm(); settingsChanged(); render(); $("f-name").focus();
   };
   document.querySelectorAll("[data-set-lang]").forEach(b => {

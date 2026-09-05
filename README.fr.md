@@ -153,15 +153,17 @@ Deux réserves que la page répète là où elles s'appliquent :
 ## Vie privée
 
 Rien ne sort de la page. Aucune mesure d'audience, aucune requête à qui que ce
-soit d'autre que l'hébergeur de la page elle-même, aucun stockage au-delà du
-dernier tournoi saisi et des soirées suivies, gardés par le navigateur. Le
-fichier autonome se comporte à l'identique réseau coupé, à la police système
-près.
+soit d'autre que l'hébergeur de la page elle-même, aucun stockage au-delà d'une
+soirée en cours et des soirées sauvegardées, gardées par le navigateur. La page
+s'ouvre sur le calendrier de la semaine et un formulaire vide. Le fichier
+autonome se comporte à l'identique réseau coupé, à la police système près.
 
 Les données de tournois viennent de l'API publique Fortnite
 d'[Osirion](https://osirion.gg).
 
 ---
 
-Licence MIT. Fortnite est une marque d'Epic Games ; ce projet n'a aucun lien
-avec eux et n'utilise aucune ressource du jeu.
+Licence MIT. Ce projet n'a aucun lien avec Epic Games et n'utilise aucune
+ressource du jeu. Portions of the materials used are trademarks and/or
+copyrighted works of Epic Games, Inc. All rights reserved by Epic. This material
+is not official and is not endorsed by Epic.

@@ -140,6 +140,17 @@ The status line then says which game is under way and which standing the
 forecast rests on. A lobby that starts late plays on past the window's end,
 so its board is not called final until its games are in.
 
+The window's close is not the end of the cup: the games under way when the
+clock stops keep landing for a quarter of an hour, and the board rises with
+them. How much is measured too, in minutes past the close rather than in
+tenths of the session — about 93 % of the final board at the close, 97 % ten
+minutes later, settled by twenty — so a reading taken after the hour is priced
+for the minute it was taken. Before that the page added the same uplift to
+every late reading and the answer climbed with the standings instead of
+converging: on a cash cup whose top 20 finished at 607, it said 600 at the
+close and 651 twenty minutes later. It now says 600 and 607, and the range
+closes as the board settles.
+
 From the second reading on, a chart under the ladder shows how it moved: the
 points at the ranks read, reading by reading, and what the forecast said each
 time with its range — over games in a sealed lobby, over minutes in an open

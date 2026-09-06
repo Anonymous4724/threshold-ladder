@@ -1255,6 +1255,34 @@ const CARRY_MIN = 0.05;
 // this much per unit of log-gap, on top of the pace's own uncertainty.
 const INTERP_REL = 0.04;
 
+/* Minutes past the window's close. Past the hour an open queue stops taking
+ * entries, but the games already under way keep landing and the board rises
+ * with them for another quarter of an hour: a reading taken then is not a
+ * reading at the close, and asking the pace curve for "the end of the
+ * session" again would add the same uplift to a board that has already had
+ * it. A sealed lobby keeps its clock in games and knows nothing of this. */
+function liveAfter(s, entry) {
+  if (String(s.format) === "sealed") return 0;
+  const span = Number(s.duration) || 0;
+  if (!span) return 0;
+  return Math.max(0, (Number(entry.elapsed) || 0) - span);
+}
+
+/* The tail curve is measured in minutes, not in tenths of a session: linear
+ * between the minutes measured, flat past the last of them. */
+function tailAt(table, minutes) {
+  const keys = Object.keys(table || {}).map(Number).filter(k => isFinite(k)).sort((a, b) => a - b);
+  if (!keys.length) return null;
+  if (minutes <= keys[0]) return table[String(keys[0])];
+  for (let i = 1; i < keys.length; i++) {
+    if (minutes <= keys[i]) {
+      const a = keys[i - 1], b = keys[i], f = (minutes - a) / (b - a);
+      return table[String(a)] * (1 - f) + table[String(b)] * f;
+    }
+  }
+  return table[String(keys[keys.length - 1])];
+}
+
 function paceKind(t) {
   return String(STATE.format) === "sealed" ? "closed_by_game" : "open_by_time";
 }
@@ -1318,12 +1346,13 @@ function standing(entries, newest) {
       const at = Date.parse(r.at || e.at || 0);
       if (isFinite(newest) && isFinite(at) && newest - at > RECENT_MINUTES * 60e3 && !e.final) return;
       const cand = { rank: r.rank, points: r.points, at: at, when: r.at || e.at,
-                     share: r.share === undefined ? e.share : r.share, typed: typed };
+                     share: r.share === undefined ? e.share : r.share,
+                     after: r.after === undefined ? (e.after || 0) : r.after, typed: typed };
       const cur = best[r.rank];
       if (!cur) best[r.rank] = cand;
       else if (cand.typed !== cur.typed) { if (cand.typed ? cand.at >= cur.at : cand.at > cur.at) best[r.rank] = cand; }
       else if (cand.typed) { if (cand.at >= cur.at) best[r.rank] = cand; }
-      else if (cand.points > cur.points || (cand.points === cur.points && cand.at < cur.at)) best[r.rank] = cand;
+      else if (cand.points > cur.points || (cand.points === cur.points && cand.at > cur.at)) best[r.rank] = cand;
     });
   });
   return best;
@@ -1362,16 +1391,24 @@ function refine(t, log) {
   const pace = MODEL.pace || PACE_DEFAULT;
   const kind = paceKind(t);
   const curve = (pace.curve || {})[kind], spread = (pace.dispersion || {})[kind];
-  const expectedAt = s => { const m = paceAt(curve, s); return m === null ? s : Math.max(m, 0.05); };
-  const relAt = s => { const d = paceAt(spread, s); return d === null ? 0.10 * Math.sqrt((1 - s) / s) + 0.03 : d; };
+  const tail = (pace.tail || {})[kind], tailSpread = (pace.tail_dispersion || {})[kind];
+  const expectedAt = (s, after) => {
+    if (after > 0) { const t = tailAt(tail, after); if (t !== null) return Math.max(t, 0.05); }
+    const m = paceAt(curve, s); return m === null ? s : Math.max(m, 0.05);
+  };
+  const relAt = (s, after) => {
+    if (after > 0) { const t = tailAt(tailSpread, after); if (t !== null) return t; }
+    const d = paceAt(spread, s); return d === null ? 0.10 * Math.sqrt((1 - s) / s) + 0.03 : d;
+  };
+  const after = clock.after || 0;
   const measured = paceAt(curve, share);
-  const expected = expectedAt(share);
-  const relPace = relAt(share);
+  const expected = expectedAt(share, after);
+  const relPace = relAt(share, after);
   // Unmeasured means unknown, and unknown means a reading speaks for its own
   // rank only: the conservative reading of no evidence.
   const carried = (((pace.carry || {})[kind]) || {}).slope;
 
-  const best = standing(entries, Date.parse(entry.at || 0));
+  const best = standing(entries, Date.parse(entry.seen || entry.at || 0));
 
   const ratios = [], byRank = {}, points = {}, norm = {}, relOf = {}, whenOf = {};
   Object.keys(best).map(Number).sort((a, b) => a - b).forEach(rank => {
@@ -1379,14 +1416,14 @@ function refine(t, log) {
     if (!(r.share >= READ_MIN_SHARE)) return;
     const cold = predictOne(t, rank);
     if (!(cold && cold.ok && cold.value > 0)) return;
-    const exp = expectedAt(r.share);
+    const exp = expectedAt(r.share, r.after || 0);
     const ratio = r.points / (cold.value * exp);
     ratios.push(ratio);
     byRank[rank] = ratio; points[rank] = r.points; whenOf[rank] = r.when;
     // What the reading would be worth now, on the pace curve: the scale
     // that lets readings taken at different minutes be compared.
     norm[rank] = expected / exp;
-    relOf[rank] = relAt(r.share);
+    relOf[rank] = relAt(r.share, r.after || 0);
   });
   if (!ratios.length) return null;
   const sorted = ratios.slice().sort((a, b) => a - b);
@@ -1569,19 +1606,29 @@ function liveLog(s) {
  * of an entry is of the same game. */
 function clocked(s, e) {
   const sealed = String(s.format) === "sealed";
+  const begin = Date.parse(s.begin || "");
   // A sealed lobby that still owes games is not at the end of its session,
   // whatever the feed's flag says: a final read off a board with a game
   // missing would pin the answer to it.
   const owes = sealed && Number(e.game) > 0 && Number(e.game) < gameCount(s);
-  const share = e.final && !owes ? 1 : liveShare(s, e);
-  const begin = Date.parse(s.begin || "");
+  // On the minute the standing was last read, not the one it first stood:
+  // the same board twenty minutes on is a reading twenty minutes on, and
+  // after the window's close those twenty minutes are the whole question.
+  const held = Date.parse(e.seen || e.at || "");
+  const gone = isFinite(held) && isFinite(begin)
+    ? Math.max(Number(e.elapsed) || 0, Math.round((held - begin) / 60000))
+    : (Number(e.elapsed) || 0);
+  const stood = { game: e.game, elapsed: gone };
+  const share = e.final && !owes ? 1 : liveShare(s, stood);
+  const after = liveAfter(s, stood);
   const readings = (e.readings || []).map(r => {
     const own = r.at && r.at !== e.at && !sealed && !e.final ? Date.parse(r.at) : NaN;
-    if (!isFinite(own) || !isFinite(begin)) return Object.assign({}, r, { at: r.at || e.at, elapsed: e.elapsed, share: share });
+    if (!isFinite(own) || !isFinite(begin)) return Object.assign({}, r, { at: r.at || e.at, elapsed: e.elapsed, share: share, after: after });
     const elapsed = Math.max(0, Math.round((own - begin) / 60000));
-    return Object.assign({}, r, { elapsed: elapsed, share: liveShare(s, { game: e.game, elapsed: elapsed }) });
+    const mine = { game: e.game, elapsed: elapsed };
+    return Object.assign({}, r, { elapsed: elapsed, share: liveShare(s, mine), after: liveAfter(s, mine) });
   });
-  return Object.assign({}, e, { share: share, readings: readings });
+  return Object.assign({}, e, { share: share, after: after, readings: readings });
 }
 
 /* Standings never rise with rank. A reading that does - a deeper page read a
@@ -3060,7 +3107,7 @@ function entryFrom(found) {
   const gone = (Date.parse(found.updated) - Date.parse(STATE.begin || found.begin || "")) / 60000;
   const entry = { game: sealed ? games : Math.max(1, games || 1),
                   elapsed: isFinite(gone) ? Math.max(0, Math.round(gone)) : 0,
-                  at: found.updated, updated: found.updated, readings: readings, auto: true,
+                  at: found.updated, seen: found.updated, updated: found.updated, readings: readings, auto: true,
                   final: !!found.final, partial: found.partial === true };
   entry.share = entry.final ? 1 : liveShare(STATE, entry);
   return entry;
@@ -3080,6 +3127,11 @@ function foldInto(log, entry) {
   const last = kept.length ? kept[kept.length - 1] : null;
   if (last && sameStanding(last, entry) && Date.parse(entry.at) >= Date.parse(last.at)) {
     last.partial = entry.partial; last.final = last.final || entry.final;
+    // The line keeps the minute the standing first stood - that is when it
+    // moved - and `seen` the minute it was last read: the board holding the
+    // same numbers twenty minutes later is a reading twenty minutes later,
+    // and the answer is clocked on it.
+    last.seen = entry.at;
     return kept;
   }
   return kept.concat([entry]).sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0)).slice(-400);

@@ -150,6 +150,18 @@ classement la prédiction repose. Un lobby qui démarre en retard joue au-delà
 de la fin de la fenêtre : son classement n'est déclaré final qu'une fois ses
 parties rentrées.
 
+La fermeture de la fenêtre n'est pas la fin de la cup : les parties en cours
+quand l'horloge s'arrête continuent de tomber pendant un quart d'heure, et le
+classement monte avec elles. Combien, c'est mesuré aussi, en minutes après la
+fermeture plutôt qu'en dixièmes de session — environ 93 % du classement final
+à la fermeture, 97 % dix minutes plus tard, stabilisé à vingt — donc un relevé
+pris après l'heure est daté de la minute où il a été pris. Avant, la page
+ajoutait la même hausse à chaque relevé tardif et la prédiction montait avec
+le classement au lieu de converger : sur une cash cup dont le top 20 a fini à
+607, elle disait 600 à la fermeture et 651 vingt minutes plus tard. Elle dit
+maintenant 600 puis 607, et la fourchette se resserre à mesure que le
+classement se fige.
+
 À partir du deuxième relevé, un graphique sous l'échelle montre comment ça a
 bougé : les points aux rangs relevés, relevé après relevé, et ce que la
 prédiction disait à chaque fois avec sa fourchette — en parties pour un lobby

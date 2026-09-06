@@ -124,6 +124,20 @@ main marche toujours et prend le dessus tant qu'il est le plus récent. Le flux
 garde chaque lecture qu'il a faite : une cup ouverte tard, sur un autre
 appareil ou après sa fin montre toute la soirée, pas ce que ce navigateur a vu.
 
+Un passage du flux n'est pas un instantané. Chaque page d'un classement est
+une requête à part et les copies que l'API renvoie n'ont pas toutes le même
+âge : la page qui porte le top 160 peut avoir plusieurs minutes de retard sur
+la première, ou manquer complètement au passage. Chaque relevé est donc daté
+de la minute de sa propre page, et la réponse s'appuie sur l'état de la soirée
+— le relevé de chaque rang qui tient maintenant, quel que soit le passage d'où
+il vient, un rang que le flux n'a plus lu depuis une demi-heure étant lâché.
+Entre deux relevés du flux au même rang, le plus riche est le plus frais, car
+un seuil ne redescend pas ; un relevé saisi à la main prime sur le flux
+jusqu'à la minute où il a été tapé. C'est de là que venaient les à-coups de la
+courbe de prédiction : sur six soirées rejouées depuis l'historique du flux,
+la prédiction bouge maintenant environ deux fois moins d'un relevé au suivant,
+et le plus gros saut de tous tombe de 34 % du seuil final à 15 %.
+
 Dans un lobby scellé, le classement est à moitié mis à jour tant qu'une partie
 se joue — les équipes déjà éliminées ont leur partie comptée, celles encore en
 vie, celles qui vont ramasser le plus de points, pas encore — donc le flux lit
@@ -132,14 +146,17 @@ depuis les parties de chaque équipe (le même match est la même session pour
 tout le lobby, et une partie est finie dès qu'un vainqueur y est inscrit ; une
 équipe qui a raté une partie est simplement une équipe avec une partie de
 moins). La ligne d'état dit alors quelle partie est en cours et sur quel
-classement la prédiction repose.
+classement la prédiction repose. Un lobby qui démarre en retard joue au-delà
+de la fin de la fenêtre : son classement n'est déclaré final qu'une fois ses
+parties rentrées.
 
 À partir du deuxième relevé, un graphique sous l'échelle montre comment ça a
 bougé : les points aux rangs relevés, relevé après relevé, et ce que la
 prédiction disait à chaque fois avec sa fourchette — en parties pour un lobby
 scellé, en minutes pour une file ouverte — face à la prédiction d'avant tournoi
 tracée en filet. La courbe de prédiction est celle du rang demandé maintenant,
-recalculée à chaque relevé : demander un autre rang redessine toute la courbe.
+recalculée à chaque relevé sur tout ce que la soirée avait lu à cette
+minute-là : demander un autre rang redessine toute la courbe.
 
 La dernière cup ouverte reste dans le navigateur telle qu'on l'a laissée :
 recharger la page la ramène, réglage corrigé à la main compris, et la même

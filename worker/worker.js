@@ -12,6 +12,14 @@
  * board is rebuilt as it stood when its last game ended (see `settle`), so
  * a reading taken mid-game does not carry half a game.
  *
+ * Each page of a board is a request of its own, and the copies the API hands
+ * back are not all the same age: a deeper page can be minutes older than the
+ * first - or minutes younger - and a run can even be handed a first page
+ * older than the one before. So every page's own timestamp is read, and a
+ * reading from a page stamped at another time than the first carries that
+ * time as a third element (`[rank, points, stamp]`): the page then clocks
+ * each reading on its own time instead of taking the run as one snapshot.
+ *
  * Two things are kept. `live`, replaced at every run: the current reading of
  * the cups under way, what the page shows. And one key per day, `history-
  * YYYY-MM-DD`, to which every run appends its readings and which expires
@@ -35,7 +43,9 @@ const LOBBY_SHARE = 0.5;               // a match fewer teams than this played i
 const SCORING_AGREE = 0.8;             // share of rosters whose points the scoring table reproduces
 const LEAD_MINUTES = 5;                // a window is watched from this long before it opens
 const TAIL_MINUTES = 25;               // ... until this long after it closes, for the final standing
+const LATE_MINUTES = 20;               // a lobby that started late has this long past the window to finish
 const GAP_MS = 250;                    // between requests; the API allows 60 a minute
+const SAME_SNAPSHOT_MS = 60e3;         // pages stamped this close together are one board
 const KEY = "live";
 const HISTORY_DAYS = 31;               // a day's history expires after this
 const HISTORY_MAX = 400;               // readings kept per window per day (a run every 10 min is 144)
@@ -126,7 +136,10 @@ async function remember(env, out, now) {
     const id = w.event + "|" + w.window;
     const kept = doc.windows[id] || (doc.windows[id] = {
       event: w.event, window: w.window, name: w.name, region: w.region, begin: w.begin, end: w.end, readings: [] });
-    if (kept.readings.some(r => r.updated === w.updated)) continue;
+    // The same first page can come back with fresher deeper pages behind
+    // it: a reading is the same one only when everything in it is.
+    const body = JSON.stringify(w.readings);
+    if (kept.readings.some(r => r.updated === w.updated && JSON.stringify(r.readings) === body)) continue;
     kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, final: w.final,
                          partial: w.partial === undefined ? null : w.partial, readings: w.readings });
     if (kept.readings.length > HISTORY_MAX) kept.readings = kept.readings.slice(-HISTORY_MAX);
@@ -318,29 +331,38 @@ async function readWindow(row, now, calendar) {
   const readings = [];
   const seen = new Set();
   const wanted = RANKS.concat(cutRanks(row)).concat(DEEP);
-  const takeFrom = (pairs) => {
+  const stamp0 = Date.parse(first.updatedAt || "");
+  // A page stamped at another time than the first is another board: its
+  // readings carry their own stamp, so nothing downstream mistakes the run
+  // for one snapshot.
+  const takeFrom = (pairs, stamp) => {
+    const when = Date.parse(stamp || "");
+    const same = !isFinite(when) || !isFinite(stamp0) || Math.abs(when - stamp0) < SAME_SNAPSHOT_MS;
     for (const [rank, points] of pairs) {
       if (rank >= 1 && points > 0 && wanted.includes(rank) && !seen.has(rank)) {
         seen.add(rank);
-        readings.push([rank, points]);
+        readings.push(same ? [rank, points] : [rank, points, stamp]);
       }
     }
   };
-  takeFrom(first.pairs);
+  takeFrom(first.pairs, first.updatedAt);
   for (const number of pagesToRead(row, first.totalPages)) {
     await sleep(GAP_MS);
     const more = await board(row.event, row.window, number);
     const page = more ? readPage(more, number) : null;
-    if (page) takeFrom(page.pairs);
+    if (page) takeFrom(page.pairs, page.updatedAt);
   }
   readings.sort((a, b) => a[0] - b[0]);
-  // Standings never rise with rank. A deeper page is read a moment after the
-  // first, and early in an open queue the board is still being sorted between
-  // the two: a rank read richer than a shallower one is the later board, not
-  // this one, and is dropped so the reading is one snapshot.
-  const settled = [];
+  // Standings never rise with rank on one board. Among the readings of one
+  // stamp, a rank read richer than a shallower one is a board still being
+  // sorted, and is dropped; readings stamped at different times are
+  // different boards and are not held against each other - an earlier
+  // version did, and kept a stale page's low number while throwing away
+  // the fresh pages that disagreed with it.
+  const settled = [], lastOf = {};
   for (const r of readings) {
-    if (!settled.length || r[1] <= settled[settled.length - 1][1]) settled.push(r);
+    const key = r[2] || "";
+    if (lastOf[key] === undefined || r[1] <= lastOf[key]) { settled.push(r); lastOf[key] = r[1]; }
   }
   const end = Date.parse(row.end);
   return {
@@ -355,15 +377,27 @@ async function readWindow(row, now, calendar) {
     // reading is not made.
     partial: partial,
     readings: settled,
-    final: isFinite(end) && now > end,
+    // The window's clock has run out. A sealed lobby that started late is
+    // still playing, though, and its board is not the final one while it
+    // owes games: called final too early, the answer would be pinned to a
+    // standing with a game missing.
+    final: isFinite(end) && now > end &&
+      !(partial !== null && Number(row.games) > 0 && Number(first.games) < Number(row.games)
+        && now < end + LATE_MINUTES * 60e3),
   };
 }
 
 async function board(eventId, windowId, page) {
   const url = API + "/tournaments/leaderboard?" + new URLSearchParams({
     leaderboardEventId: eventId, leaderboardEventWindowId: windowId, page: String(page) });
+  const headers = { "User-Agent": AGENT, "Accept": "application/json" };
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, { headers: { "User-Agent": AGENT, "Accept": "application/json" } });
+    // Straight from the API, never from a copy this side kept: a board is
+    // worth reading only as it is now. Older runtimes reject the option and
+    // are asked again without it.
+    let res;
+    try { res = await fetch(url, { headers: headers, cache: "no-store" }); }
+    catch (err) { res = await fetch(url, { headers: headers }); }
     if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     if (!res.ok) return null;
     return res.text();

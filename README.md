@@ -116,6 +116,20 @@ by hand still works and takes over while it is the fresher one. The feed keeps
 every reading it took, so a cup opened late, on another device, or after it
 ended shows the whole evening, not what this browser happened to see.
 
+A run of the feed is not one snapshot. Every page of a board is a request of
+its own and the copies the API hands back are not all the same age: the page
+holding the top 160 can be minutes older than the first, or missing from the
+run altogether. So each reading is clocked at the minute its own page was
+stamped, and the answer rests on the evening's standing — the reading of each
+rank that stands now, whichever run it arrived in, a rank the feed has not
+been handed for half an hour let go. Between two of the feed's readings of a
+rank the richer is the fresher, since a threshold never falls; one typed by
+hand outranks the feed up to the minute it was typed. That is where the jumps
+in the forecast line came from: on six evenings replayed from the feed's own
+history the forecast now moves about half as much from one reading to the
+next, and the largest move of all falls from 34 % of the final threshold to
+15 %.
+
 In a sealed lobby the board is half updated while a game runs — the teams
 already out have their game added, the teams still alive, the ones about to
 take the most points, do not — so the feed reads the board as it stood when
@@ -123,14 +137,16 @@ the last game ended, rebuilt from each team's own games (the same match is the
 same session for everyone in the lobby, and a game is over once a winner is
 recorded in it; a team that missed a game is simply a team with one fewer).
 The status line then says which game is under way and which standing the
-forecast rests on.
+forecast rests on. A lobby that starts late plays on past the window's end,
+so its board is not called final until its games are in.
 
 From the second reading on, a chart under the ladder shows how it moved: the
 points at the ranks read, reading by reading, and what the forecast said each
 time with its range — over games in a sealed lobby, over minutes in an open
 queue — against the pre-tournament forecast drawn as a hairline. The forecast
-line is for the rank asked now, worked out again from each reading, so asking
-another rank redraws the whole line.
+line is for the rank asked now, worked out again at every reading from
+everything the evening had read by that minute, so asking another rank
+redraws the whole line.
 
 The cup last opened stays in the browser as it was left: reload the page and
 it is back, a setting corrected by hand included, and the same row in the list

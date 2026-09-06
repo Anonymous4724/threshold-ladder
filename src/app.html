@@ -1292,53 +1292,118 @@ function liveShare(s, entry) {
   return span ? Math.min((Number(entry.elapsed) || 0) / span, 1) : 0;
 }
 
+/* A reading older than this, at a rank the feed has read again since, is
+ * history: the evening's state is the latest reading of each rank, and an
+ * evening is followed at a reading every few minutes. */
+const RECENT_MINUTES = 25;
+/* A reading of the rank asked for counts from here on, even where the
+ * evening as a whole is not yet worth a live answer: the pace curve is
+ * measured from a tenth of the session, and a reading of the rank itself,
+ * priced at the minute it was taken and carrying that minute's uncertainty,
+ * beats a ratio carried over from other ranks. */
+const READ_MIN_SHARE = 0.1;
+
+/* The evening's standing: for each rank, the reading that stands - the last
+ * one typed by hand, or the freshest the feed has taken, and between two of
+ * the feed's the richer, since a threshold never falls and the poorer number
+ * is the older copy of the board. Readings older than RECENT_MINUTES are let
+ * go: a page the feed has stopped being handed says nothing about the minute
+ * it is now. */
+function standing(entries, newest) {
+  const best = {};
+  (entries || []).forEach(e => {
+    const typed = e.auto === false;
+    (e.readings || []).forEach(r => {
+      if (!(r.rank >= 1 && r.points > 0)) return;
+      const at = Date.parse(r.at || e.at || 0);
+      if (isFinite(newest) && isFinite(at) && newest - at > RECENT_MINUTES * 60e3 && !e.final) return;
+      const cand = { rank: r.rank, points: r.points, at: at, when: r.at || e.at,
+                     share: r.share === undefined ? e.share : r.share, typed: typed };
+      const cur = best[r.rank];
+      if (!cur) best[r.rank] = cand;
+      else if (cand.typed !== cur.typed) { if (cand.typed ? cand.at >= cur.at : cand.at > cur.at) best[r.rank] = cand; }
+      else if (cand.typed) { if (cand.at >= cur.at) best[r.rank] = cand; }
+      else if (cand.points > cur.points || (cand.points === cur.points && cand.at < cur.at)) best[r.rank] = cand;
+    });
+  });
+  return best;
+}
+
 function refine(t, log) {
-  /* The most recent confirmed acquisition, turned into "how this cup is
-   * running against its history". Earlier acquisitions are kept as a record
-   * and drawn in the list, but they say nothing the latest one does not: a
-   * reading twenty minutes old is the same measurement, worse. */
-  const entry = (log || []).length ? log[log.length - 1] : null;
+  /* What the evening's readings say about how this cup is running against
+   * its history, from the latest reading of each rank - each clocked on its
+   * own time.
+   *
+   * A run of the feed is not one snapshot: the board's pages are separate
+   * requests and the copies come back at different ages, so the top 160 in
+   * one run can be ten minutes older than the top 100 beside it - or a page
+   * can be missing from a run altogether. Taking each run as a snapshot
+   * priced a stale page at the wrong minute and switched the basis of the
+   * answer whenever the asked rank dropped out: the spikes of the first
+   * evenings. So every reading is read at the minute its page was stamped,
+   * and a rank's latest reading stands until a fresher one arrives, whatever
+   * run it came in. Between two automatic readings of a rank the richer
+   * wins - a threshold never falls, so the poorer one is the older board
+   * whatever its stamp says - and a reading typed by hand outranks an
+   * automatic one taken before it. */
+  const entries = (log || []).filter(e => (e.readings || []).length);
+  const entry = entries.reduce((newest, e) =>
+    (!newest || Date.parse(e.at || 0) >= Date.parse(newest.at || 0)) ? e : newest, null);
   if (!entry) return null;
-  const usable = monotone((entry.readings || []).filter(r => r.rank >= 1 && r.points > 0));
   const games = Number(t.max_games) || 0;
-  if (!usable.length || games < 1) return null;
-  const share = entry.share;
+  if (games < 1) return null;
+  // How far along the evening is: the furthest any reading has reached, not
+  // the last run's - a run handed a copy of the board from before the last
+  // game does not un-play it.
+  const clock = entries.reduce((best, e) =>
+    (!best || (e.final ? 1 : e.share) >= (best.final ? 1 : best.share)) ? e : best, entry);
+  const share = clock.final ? 1 : clock.share;
   if (!(share >= PACE_MIN_SHARE)) return null;
   const pace = MODEL.pace || PACE_DEFAULT;
   const kind = paceKind(t);
-  const measured = paceAt((pace.curve || {})[kind], share);
-  const expected = measured === null ? share : Math.max(measured, 0.05);
-  const disp = paceAt((pace.dispersion || {})[kind], share);
-  const relPace = disp === null ? 0.10 * Math.sqrt((1 - share) / share) + 0.03 : disp;
+  const curve = (pace.curve || {})[kind], spread = (pace.dispersion || {})[kind];
+  const expectedAt = s => { const m = paceAt(curve, s); return m === null ? s : Math.max(m, 0.05); };
+  const relAt = s => { const d = paceAt(spread, s); return d === null ? 0.10 * Math.sqrt((1 - s) / s) + 0.03 : d; };
+  const measured = paceAt(curve, share);
+  const expected = expectedAt(share);
+  const relPace = relAt(share);
   // Unmeasured means unknown, and unknown means a reading speaks for its own
   // rank only: the conservative reading of no evidence.
   const carried = (((pace.carry || {})[kind]) || {}).slope;
 
-  const ratios = [];
-  usable.forEach(r => {
-    const cold = predictOne(t, r.rank);
-    if (cold && cold.ok && cold.value > 0) {
-      ratios.push({ rank: r.rank, ratio: r.points / (cold.value * expected) });
-    }
+  const best = standing(entries, Date.parse(entry.at || 0));
+
+  const ratios = [], byRank = {}, points = {}, norm = {}, relOf = {}, whenOf = {};
+  Object.keys(best).map(Number).sort((a, b) => a - b).forEach(rank => {
+    const r = best[rank];
+    if (!(r.share >= READ_MIN_SHARE)) return;
+    const cold = predictOne(t, rank);
+    if (!(cold && cold.ok && cold.value > 0)) return;
+    const exp = expectedAt(r.share);
+    const ratio = r.points / (cold.value * exp);
+    ratios.push(ratio);
+    byRank[rank] = ratio; points[rank] = r.points; whenOf[rank] = r.when;
+    // What the reading would be worth now, on the pace curve: the scale
+    // that lets readings taken at different minutes be compared.
+    norm[rank] = expected / exp;
+    relOf[rank] = relAt(r.share);
   });
   if (!ratios.length) return null;
-  const sorted = ratios.map(x => x.ratio).sort((a, b) => a - b);
+  const sorted = ratios.slice().sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const ratio = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   // Readings that disagree about the pace widen the band: median absolute deviation.
   const dev = sorted.map(x => Math.abs(x - ratio) / Math.max(ratio, 1e-9)).sort((a, b) => a - b);
   const mad = dev.length ? dev[Math.floor(dev.length / 2)] : 0;
-  const byRank = {}, points = {};
-  ratios.forEach(x => { byRank[x.rank] = x.ratio; });
-  usable.forEach(r => { points[r.rank] = r.points; });
   const read = Object.keys(points).map(Number).sort((a, b) => a - b);
-  // A rank that was read carries only the pace's own uncertainty; a rank that
-  // was not also carries the readings' disagreement about the pace.
+  // A rank that was read carries only the pace's own uncertainty at the
+  // minute it was read; a rank that was not also carries the readings'
+  // disagreement about the pace.
   return { ratio: ratio, rel: Math.sqrt(relPace * relPace + mad * mad), relOwn: relPace,
            carry: carried === undefined ? 0 : carried,
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
-           game: entry.game, played: entry.game, games: games, byRank: byRank, kind: kind,
-           points: points, read: read };
+           game: clock.game, played: clock.game, games: games, byRank: byRank, kind: kind,
+           points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at };
 }
 
 /* The nearest ranks read on either side of one that was not, with their
@@ -1352,14 +1417,20 @@ function bracketRead(live, rank) {
     else if (r > rank) { b = r; break; }
   }
   if (!a || !b) return null;
-  return { a: a, b: b, pa: live.points[a], pb: live.points[b] };
+  // `pa`/`pb` as read; `qa`/`qb` brought to the latest reading's minute on
+  // the pace curve, since the two may have been read at different times.
+  const norm = live.norm || {};
+  return { a: a, b: b, pa: live.points[a], pb: live.points[b],
+           qa: live.points[a] * (norm[a] || 1), qb: live.points[b] * (norm[b] || 1) };
 }
 
 /* Log-linear in rank between two readings: what the standings say at a rank
  * they were not read at. */
 function betweenReads(between, rank) {
+  const pa = between.qa === undefined ? between.pa : between.qa;
+  const pb = between.qb === undefined ? between.pb : between.qb;
   const f = Math.log(rank / between.a) / Math.log(between.b / between.a);
-  return Math.exp(Math.log(between.pa) + (Math.log(between.pb) - Math.log(between.pa)) * f);
+  return Math.exp(Math.log(pa) + (Math.log(pb) - Math.log(pa)) * f);
 }
 
 /* The cold forecast at a rank, refined by the readings when there are any.
@@ -1373,7 +1444,9 @@ function forecastAt(t, rank, live) {
   const between = own === undefined ? bracketRead(live, rank) : null;
   let ratio, relLive;
   if (own !== undefined) {
-    ratio = own; relLive = live.relOwn;          // read here: the reading is the evidence
+    // Read here: the reading is the evidence, with the pace's uncertainty at
+    // the minute it was read.
+    ratio = own; relLive = (live.relOf && live.relOf[rank] !== undefined) ? live.relOf[rank] : live.relOwn;
   } else if (between) {
     // Read on both sides: the standings themselves price the rank, between
     // the two readings, and the band widens with the gap between them.
@@ -1478,24 +1551,49 @@ function blankState() {
  * the latest automatic one when it is fresher than the last of those. The
  * feed is another reader of the same standings, filed the same way. */
 function liveLog(s) {
-  const manual = (s.log || []).slice();
-  const auto = s.auto;
-  const merged = !auto ? manual
-    : (manual.length && Date.parse(manual[manual.length - 1].at || 0) >= Date.parse(auto.at || 0)) ? manual
-    : manual.concat([auto]);
-  // How far along each reading was is a matter of the settings as they are
-  // now, not as they were when it was taken: a format corrected from open
-  // queue to sealed lobby after three readings re-clocks the three.
-  return merged.map(e => Object.assign({}, e, { share: e.final ? 1 : liveShare(s, e) }));
+  /* The evening's readings, typed and fed, in time order, each reading
+   * clocked on its own stamp. How far along a reading was is a matter of the
+   * settings as they are now, not as they were when it was taken: a format
+   * corrected from open queue to sealed lobby after three readings re-clocks
+   * the three. */
+  const manual = (s.log || []).map(e => Object.assign({}, e, { auto: false }));
+  const auto = (s.autoLog || []).map(e => Object.assign({}, e, { auto: true }));
+  return manual.concat(auto).filter(e => (e.readings || []).length)
+    .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0))
+    .map(e => clocked(s, e));
+}
+
+/* One entry with its share, and each of its readings with the minute and
+ * share of its own stamp - the entry's, unless the feed said the page came
+ * from another time. A sealed lobby is clocked on games, and every reading
+ * of an entry is of the same game. */
+function clocked(s, e) {
+  const sealed = String(s.format) === "sealed";
+  // A sealed lobby that still owes games is not at the end of its session,
+  // whatever the feed's flag says: a final read off a board with a game
+  // missing would pin the answer to it.
+  const owes = sealed && Number(e.game) > 0 && Number(e.game) < gameCount(s);
+  const share = e.final && !owes ? 1 : liveShare(s, e);
+  const begin = Date.parse(s.begin || "");
+  const readings = (e.readings || []).map(r => {
+    const own = r.at && r.at !== e.at && !sealed && !e.final ? Date.parse(r.at) : NaN;
+    if (!isFinite(own) || !isFinite(begin)) return Object.assign({}, r, { at: r.at || e.at, elapsed: e.elapsed, share: share });
+    const elapsed = Math.max(0, Math.round((own - begin) / 60000));
+    return Object.assign({}, r, { elapsed: elapsed, share: liveShare(s, { game: e.game, elapsed: elapsed }) });
+  });
+  return Object.assign({}, e, { share: share, readings: readings });
 }
 
 /* Standings never rise with rank. A reading that does - a deeper page read a
  * moment after the first, on a board still being sorted, or a typo - says
  * nothing a shallower one has not said better, and is dropped. */
 function monotone(readings) {
-  const kept = [];
+  // Readings stamped at different times are different boards, and are not
+  // held against each other.
+  const kept = [], lastOf = {};
   (readings || []).slice().sort((a, b) => a.rank - b.rank).forEach(r => {
-    if (!kept.length || r.points <= kept[kept.length - 1].points) kept.push(r);
+    const key = r.at || "";
+    if (lastOf[key] === undefined || r.points <= lastOf[key]) { kept.push(r); lastOf[key] = r.points; }
   });
   return kept;
 }
@@ -2037,12 +2135,9 @@ function saidNow(t, rank, live) {
  * Sealed lobbies run on games, open queues on minutes. Plain SVG.
  * ================================================================== */
 function chartEntries() {
-  const manual = (STATE.log || []).map(e => Object.assign({}, e, { auto: false }));
-  const auto = (STATE.autoLog || []).map(e => Object.assign({}, e, { auto: true }));
-  return manual.concat(auto)
-    .filter(e => (e.readings || []).length)
-    .map(e => Object.assign({}, e, { share: e.final ? 1 : liveShare(STATE, e) }))
-    .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0));
+  // The evening as the answer reads it: typed and fed readings in time order,
+  // each clocked on its own stamp.
+  return liveLog(STATE);
 }
 
 function drawChart(t, cold) {
@@ -2064,18 +2159,24 @@ function drawChart(t, cold) {
   entries.forEach(e => e.readings.forEach(r => { count[r.rank] = (count[r.rank] || 0) + 1; }));
   const ranks = Object.keys(count).map(Number)
     .sort((a, b) => (b === asked) - (a === asked) || count[b] - count[a] || a - b).slice(0, 4);
+  // What the evening knew at each point on the clock, and what it forecast
+  // then: the answer replayed reading by reading, on everything read up to
+  // that minute. A rank the feed missed one run - or was handed stale - is
+  // not a hole the line falls into: its last reading still stands.
+  const replay = entries.map((e, i) => {
+    const seen = entries.slice(0, i + 1);
+    return { e: e, known: standing(seen, Date.parse(e.at || 0)), live: refine(t, seen) };
+  });
   const series = ranks.map((rank, i) => ({
     key: "r" + rank, label: T("top", "top") + " " + rank, hue: 1 + i, kind: "reading",
-    points: entries.map(e => { const r = e.readings.find(x => x.rank === rank); return r ? { x: xOf(e), y: r.points, e: e } : null; }).filter(Boolean)
+    points: replay.map(p => p.known[rank] ? { x: xOf(p.e), y: p.known[rank].points, e: p.e } : null).filter(Boolean)
   }));
-  // The forecast at each reading, for the rank asked now - recomputed from
-  // the readings rather than read back from what was said at the time, so a
-  // rank asked after the fact gets its whole line, and a setting corrected
-  // after the fact corrects the line with it.
-  const said = entries.map(e => {
-    const live = refine(t, [e]);
-    const f = live ? forecastAt(t, asked, live) : null;
-    return f && f.value > 0 ? { x: xOf(e), y: f.value, lo: Math.max(0, f.value * (1 - f.rel)), hi: f.value * (1 + f.rel), e: e } : null;
+  // The forecast is recomputed rather than read back from what was said at
+  // the time, so a rank asked after the fact gets its whole line, and a
+  // setting corrected after the fact corrects the line with it.
+  const said = replay.map(p => {
+    const f = p.live ? forecastAt(t, asked, p.live) : null;
+    return f && f.value > 0 ? { x: xOf(p.e), y: f.value, lo: Math.max(0, f.value * (1 - f.rel)), hi: f.value * (1 + f.rel), e: p.e } : null;
   }).filter(Boolean);
   if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked),
                                     short: T("chart.forecastShort", "forecast"), hue: 0, kind: "forecast", points: said });
@@ -2947,7 +3048,10 @@ function pollLive() {
  * with a share of one. Null when the reading carries nothing usable. */
 function entryFrom(found) {
   if (!found || !found.updated) return null;
-  const readings = monotone((found.readings || []).map(r => ({ rank: Number(r[0]), points: Number(r[1]) }))
+  // `[rank, points]`, or `[rank, points, stamp]` when the feed read that rank
+  // off a page the API stamped at another minute than the first.
+  const readings = monotone((found.readings || [])
+    .map(r => ({ rank: Number(r[0]), points: Number(r[1]), at: r[2] || found.updated }))
     .filter(r => r.rank >= 1 && r.points > 0));
   if (!readings.length) return null;
   const sealed = String(STATE.format) === "sealed";
@@ -3035,8 +3139,11 @@ function loadHistory() {
       // What this browser saw itself and the feed has not filed yet stays.
       const newest = Date.parse(log[log.length - 1].at);
       (STATE.autoLog || []).forEach(e => { if (Date.parse(e.at || 0) > newest) log = foldInto(log, e); });
-      const t = asTournament(STATE);
-      log.forEach(e => { if (!e.said) e.said = saidNow(t, STATE.asked || STATE.rank || 0, refine(t, (STATE.log || []).concat([e]))); });
+      const t = asTournament(STATE), seen = (STATE.log || []).map(e => clocked(STATE, e));
+      log.forEach(e => {
+        seen.push(clocked(STATE, e));
+        if (!e.said) e.said = saidNow(t, STATE.asked || STATE.rank || 0, refine(t, seen));
+      });
       STATE.autoLog = log;
       const last = log[log.length - 1];
       if (!STATE.auto || Date.parse(last.at) >= Date.parse(STATE.auto.at || 0)) STATE.auto = last;

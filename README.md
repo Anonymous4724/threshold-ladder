@@ -67,7 +67,11 @@ it, so getting it wrong scales every threshold on the page. The rules cap is
 what counts; the session length and the game length are a cross-check, and the
 page says so when the clock does not leave room for the games the rules allow.
 
-Type a rank, press **Predict**, and the number comes with the range around it.
+Type a rank, press **Predict**, and the number comes with two ranges around
+it. The cup's own clock sits at the top of the page - the day, the hours it
+runs and how long there is to wait - on the reader's own time zone, whichever
+that is. A reload comes back to the page it was on: the forecast if that is
+where it was, the list otherwise.
 Below the answer, the whole ladder from the top 1 down, with the rank asked for
 marked — and the ladder read the other way: type the points you expect to finish
 with and the page says which rank they land at, with the range the band allows.
@@ -151,6 +155,14 @@ converging: on a cash cup whose top 20 finished at 607, it said 600 at the
 close and 651 twenty minutes later. It now says 600 and 607, and the range
 closes as the board settles.
 
+The chart reads with a finger as well as a pointer: dragging along it moves
+the crosshair, and the numbers appear beside the chart rather than in a bubble
+over it - on a phone the bubble covered what it described and a finger could
+not summon it at all. Each line in the legend is a switch: a line switched off
+leaves the chart, the numbers and the scale. The evening's readings are a
+record rather than something to read, so they sit folded under a heading that
+says how many there are.
+
 From the second reading on, a chart under the ladder shows how it moved: the
 points at the ranks read, reading by reading, and what the forecast said each
 time with its range — over games in a sealed lobby, over minutes in an open
@@ -216,6 +228,16 @@ before them, nothing seeing the future.
 85 % of real thresholds land inside a band that claims 80 %. Reading last
 week's result straight gives 5.0 %; the field correction of the first rung is
 what puts the model ahead of it.
+
+The forecast is quoted with two ranges rather than one, and both are measured
+on those held-out cups rather than assumed: the quantiles of the error, in
+units of the band the model quotes, on 5,290 held-out thresholds. Half the
+cups land in the near range, nine in ten in the wide one. "Between 500 and
+1,000 points" is no forecast at all; "between 700 and 750, one time in two"
+says something a player can act on, and the wide range says how wrong it can
+be when it is wrong. The two are asymmetric, because the errors are: a
+threshold can come in at double the forecast, it cannot come in at less than
+nothing.
 
 These numbers are not typed into the page: they are carried in the model file
 from the run that measured them, shown with that date, and shown as a dash when

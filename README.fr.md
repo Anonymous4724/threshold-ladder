@@ -162,6 +162,14 @@ le classement au lieu de converger : sur une cash cup dont le top 20 a fini à
 maintenant 600 puis 607, et la fourchette se resserre à mesure que le
 classement se fige.
 
+Le graphique se lit au doigt autant qu'à la souris : faire glisser dessus
+déplace le repère, et les chiffres s'affichent à côté du graphique plutôt que
+dans une bulle posée dessus — sur téléphone la bulle cachait ce qu'elle
+décrivait, et un doigt ne pouvait même pas la faire apparaître. Chaque ligne
+de la légende est un interrupteur : une courbe éteinte quitte le graphique,
+les chiffres et l'échelle. Les relevés de la soirée sont un registre plus
+qu'une lecture : ils sont repliés sous un titre qui dit combien il y en a.
+
 À partir du deuxième relevé, un graphique sous l'échelle montre comment ça a
 bougé : les points aux rangs relevés, relevé après relevé, et ce que la
 prédiction disait à chaque fois avec sa fourchette — en parties pour un lobby
@@ -228,6 +236,16 @@ des 6 632 d'avant, sans que rien ne voie le futur.
 | top 101 – 500 | 4,1 % |
 | au-delà de 500 | 7,3 % |
 | **ensemble** | **4,2 %** |
+
+La prédiction est donnée avec deux fourchettes plutôt qu'une, et les deux sont
+mesurées sur ces mêmes tournois tenus à l'écart plutôt que supposées : les
+quantiles de l'erreur, en unités de la fourchette annoncée par le modèle, sur
+5 290 seuils. La moitié des cups tombe dans la fourchette serrée, neuf sur dix
+dans la large. « Entre 500 et 1 000 points » n'est pas une prédiction ;
+« entre 700 et 750, une fois sur deux » dit quelque chose d'exploitable, et la
+fourchette large dit de combien on peut se tromper. Les deux sont
+asymétriques, comme les erreurs : un seuil peut doubler, il ne peut pas
+descendre sous zéro.
 
 85 % des seuils réels tombent dans une fourchette qui en annonce 80 %. Lire tel
 quel le résultat de la semaine dernière donne 5,0 % ; c'est la correction

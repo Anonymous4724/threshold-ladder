@@ -183,7 +183,10 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
 .headline { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
 .headline .big { font: 300 52px/1 var(--mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .headline .unit { font-size: 13px; color: var(--ink-faint); }
-.headline .range { font: 400 16px/1 var(--mono); color: var(--forecast); font-variant-numeric: tabular-nums; }
+.headline .range { font: 400 15px/1.5 var(--mono); color: var(--forecast); font-variant-numeric: tabular-nums; }
+.cup-head { margin: 8px 0 0; font-size: 12px; color: var(--ink-dim); }
+.cup-head b { color: var(--ink); font-weight: 600; }
+.headline .range .odds { font-family: var(--sans, system-ui, sans-serif); font-size: 11px; color: var(--ink-faint); }
 .headline.live .big, .headline.live .range { color: var(--measured); }
 .subject { font-size: 14px; color: var(--ink-dim); margin: 7px 0 0; }
 .subject b { color: var(--ink); font-weight: 600; }
@@ -247,22 +250,37 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
 }
 :root[data-theme="dark"] { --chart-0: #c07f24; --chart-1: #3596c4; --chart-2: #7a63dd; --chart-3: #cf4f87; --chart-4: #379637; }
 #p-chart { margin-top: 18px; }
-.chart-wrap { position: relative; margin: 10px auto 0; max-width: 720px; }
-#chart { display: block; width: 100%; height: auto; font: 11px var(--sans, system-ui, sans-serif); }
+.chart-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 10px; align-items: start; }
+@media (min-width: 760px) { .chart-grid { grid-template-columns: 172px minmax(0, 1fr); } }
+.chart-wrap { position: relative; margin: 0 auto; width: 100%; max-width: 720px; }
+/* The chart answers a finger as well as a pointer: dragging along it reads
+   the evening off rather than scrolling the page. */
+#chart { display: block; width: 100%; height: auto; touch-action: none;
+         font: 11px var(--sans, system-ui, sans-serif); }
+.chart-read { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+              font-size: 12px; color: var(--ink-dim); background: var(--surface); }
+.chart-read .when { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+                    color: var(--ink-faint); margin-bottom: 6px; }
+.chart-read .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 2px 0; }
+.chart-read .row.off { opacity: .35; }
+.chart-read b { color: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.chart-read .span { display: block; margin: -1px 0 5px; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+.legend .key { display: inline-flex; align-items: center; gap: 0; border: 0; background: none; padding: 6px 2px;
+               font: inherit; color: inherit; cursor: pointer; }
+.legend .key[aria-pressed="false"] { opacity: .4; text-decoration: line-through; }
+#log-details summary { cursor: pointer; font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+                       color: var(--ink-faint); font-weight: 600; margin: 18px 0 8px; }
+#log-details summary::marker { color: var(--ink-faint); }
+#log-details[open] summary { margin-bottom: 4px; }
 #chart .grid { stroke: var(--line); stroke-width: 1; }
 #chart .axis { fill: var(--ink-faint); }
 #chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 #chart .dot { stroke: var(--surface); stroke-width: 2; }
-#chart .band { fill: var(--chart-0); opacity: .12; }
+#chart .band { fill: var(--chart-0); opacity: .10; }
+#chart .band.near { opacity: .16; }
 #chart .ref { stroke: var(--ink-faint); stroke-width: 1; }
 #chart .label { fill: var(--ink-dim); font-size: 11px; }
 #chart .cross { stroke: var(--ink-faint); stroke-width: 1; pointer-events: none; }
-.chart-tip { position: absolute; top: 8px; right: 8px; background: var(--surface); border: 1px solid var(--line);
-             border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--ink-dim); pointer-events: none;
-             box-shadow: 0 2px 8px rgba(0,0,0,.08); min-width: 150px; }
-.chart-tip b { color: var(--ink); font-family: var(--mono); }
-.chart-tip .row { display: flex; justify-content: space-between; gap: 12px; }
-.chart-tip i { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; vertical-align: -1px; }
 #chart-legend i { height: 8px; border-radius: 4px; }
 
 /* --------------------------------------------------------- live readings */
@@ -465,6 +483,7 @@ footer a { color: var(--ink-dim); }
     <button type="button" role="tab" data-go="live" aria-selected="false" data-t="tab.live">Live</button>
     <button type="button" role="tab" data-go="settings" aria-selected="false" data-t="tab.settings">Settings</button>
   </div>
+  <p class="cup-head" id="cup-head" hidden></p>
   <div data-tab="predict">
   <div class="answer">
     <div class="ask">
@@ -505,16 +524,17 @@ footer a { color: var(--ink-dim); }
     <h2><span class="step">3</span><span data-t="h.live">While it is running</span></h2>
     <div class="progress"><i id="bar" style="width:0%"></i></div>
     <p class="hint" id="progress-text"></p>
-    <p class="hint good" id="auto-note" hidden></p>
     <p class="hint" id="status-line"></p>
   </div>
   <div class="panel" id="p-chart" hidden>
     <h2><span data-t="h.chart">How it moved</span></h2>
     <p class="hint" data-t="hint.chart">Points at the ranks read, reading by reading, and what the
       forecast said each time, with its range.</p>
-    <div class="chart-wrap" id="chart-wrap">
-      <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="readings and forecast over the session"></svg>
-      <div class="chart-tip" id="chart-tip" hidden></div>
+    <div class="chart-grid">
+      <div class="chart-read" id="chart-read"></div>
+      <div class="chart-wrap" id="chart-wrap">
+        <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="readings and forecast over the session"></svg>
+      </div>
     </div>
     <div class="legend" id="chart-legend"></div>
   </div>
@@ -551,8 +571,10 @@ footer a { color: var(--ink-dim); }
     </div>
 
     <div id="log-wrap" hidden>
-      <h3 class="sub" data-t="h.log">Recorded so far</h3>
-      <div class="log" id="log"></div>
+      <details id="log-details">
+        <summary><span data-t="h.log">Recorded so far</span> <span id="log-count"></span></summary>
+        <div class="log" id="log"></div>
+      </details>
       <div class="actions" style="margin-top:10px">
         <button type="button" class="go" id="save-session" data-t="btn.saveSession">Finish</button>
         <button type="button" class="ghost" id="clear-live" data-t="btn.clearLive">Start over</button>
@@ -592,8 +614,9 @@ const FR = {
   "tagline": "Combien de points vaudra un rang, avant que les résultats n'existent.",
   "h.tournament": "Le tournoi", "h.scoring": "Le barème",
   "h.live": "Pendant le tournoi", "h.basis": "Sur quoi ça repose",
+  "when.in": "commence dans {n}", "when.running": "en cours depuis {n}",
+  "when.over": "terminé il y a {n}", "min": "min", "hours": "h", "days": "j",
   "l.auto": "auto",
-  "auto.note": "Classement lu automatiquement il y a {n} min : la prédiction le suit. Saisir un relevé soi-même marche toujours et prend le dessus tant qu'il est plus récent.",
   "l.name": "Nom", "l.region": "Région", "l.team": "Équipe", "l.mode": "Mode",
   "l.format": "Format", "l.duration": "Durée de la session (min)",
   "l.glen": "Une partie dure (min)", "l.gamecap": "Parties autorisées",
@@ -618,7 +641,9 @@ const FR = {
                     + "L'effectif est la taille d'un lobby ; corrige-le si tu sais mieux.",
   "l.callall": "Toute région", "l.calallmodes": "Tout mode",
   "l.calallteams": "Toute taille", "l.calother": "Autre",
-  "l.calnone": "Rien ne correspond. Efface les filtres, ou saisis le tournoi à la main ci-dessous.",
+  "l.calnone": "Rien ne correspond. La liste est le calendrier Epic de la semaine à venir : "
+    + "une taille ou un mode qu'Epic ne fait pas tourner cette semaine n'y est tout simplement pas. "
+    + "Efface les filtres, ou saisis le tournoi à la main ci-dessous.",
   "l.callive": "en cours",
   "l.calnote": "Calendrier arrêté le {date}. Clique un tournoi et la prédiction s'ouvre.",
   "l.calstale": "Ce calendrier date du {date} et ne couvre plus rien à venir. "
@@ -1792,7 +1817,7 @@ function fillLive() {
     ? (STATE.elapsed || 0) + "/" + (STATE.duration || 0) + " min"
     : STATE.game + "/" + gameCount(STATE) + " " + T("games", "games"));
   $("confirm-game").disabled = !canConfirm();
-  drawAutoNote();
+  drawWhen();
   drawStatus();
   $("confirm-game").textContent = T("btn.confirmGame", "Confirm") +
     (String(STATE.format) === "sealed" ? " " + T("l.gameShort", "game") + " " + STATE.game : "");
@@ -1808,6 +1833,10 @@ function drawLog() {
     .concat((STATE.autoLog || []).map(e => Object.assign({}, e, { auto: true })))
     .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0));
   $("log-wrap").hidden = !log.length;
+  // A whole evening of readings is a long list, and it is a record rather
+  // than something to read: it stays folded until it is asked for.
+  const count = $("log-count");
+  if (count) count.textContent = log.length ? "· " + log.length : "";
   const clock = iso => { const d = new Date(iso); return isFinite(d.getTime())
     ? d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : ""; };
   $("log").innerHTML = log.slice().reverse().map(entry => {
@@ -2051,6 +2080,7 @@ function predict() {
 
 function render() {
   const board = $("verdict");
+  drawWhen();
   const feed = !!liveUrl();
   $("foot").textContent = adsOn() && feed
     ? T("footBoth", "Everything the page computes happens here: the tournament you type never "
@@ -2118,8 +2148,7 @@ function render() {
     '<div class="headline' + (live ? " live" : "") + '">' +
       '<span class="big">' + num(answer.value) + "</span>" +
       '<span class="unit">' + T("points", "points") + "</span>" +
-      '<span class="range">' + num(Math.max(0, answer.value * (1 - answer.rel))) + " – " +
-        num(answer.value * (1 + answer.rel)) + "</span>" +
+      '<span class="range">' + rangeText(answer) + "</span>" +
     "</div>" +
     '<p class="subject"><b>' + T("top", "top") + " " + nf().format(rank) + "</b> " +
       T("of", "of") + " " + num(field) + " " + T("teams", "teams") + " · " +
@@ -2187,8 +2216,48 @@ function chartEntries() {
   return liveLog(STATE);
 }
 
+/* The forecast's ranges. The model quotes one half-width; how wide the
+ * interval really has to be for half the thresholds, or nine in ten, to fall
+ * inside it is measured on held-out cups (`quality.bands`, in units of that
+ * half-width, in log space, and asymmetric because the errors are: a
+ * threshold can double, it cannot halve). Without that measurement the page
+ * falls back to the single band it always drew. */
+function bandsOf(value, rel) {
+  const table = (MODEL.quality || {}).bands || null;
+  const span = key => {
+    const b = table && table[key];
+    return b ? [Math.max(0, value * Math.exp(b[0] * rel)), value * Math.exp(b[1] * rel)] : null;
+  };
+  return { near: span("50"), wide: span("90") || [Math.max(0, value * (1 - rel)), value * (1 + rel)],
+           measured: !!table };
+}
+
+/* Where the reader last put the crosshair, so a redraw every ten minutes does
+ * not move it back to the end of the chart under their finger. */
+let CHART_AT = null;
+let CHART_NARROW = null;
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", () => {
+    const narrow = window.matchMedia("(max-width: 560px)").matches;
+    if (CHART_NARROW === null || narrow === CHART_NARROW) return;
+    CHART_NARROW = narrow;
+    if (document.querySelector("main").dataset.view === "predict") render();
+  });
+}
+
+/* The two ranges in words: half the cups land in the near one, nine in ten
+ * in the wide one, both measured rather than assumed. A model that has not
+ * been validated yet quotes the single band it always did. */
+function rangeText(answer) {
+  const band = bandsOf(answer.value, answer.rel);
+  const span = pair => num(pair[0]) + " – " + num(pair[1]);
+  if (!band.near) return span(band.wide);
+  return '<span class="odds">50 %</span> ' + span(band.near) +
+         ' <span class="odds">90 %</span> ' + span(band.wide);
+}
+
 function drawChart(t, cold) {
-  const panel = $("p-chart"), svg = $("chart");
+  const panel = $("p-chart"), svg = $("chart"), read = $("chart-read");
   let entries = chartEntries();
   const sealed = String(STATE.format) === "sealed";
   const xOf = e => sealed ? Number(e.game) || 0 : Number(e.elapsed) || 0;
@@ -2212,26 +2281,38 @@ function drawChart(t, cold) {
   // not a hole the line falls into: its last reading still stands.
   const replay = entries.map((e, i) => {
     const seen = entries.slice(0, i + 1);
-    return { e: e, known: standing(seen, Date.parse(e.at || 0)), live: refine(t, seen) };
+    return { e: e, known: standing(seen, Date.parse(e.seen || e.at || 0)), live: refine(t, seen) };
   });
+  const hidden = new Set(STATE.hideSeries || []);
   const series = ranks.map((rank, i) => ({
     key: "r" + rank, label: T("top", "top") + " " + rank, hue: 1 + i, kind: "reading",
-    points: replay.map(p => p.known[rank] ? { x: xOf(p.e), y: p.known[rank].points, e: p.e } : null).filter(Boolean)
+    points: replay.map(p => p.known[rank] ? { x: xOf(p.e), y: p.known[rank].points } : null).filter(Boolean)
   }));
   // The forecast is recomputed rather than read back from what was said at
   // the time, so a rank asked after the fact gets its whole line, and a
   // setting corrected after the fact corrects the line with it.
   const said = replay.map(p => {
     const f = p.live ? forecastAt(t, asked, p.live) : null;
-    return f && f.value > 0 ? { x: xOf(p.e), y: f.value, lo: Math.max(0, f.value * (1 - f.rel)), hi: f.value * (1 + f.rel), e: p.e } : null;
+    if (!f || !(f.value > 0)) return null;
+    const band = bandsOf(f.value, f.rel);
+    return { x: xOf(p.e), y: f.value, lo: band.wide[0], hi: band.wide[1], near: band.near };
   }).filter(Boolean);
   if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked),
                                     short: T("chart.forecastShort", "forecast"), hue: 0, kind: "forecast", points: said });
+  series.forEach(s => { s.off = hidden.has(s.key); });
+  const shown = series.filter(s => !s.off && s.points.length);
 
   // Scales. The x axis runs the whole session; y from zero to a clean tick.
-  const W = 640, H = 260, L = 46, R = 76, TOP = 14, B = 30;
+  // A phone gets a narrower box - the same drawing over less width is a taller
+  // chart on the glass - and no end labels, which there is no room for.
+  const narrow = typeof window !== "undefined" && window.matchMedia
+    && window.matchMedia("(max-width: 560px)").matches;
+  const W = narrow ? 400 : 640, H = 260, L = narrow ? 38 : 46, R = narrow ? 16 : 76, TOP = 14, B = 30;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  CHART_NARROW = narrow;
   const xMax = Math.max(sealed ? gameCount(STATE) : (Number(STATE.duration) || 0), ...entries.map(xOf), 1);
-  const yTop = Math.max(1, ...series.flatMap(s => s.points.map(p => Math.max(p.y, p.hi || 0))), cold && cold.ok ? cold.value : 0);
+  const yTop = Math.max(1, ...shown.flatMap(s => s.points.map(p => Math.max(p.y, p.hi || 0))),
+                        cold && cold.ok && shown.length ? cold.value : 0);
   const step = niceStep(yTop / 4);
   const yMax = Math.ceil(yTop * 1.04 / step) * step;
   const sx = x => L + (W - L - R) * x / xMax, sy = y => TOP + (H - TOP - B) * (1 - y / yMax);
@@ -2249,18 +2330,20 @@ function drawChart(t, cold) {
   // The forecast before the cup: a hairline to measure the rest against.
   if (cold && cold.ok && cold.value <= yMax) {
     out += '<line class="ref" x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(cold.value).toFixed(1) + '" y2="' + sy(cold.value).toFixed(1) + '"/>';
-    out += '<text class="label" x="' + (L + 4) + '" y="' + (sy(cold.value) - 4).toFixed(1) + '">' + esc(T("chart.before", "before the cup")) + " · " + num(cold.value) + "</text>";
+    out += '<text class="label" x="' + (L + 4) + '" y="' + (sy(cold.value) - 4).toFixed(1) + '">'
+      + esc(narrow ? num(cold.value) : T("chart.before", "before the cup") + " · " + num(cold.value)) + "</text>";
   }
   const path = pts => pts.map((p, i) => (i ? "L" : "M") + sx(p.x).toFixed(1) + " " + sy(p.y).toFixed(1)).join(" ");
+  const area = (pts, lo, hi) => pts.map((p, i) => (i ? "L" : "M") + sx(p.x).toFixed(1) + " " + sy(Math.min(hi(p), yMax)).toFixed(1)).join(" ")
+    + " " + pts.slice().reverse().map(p => "L" + sx(p.x).toFixed(1) + " " + sy(Math.max(0, lo(p))).toFixed(1)).join(" ") + " Z";
   const labels = [];
-  series.forEach(s => {
+  shown.forEach(s => {
     const colour = "var(--chart-" + s.hue + ")";
     if (s.kind === "forecast") {
-      const withBand = s.points.filter(p => p.lo !== undefined && p.hi !== undefined);
-      if (withBand.length > 1) {
-        out += '<path class="band" d="' + withBand.map((p, i) => (i ? "L" : "M") + sx(p.x).toFixed(1) + " " + sy(Math.min(p.hi, yMax)).toFixed(1)).join(" ")
-          + " " + withBand.slice().reverse().map(p => "L" + sx(p.x).toFixed(1) + " " + sy(p.lo).toFixed(1)).join(" ") + ' Z"/>';
-      }
+      const band = s.points.filter(p => p.lo !== undefined && p.hi !== undefined);
+      if (band.length > 1) out += '<path class="band" d="' + area(band, p => p.lo, p => p.hi) + '"/>';
+      const near = s.points.filter(p => p.near);
+      if (near.length > 1) out += '<path class="band near" d="' + area(near, p => p.near[0], p => p.near[1]) + '"/>';
     }
     if (s.points.length > 1) out += '<path class="line" style="stroke:' + colour + '" d="' + path(s.points) + '"/>';
     s.points.forEach(p => { out += '<circle class="dot" r="4" cx="' + sx(p.x).toFixed(1) + '" cy="' + sy(p.y).toFixed(1) + '" style="fill:' + colour + '"/>'; });
@@ -2269,32 +2352,73 @@ function drawChart(t, cold) {
   });
   // End labels, only where they do not collide: the legend carries the rest.
   labels.sort((a, b) => a.y - b.y);
-  labels.forEach((l, i) => {
+  if (!narrow) labels.forEach((l, i) => {
     const crowded = labels.some((m, j) => j !== i && Math.abs(m.y - l.y) < 13);
     if (!crowded) out += '<text class="label" x="' + (W - R + 6) + '" y="' + (l.y + 4).toFixed(1) + '">' + esc(l.text) + "</text>";
   });
   out += '<line class="cross" id="chart-cross" x1="0" x2="0" y1="' + TOP + '" y2="' + (H - B) + '" hidden/>';
   svg.innerHTML = out;
+
+  // The legend switches a line off: four lines and a band on a phone screen
+  // is three too many when only one of them is being read.
   $("chart-legend").innerHTML = series.map(s =>
-    '<span><i style="background:var(--chart-' + s.hue + ')"></i>' + esc(s.label) + "</span>").join("");
+    '<button type="button" class="key" data-key="' + s.key + '" aria-pressed="' + String(!s.off) + '">' +
+    '<i style="background:var(--chart-' + s.hue + ')"></i>' + esc(s.label) + "</button>").join("");
+  $("chart-legend").querySelectorAll("[data-key]").forEach(button => {
+    button.onclick = () => {
+      const key = button.dataset.key;
+      const kept = (STATE.hideSeries || []).filter(k => k !== key);
+      STATE.hideSeries = hidden.has(key) ? kept : kept.concat([key]);
+      save();
+      drawChart(t, cold);
+    };
+  });
 
-  // Hover: the nearest reading's x, every series at it.
+  /* The numbers beside the chart rather than a bubble floating over it: on a
+   * phone the bubble covered what it was describing and a finger could not
+   * summon it at all. Touching or dragging along the chart moves the reading;
+   * left alone, it shows the last one taken. */
   const xs = entries.map(xOf).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b);
-  const tip = $("chart-tip"), cross = $("chart-cross");
-  svg.onpointermove = ev => {
-    const box = svg.getBoundingClientRect();
-    const px = (ev.clientX - box.left) * W / box.width;
-    const x = xs.reduce((best, v) => Math.abs(sx(v) - px) < Math.abs(sx(best) - px) ? v : best, xs[0]);
-    cross.setAttribute("x1", sx(x).toFixed(1)); cross.setAttribute("x2", sx(x).toFixed(1)); cross.hidden = false;
-    const rows = series.map(s => { const p = s.points.find(q => q.x === x); return p ? { s: s, p: p } : null; }).filter(Boolean);
-    tip.innerHTML = "<div>" + esc(sealed ? T("l.gameShort", "game") + " " + x : x + " " + T("chart.minutes", "min")) + "</div>" +
-      rows.map(r => '<div class="row"><span><i style="background:var(--chart-' + r.s.hue + ')"></i>' + esc(r.s.label) + "</span><b>" + num(r.p.y) +
-        (r.p.lo !== undefined && r.p.hi !== undefined ? " <small>" + num(r.p.lo) + "–" + num(r.p.hi) + "</small>" : "") + "</b></div>").join("");
-    tip.hidden = false;
+  const cross = $("chart-cross");
+  const paint = x => {
+    const rows = ['<span class="when">' + esc(sealed ? T("l.gameShort", "game") + " " + x
+                                                     : x + " " + T("chart.minutes", "min")) + "</span>"];
+    series.forEach(s => {
+      if (s.off) return;
+      const p = s.points.find(q => q.x === x);
+      if (!p) return;
+      rows.push('<div class="row">' +
+        '<span><i style="background:var(--chart-' + s.hue + ')"></i>' + esc(s.short || s.label) + "</span>" +
+        "<b>" + num(p.y) + "</b></div>");
+      if (s.kind === "forecast" && p.near) {
+        rows.push('<span class="span">50 % · ' + num(p.near[0]) + " – " + num(p.near[1]) + "</span>");
+        rows.push('<span class="span">90 % · ' + num(p.lo) + " – " + num(p.hi) + "</span>");
+      } else if (s.kind === "forecast" && p.lo !== undefined) {
+        rows.push('<span class="span">' + num(p.lo) + " – " + num(p.hi) + "</span>");
+      }
+    });
+    read.innerHTML = rows.join("");
+    // An SVG element has no `hidden` property: setting one leaves the
+    // attribute in place, which is why the crosshair never showed.
+    cross.setAttribute("x1", sx(x).toFixed(1));
+    cross.setAttribute("x2", sx(x).toFixed(1));
+    cross.removeAttribute("hidden");
   };
-  svg.onpointerleave = () => { tip.hidden = true; cross.hidden = true; };
+  const nearest = px => xs.reduce((best, v) => Math.abs(sx(v) - px) < Math.abs(sx(best) - px) ? v : best, xs[0]);
+  const track = ev => {
+    const box = svg.getBoundingClientRect();
+    if (!box.width) return;
+    CHART_AT = nearest((ev.clientX - box.left) * W / box.width);
+    paint(CHART_AT);
+  };
+  svg.onpointerdown = ev => {
+    try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* a mouse needs no capture */ }
+    track(ev);
+  };
+  svg.onpointermove = ev => { if (ev.pointerType === "mouse" || ev.buttons) track(ev); };
+  svg.onpointerleave = ev => { if (ev.pointerType === "mouse") paint(xs[xs.length - 1]); };
+  paint(xs.indexOf(CHART_AT) === -1 ? xs[xs.length - 1] : CHART_AT);
 }
-
 function niceStep(raw) {
   if (!(raw > 0)) return 1;
   const p = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -2710,7 +2834,9 @@ function drawCalendar() {
     const empty = document.createElement("div");
     empty.className = "cal-empty";
     empty.textContent = T("l.calnone",
-      "Nothing matches. Clear the filters, or type the tournament in by hand below.");
+      "Nothing matches. The list is Epic's calendar for the week ahead, so a size or "
+      + "mode Epic is not running this week is simply not there: clear the filters, or "
+      + "type the tournament in by hand below.");
     list.appendChild(empty);
   }
   rows.slice(0, 120).forEach(row => {
@@ -3318,14 +3444,42 @@ function drawPointsRank() {
   out.innerHTML = text;
 }
 
-function drawAutoNote() {
-  const note = $("auto-note");
-  if (!STATE.auto) { note.hidden = true; return; }
-  const minutes = Math.max(0, Math.round((Date.now() - Date.parse(STATE.auto.updated)) / 60000));
-  note.hidden = false;
-  note.textContent = T("auto.note", "Standings read automatically, {n} min ago: the forecast follows them. "
-    + "Typing a reading yourself still works and takes over while it is fresher.")
-    .replace("{n}", String(minutes));
+/* When the cup runs, on the reader's own clock. The calendar is UTC and the
+ * reader is not: "starts at 19:00" is only useful in the zone they live in,
+ * so the line is built from the browser's own locale and time zone, and says
+ * how long there is to wait or how long it has been running. */
+function drawWhen() {
+  const line = $("cup-head");
+  if (!line) return;
+  const begin = new Date(STATE.begin || ""), end = new Date(STATE.end || "");
+  if (!isFinite(begin.getTime())) { line.hidden = true; return; }
+  const loc = LANG === "fr" ? "fr-FR" : "en-GB";
+  const hm = { hour: "2-digit", minute: "2-digit" };
+  const day = begin.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "short" });
+  let text = day + " · " + begin.toLocaleTimeString(loc, hm);
+  if (isFinite(end.getTime())) {
+    // The zone on the end of the line, the way a clock says it: the reader
+    // wants "18:00 – 20:00 UTC+2", not the name of a database entry.
+    text += " – " + end.toLocaleTimeString(loc, Object.assign({ timeZoneName: "short" }, hm));
+  }
+  const now = Date.now(), starts = begin.getTime(), ends = end.getTime();
+  // Minutes while minutes mean something, then hours, then days.
+  const away = ms => {
+    const m = Math.max(1, Math.round(Math.abs(ms) / 60000));
+    if (m < 90) return m + " " + T("min", "min");
+    const h = Math.round(m / 60);
+    return h < 36 ? h + " " + T("hours", "h") : Math.round(h / 24) + " " + T("days", "d");
+  };
+  if (now < starts) {
+    text += " · " + T("when.in", "starts in {n}").replace("{n}", away(starts - now));
+  } else if (!isFinite(ends) || now <= ends) {
+    text += " · " + T("when.running", "running for {n}").replace("{n}", away(now - starts));
+  } else {
+    text += " · " + T("when.over", "ended {n} ago").replace("{n}", away(now - ends));
+  }
+  const who = [STATE.name, STATE.region].filter(Boolean).join(" · ");
+  line.hidden = false;
+  line.innerHTML = (who ? "<b>" + esc(who) + "</b> · " : "") + esc(text);
 }
 
 /* ==================================================================
@@ -3449,10 +3603,12 @@ function start() {
   try { saved = localStorage.getItem("threshold-ladder-lang") || "en"; } catch (e) { /* ignore */ }
   setFrozen(!!STATE.confirmed);
   applyLanguage(saved);
-  // An evening in progress reopens where it was, and so does a forecast the
-  // page was reloaded on; anything else starts at the list.
+  // A reload lands where the reader was: on the forecast if that is the page
+  // they reloaded, on the list otherwise. An evening in progress is kept
+  // either way - it is one click away in the list - because coming back to
+  // the list and pressing F5 should not reopen the cup they just left.
   const reloaded = location.hash === "#tournament" && !!STATE.name;
-  showView((STATE.log || []).length || STATE.auto || reloaded ? "predict" : "home", false);
+  showView(reloaded ? "predict" : "home", false);
   mountAd();
   startLive();
 }

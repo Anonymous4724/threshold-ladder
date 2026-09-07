@@ -162,6 +162,13 @@ le classement au lieu de converger : sur une cash cup dont le top 20 a fini à
 maintenant 600 puis 607, et la fourchette se resserre à mesure que le
 classement se fige.
 
+Quand la cup est finie et que le classement a cessé de bouger, la page arrête
+de prédire : un rang que le flux a lu sur le classement final est affiché pour
+ce qu'il est — le résultat, la minute où il a été récolté, et ce que le modèle
+annonçait avant la cup — sans fourchette autour, puisqu'il n'y a plus rien
+d'incertain. Les rangs que le flux n'a jamais lus gardent une prédiction et le
+disent.
+
 Le graphique se lit au doigt autant qu'à la souris : faire glisser dessus
 déplace le repère, et les chiffres s'affichent à côté du graphique plutôt que
 dans une bulle posée dessus — sur téléphone la bulle cachait ce qu'elle

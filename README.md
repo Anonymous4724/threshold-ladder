@@ -155,6 +155,13 @@ converging: on a cash cup whose top 20 finished at 607, it said 600 at the
 close and 651 twenty minutes later. It now says 600 and 607, and the range
 closes as the board settles.
 
+When the cup is over and the standings have stopped moving, the page stops
+forecasting: a rank the feed read off the final board is shown as the result
+it is - the number, the minute it was collected, and what the model had said
+before the cup, for the record - with no range around it, because there is
+nothing left to be uncertain about. Ranks the feed never read keep a forecast
+and say so.
+
 The chart reads with a finger as well as a pointer: dragging along it moves
 the crosshair, and the numbers appear beside the chart rather than in a bubble
 over it - on a phone the bubble covered what it described and a finger could

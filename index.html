@@ -192,6 +192,9 @@ button.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
 .cup-head b { color: var(--ink); font-weight: 600; }
 .headline .range .odds { font-family: var(--sans, system-ui, sans-serif); font-size: 11px; color: var(--ink-faint); }
 .headline.live .big, .headline.live .range { color: var(--measured); }
+.headline.result .big { color: var(--measured); }
+.headline .verdict-tag { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--measured);
+                         border: 1px solid var(--measured); border-radius: 999px; padding: 3px 10px; }
 .subject { font-size: 14px; color: var(--ink-dim); margin: 7px 0 0; }
 .subject b { color: var(--ink); font-weight: 600; }
 .subject .cut { color: var(--forecast); font-weight: 600; }
@@ -618,6 +621,10 @@ const FR = {
   "tagline": "Combien de points vaudra un rang, avant que les résultats n'existent.",
   "h.tournament": "Le tournoi", "h.scoring": "Le barème",
   "h.live": "Pendant le tournoi", "h.basis": "Sur quoi ça repose",
+  "result.read": "résultat final · lu à {t}",
+  "result.head": "La cup est terminée et ce rang a été lu sur le classement final.",
+  "result.body": "Le flux l'a récolté à {t} : c'est le résultat, pas une prédiction. "
+    + "Avant la cup, le modèle annonçait {v}.",
   "when.in": "commence dans {n}", "when.running": "en cours depuis {n}",
   "when.over": "terminé il y a {n}", "min": "min", "hours": "h", "days": "j",
   "l.auto": "auto",
@@ -1359,6 +1366,11 @@ const RECENT_MINUTES = 25;
  * priced at the minute it was taken and carrying that minute's uncertainty,
  * beats a ratio carried over from other ranks. */
 const READ_MIN_SHARE = 0.1;
+/* Minutes past an open queue's close by which the games in flight have landed
+ * and the board has stopped moving - what the tail curve measures. Kept as a
+ * number of its own so a model exported before that measurement still knows a
+ * finished board when it sees one. */
+const SETTLED_AFTER = 20;
 
 /* The evening's standing: for each rank, the reading that stands - the last
  * one typed by hand, or the freshest the feed has taken, and between two of
@@ -1465,11 +1477,19 @@ function refine(t, log) {
   // A rank that was read carries only the pace's own uncertainty at the
   // minute it was read; a rank that was not also carries the readings'
   // disagreement about the pace.
+  // The board is finished, not merely late: the feed calls the window closed
+  // and the pace curve says the standings have stopped moving - past the
+  // window an open queue is still collecting the games in flight, and a
+  // sealed lobby that owes a game is not at its end. A rank read on such a
+  // board is a result, and the page says so rather than forecasting a number
+  // it can simply read.
+  const settled = !!clock.final && (expected >= 0.995 || after >= SETTLED_AFTER);
   return { ratio: ratio, rel: Math.sqrt(relPace * relPace + mad * mad), relOwn: relPace,
            carry: carried === undefined ? 0 : carried,
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
            game: clock.game, played: clock.game, games: games, byRank: byRank, kind: kind,
-           points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at };
+           points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at,
+           settled: settled, final: !!clock.final };
 }
 
 /* The nearest ranks read on either side of one that was not, with their
@@ -1507,6 +1527,11 @@ function forecastAt(t, rank, live) {
   if (!cold || !cold.ok) return null;
   if (!live) return { value: cold.value, rel: cold.rel, weight: 0 };
   const own = live.byRank[rank];
+  // Read off the final standings: the answer is the number itself.
+  if (live.settled && live.points[rank] > 0) {
+    return { value: live.points[rank], rel: 0, weight: 1, result: true,
+             when: (live.when || {})[rank] || live.at };
+  }
   const between = own === undefined ? bracketRead(live, rank) : null;
   let ratio, relLive;
   if (own !== undefined) {
@@ -2149,10 +2174,16 @@ function render() {
   const asked = cutAt(rank, field);
 
   board.innerHTML =
-    '<div class="headline' + (live ? " live" : "") + '">' +
+    '<div class="headline' + (live ? " live" : "") + (answer.result ? " result" : "") + '">' +
       '<span class="big">' + num(answer.value) + "</span>" +
       '<span class="unit">' + T("points", "points") + "</span>" +
-      '<span class="range">' + rangeText(answer) + "</span>" +
+      (answer.result
+        // The cup is over and this rank was read off the final board: a
+        // result, and labelled as one. A forecast of a number that can be
+        // read is a forecast nobody needs.
+        ? '<span class="verdict-tag">' + esc(T("result.read", "final result · read at {t}")
+            .replace("{t}", hhmm(answer.when))) + "</span>"
+        : '<span class="range">' + rangeText(answer) + "</span>") +
     "</div>" +
     '<p class="subject"><b>' + T("top", "top") + " " + nf().format(rank) + "</b> " +
       T("of", "of") + " " + num(field) + " " + T("teams", "teams") + " · " +
@@ -2394,10 +2425,13 @@ function drawChart(t, cold) {
       rows.push('<div class="row">' +
         '<span><i style="background:var(--chart-' + s.hue + ')"></i>' + esc(s.short || s.label) + "</span>" +
         "<b>" + num(p.y) + "</b></div>");
-      if (s.kind === "forecast" && p.near) {
+      // A range of nothing is not a range: a threshold read off a finished
+      // board has no band, and the line saying so would only be noise.
+      const wide = p.hi - p.lo >= 0.5;
+      if (s.kind === "forecast" && p.near && wide) {
         rows.push('<span class="span">50 % · ' + num(p.near[0]) + " – " + num(p.near[1]) + "</span>");
         rows.push('<span class="span">90 % · ' + num(p.lo) + " – " + num(p.hi) + "</span>");
-      } else if (s.kind === "forecast" && p.lo !== undefined) {
+      } else if (s.kind === "forecast" && p.lo !== undefined && wide) {
         rows.push('<span class="span">' + num(p.lo) + " – " + num(p.hi) + "</span>");
       }
     });
@@ -2432,6 +2466,15 @@ function niceStep(raw) {
 
 function explainBlock(live, cold, answer, rank) {
   const lines = [];
+  if (answer && answer.result) {
+    // Nothing to explain about a number that was read: say where it came
+    // from, and what the forecast had said before the cup, for the record.
+    lines.push("<b>" + T("result.head", "The cup is over and this rank was read off the final standings.")
+      + "</b> " + T("result.body", "The feed collected them at {t}; this is the result, not a forecast."
+        + " Before the cup the model said {v}.")
+        .replace("{t}", hhmm(answer.when)).replace("{v}", num(cold.value) + " " + T("points", "points")));
+    return '<div class="note good">' + lines.join("<br>") + "</div>";
+  }
   if (live) {
     const pct = x => (x >= 0 ? "+" : "−") + Math.round(100 * Math.abs(x)) + " %";
     const boards = ((MODEL.pace || {}).boards || {});
@@ -3338,16 +3381,20 @@ function loadHistory() {
     });
 }
 
+/* A time of day on the reader's own clock, or a dash. */
+function hhmm(iso) {
+  const d = new Date(iso || "");
+  return isFinite(d.getTime())
+    ? d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })
+    : "—";
+}
+
 /* When the forecast last moved, and when it will next: the answer's clock.
  * Automatic readings come every ten minutes; typed ones whenever they were
  * typed; before any, the forecast is the one from history. */
 function drawStatus() {
   const line = $("status-line");
-  const clock = iso => {
-    const d = new Date(iso);
-    return isFinite(d.getTime()) ? d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB",
-                                                        { hour: "2-digit", minute: "2-digit" }) : "—";
-  };
+  const clock = hhmm;
   const auto = STATE.auto, manual = (STATE.log || []).length ? STATE.log[STATE.log.length - 1] : null;
   let text;
   if (auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0))) {

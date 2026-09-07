@@ -162,6 +162,15 @@ le classement au lieu de converger : sur une cash cup dont le top 20 a fini à
 maintenant 600 puis 607, et la fourchette se resserre à mesure que le
 classement se fige.
 
+La fin de la fenêtre n'est pas la fin du classement : les parties lancées à
+l'heure pile tombent pendant encore vingt minutes, et un relevé pris à 21 h 59
+n'est pas le classement final, si ronde que soit l'heure. La page attend que
+le flux lise deux fois le même classement — c'est le classement lui-même qui
+dit qu'il a cessé de bouger, pour cette cup et pas en moyenne — et dit
+entre-temps lequel des trois états on regarde : encore en cours, dernières
+parties en train de tomber (avec l'heure à laquelle ce sera figé), ou final et
+inchangé depuis telle minute.
+
 Quand la cup est finie et que le classement a cessé de bouger, la page arrête
 de prédire : un rang que le flux a lu sur le classement final est affiché pour
 ce qu'il est — le résultat, la minute où il a été récolté, et ce que le modèle

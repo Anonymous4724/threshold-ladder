@@ -618,6 +618,11 @@ const FR = {
   "h.tournament": "Le tournoi", "h.scoring": "Le barème",
   "h.live": "Pendant le tournoi", "h.basis": "Sur quoi ça repose",
   "result.read": "résultat final · lu à {t}",
+  "status.settling": "Classement lu à {t} · les dernières parties tombent encore, "
+    + "classement définitif vers {n}",
+  "status.finalRead": "Classement final lu à {t}",
+  "status.stale": "Classement lu à {t}, avant que les dernières parties ne tombent · "
+    + "le flux n'a pas regardé depuis",
   "result.head": "La cup est terminée et ce rang a été lu sur le classement final.",
   "result.body": "Le flux l'a récolté à {t} : c'est le résultat, pas une prédiction. "
     + "Avant la cup, le modèle annonçait {v}.",
@@ -677,7 +682,7 @@ const FR = {
   "status.manual": "Dernier relevé saisi à {t}",
   "status.cold": "Prédiction d'avant tournoi",
   "status.willAuto": " · le classement sera lu automatiquement toutes les 10 min une fois la cup lancée",
-  "status.final": "Classement final lu à {t}",
+"status.final": "Classement final · inchangé depuis {t}",
   "l.calover": "terminée",
   "h.chart": "Comment ça a bougé",
   "hint.chart": "Les points aux rangs relevés, relevé après relevé, et ce que la prédiction disait à chaque fois, avec sa fourchette.",
@@ -1367,6 +1372,18 @@ const READ_MIN_SHARE = 0.1;
  * number of its own so a model exported before that measurement still knows a
  * finished board when it sees one. */
 const SETTLED_AFTER = 20;
+/* The same standing read again this long after it first appeared: the board
+ * is not moving any more. One run of the feed apart is enough - it reads
+ * every ten minutes - and a minute guards against two runs of the same one. */
+const HELD_MS = 60e3;
+
+/* How long a standing has stood: the gap between the minute it first appeared
+ * and the minute the feed last read the very same numbers. */
+function boardHeld(entry) {
+  const first = Date.parse((entry || {}).at || "");
+  const last = Date.parse((entry || {}).seen || (entry || {}).at || "");
+  return isFinite(first) && isFinite(last) ? last - first : 0;
+}
 
 /* The evening's standing: for each rank, the reading that stands - the last
  * one typed by hand, or the freshest the feed has taken, and between two of
@@ -1479,7 +1496,14 @@ function refine(t, log) {
   // sealed lobby that owes a game is not at its end. A rank read on such a
   // board is a result, and the page says so rather than forecasting a number
   // it can simply read.
-  const settled = !!clock.final && (expected >= 0.995 || after >= SETTLED_AFTER);
+  // "The window's clock has run out" is not "the board has stopped": the last
+  // game of an open queue starts on the hour and lands twenty minutes later.
+  // The feed reading the same standing twice says it has stopped - a fact
+  // about this cup, not a median over hundreds - and the measured tail is the
+  // fallback for the evening where the feed only got one last look.
+  const still = boardHeld(entry) >= HELD_MS;
+  const settled = !!clock.final && (still || after >= SETTLED_AFTER
+                                    || (kind === "closed_by_game" && expected >= 0.999));
   return { ratio: ratio, rel: Math.sqrt(relPace * relPace + mad * mad), relOwn: relPace,
            carry: carried === undefined ? 0 : carried,
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
@@ -3395,8 +3419,30 @@ function drawStatus() {
   let text;
   if (auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0))) {
     const next = new Date(Math.floor(Date.parse(auto.updated) / 600e3) * 600e3 + 12 * 60e3);
-    if (auto.share >= 1) {
-      text = T("status.final", "Final standings read at {t}").replace("{t}", clock(auto.updated));
+    const sealed = String(STATE.format) === "sealed";
+    // The window is over and, for a lobby, its games are in. That is not yet
+    // the final board in an open queue: the games that started on the hour
+    // are still landing.
+    const over = !!auto.final && !(sealed && Number(auto.game) > 0 && Number(auto.game) < gameCount(STATE));
+    const still = boardHeld(auto) >= HELD_MS;
+    const ends = Date.parse(STATE.end || "");
+    const settleBy = isFinite(ends) ? ends + SETTLED_AFTER * 60e3 : 0;
+    // How long after the close the reading itself was taken - the clock that
+    // matters. A reading taken three minutes after the hour does not become
+    // the final board by our waiting half an hour for it.
+    const readAfter = isFinite(ends) ? (Date.parse(auto.updated) - ends) / 60e3 : 0;
+    if (over && (sealed || still || readAfter >= SETTLED_AFTER)) {
+      text = still
+        ? T("status.final", "Final standings · unchanged since {t}").replace("{t}", clock(auto.at))
+        : T("status.finalRead", "Final standings read at {t}").replace("{t}", clock(auto.updated));
+    } else if (over && Date.now() >= settleBy) {
+      text = T("status.stale", "Standings read at {t}, before the last games had landed · "
+        + "the feed has not looked since").replace("{t}", clock(auto.updated));
+    } else if (over) {
+      // Between the two: the clock has run out, the board has not settled.
+      text = T("status.settling", "Standings read at {t} · the last games are still landing, "
+        + "final around {n}")
+        .replace("{t}", clock(auto.updated)).replace("{n}", clock(new Date(settleBy).toISOString()));
     } else if (auto.partial && String(STATE.format) === "sealed") {
       // A game under way: the board is half updated, and the forecast waits
       // for the standing at the end of it rather than reading the half.

@@ -155,6 +155,14 @@ converging: on a cash cup whose top 20 finished at 607, it said 600 at the
 close and 651 twenty minutes later. It now says 600 and 607, and the range
 closes as the board settles.
 
+The window's clock running out is not the end of the board: the games that
+started on the hour land for another twenty minutes, and a reading taken at
+21:59 is not the final standings however round the clock looks. The page waits
+for the feed to read the same standings twice - that is the board saying it
+has stopped, about this cup rather than on average - and says which of the
+three it is meanwhile: still running, the last games still landing (with the
+minute they should be in by), or final and unchanged since a given minute.
+
 When the cup is over and the standings have stopped moving, the page stops
 forecasting: a rank the feed read off the final board is shown as the result
 it is - the number, the minute it was collected, and what the model had said

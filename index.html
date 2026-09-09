@@ -2188,6 +2188,10 @@ function render() {
     board.innerHTML = '<div class="note bad">' + esc(cold ? cold.reason : whyNoAnchor(t)) + "</div>";
     $("ladder").innerHTML = "";
     $("ladder-wrap").hidden = true;
+    // A format the model has never measured still has standings, and the feed
+    // still reads them. They are worth showing on their own: the chart keeps
+    // its lines of points read, without a forecast to draw against them.
+    drawChart(t, null);
     return;
   }
 

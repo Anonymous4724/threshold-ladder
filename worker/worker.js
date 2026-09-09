@@ -150,13 +150,14 @@ async function remember(env, out, now) {
 }
 
 /* The window is worth asking about: open now, give or take the minutes it
- * takes the standings to appear before and to settle after. Test formats the
- * model cannot read and second rounds played for first place only are left
- * out, as they are on the site. */
+ * takes the standings to appear before and to settle after. Second rounds
+ * played for first place only are left out, as they are on the site. A format
+ * the model has never measured - an Arena evaluation on its own playlist - is
+ * read like any other: the model cannot price it, but its standings are a
+ * fact, and the page shows them for what they are. */
 function watched(row, now) {
   const begin = Date.parse(row.begin), end = Date.parse(row.end);
   if (!isFinite(begin) || !row.event || !row.window) return false;
-  if (row.mode === "Other") return false;
   if (/victory cup/i.test(row.name || "") && Number(row.stage) >= 2) return false;
   const opens = begin - LEAD_MINUTES * 60e3;
   const closes = (isFinite(end) ? end : begin + 4 * 3600e3) + TAIL_MINUTES * 60e3;

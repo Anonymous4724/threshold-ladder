@@ -115,11 +115,14 @@ passés jusqu'au top 250, de 5 à 7 % plus bas, contre une fourchette d'allure d
 dix et plus. L'échelle marque ces barreaux d'un point creux.
 
 Quand la cup est en cours et que le flux en direct du site est actif, le
-classement est lu pour toi toutes les quelques minutes — les points aux top 1,
+classement est lu pour toi toutes les dix minutes — les points aux top 1,
 3, 5, 10, 20, 25, 50 et 100, à chaque palier que la cup paie (le rang de
 qualification d'abord) et aux barreaux plus profonds de l'échelle, aussi loin
 que quelques pages le permettent — et enregistré comme relevés marqués *auto* :
-la prédiction les suit sans que personne ne tape rien. Un relevé saisi à la
+la prédiction les suit sans que personne ne tape rien. Sur les vingt dernières
+minutes d'une cup et pendant que son tableau se stabilise, là où le classement
+bouge d'environ un point par minute aux rangs qui qualifient, le top cent est
+relu toutes les cinq minutes et la page le demande toutes les deux. Un relevé saisi à la
 main marche toujours et prend le dessus tant qu'il est le plus récent. Le flux
 garde chaque lecture qu'il a faite : une cup ouverte tard, sur un autre
 appareil ou après sa fin montre toute la soirée, pas ce que ce navigateur a vu.
@@ -161,6 +164,42 @@ le classement au lieu de converger : sur une cash cup dont le top 20 a fini à
 607, elle disait 600 à la fermeture et 651 vingt minutes plus tard. Elle dit
 maintenant 600 puis 607, et la fourchette se resserre à mesure que le
 classement se fige.
+
+Un seuil ne redescend jamais, et la page en fait une règle et non une
+tendance : les points d'une équipe ne peuvent que monter, donc le k-ième
+score d'une soirée ne peut que monter, donc le seuil final d'un rang ne peut
+pas être sous ce que le classement affiche déjà. La prédiction et le bas des
+deux fourchettes sont tenus au relevé du tableau — et pour un rang non relevé,
+au rang plus profond le plus proche qui l'a été, puisque le rang 50 vaut au
+moins ce que vaut le rang 100. La pondération des relevés contre l'historique
+pouvait passer sous le tableau dont elle partait : 82 prédictions sur 10 182
+rejouées le faisaient.
+
+Le haut du tableau se stabilise-t-il plus tard que son bas ? C'est mesuré et
+non supposé, par tranche de rangs — et la réponse est non, sur 25 642 relevés :
+il reste les mêmes 8 % à prendre à la fermeture, que le rang demandé soit le
+top 25 ou le top 500. Ce qui change, c'est la certitude. Le fond du tableau est
+une fois et demie à deux fois moins prévisible à la même minute (±10 % contre
+±7 % à la fermeture, ±6 % contre ±3 % quinze minutes plus tard) : la fourchette
+d'un rang profond après la fermeture est donc plus large, et la page lit la
+tranche du rang demandé.
+
+Après la fermeture, la page regarde un tableau encore en cours de publication.
+Le tassement ci-dessus est mesuré sur les heures de partie de chaque équipe, où
+vingt minutes après le buzzer toutes les parties sont finies et il ne reste
+rien à venir ; mais la page lit la copie d'Osirion, et Osirion arrive quelques
+minutes après les parties. La *largeur* de la fourchette après la fermeture est
+donc mesurée sur les soirées du flux lui-même, et séparée selon le seul signal
+qui distingue un tableau encore en publication d'un tableau terminé : le même
+classement a-t-il été relu à l'identique. Inchangé depuis dix minutes, c'est
+le classement final dans chacun des relevés mesurés ; plus frais que ça, il
+est 3 % trop bas une fois sur dix et 5 % une fois sur vingt, là où la page
+annonçait environ 1 %. Le centre, lui, ne change pas — le rythme de montée du
+tableau, et une courbe de tassement décalée ou plafonnée tant que le tableau
+bougeait, ont tous été essayés pour anticiper le reste de la montée, et tous
+étaient moins bons que la courbe mesurée. La page dit donc jusqu'où le tableau
+peut encore aller au lieu de prétendre savoir où il s'arrêtera, et dit avec des
+mots que les dernières parties tombent encore.
 
 La fin de la fenêtre n'est pas la fin du classement : les parties lancées à
 l'heure pile tombent pendant encore vingt minutes, et un relevé pris à 21 h 59

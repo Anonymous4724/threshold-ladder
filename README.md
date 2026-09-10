@@ -112,10 +112,13 @@ past boards down to the top 250, 5 to 7 % deeper, against a pace band of ten
 and more. The ladder marks those rungs with a hollow dot.
 
 When the cup is under way and the site's live feed is on, the standings are
-read for you every few minutes — the points at the top 1, 3, 5, 10, 20, 25, 50
+read for you every ten minutes — the points at the top 1, 3, 5, 10, 20, 25, 50
 and 100, at every cut the cup pays out on (the qualification rank first) and at
 the ladder's deeper rungs as far as a few pages reach — and filed as readings
-marked *auto*: the forecast follows them without anyone typing. A reading typed
+marked *auto*: the forecast follows them without anyone typing. Over a cup's
+last twenty minutes and while its board settles, where the standings move
+about a point a minute at the ranks a cup qualifies on, the top hundred is
+read every five minutes instead, and the page asks for it every two. A reading typed
 by hand still works and takes over while it is the fresher one. The feed keeps
 every reading it took, so a cup opened late, on another device, or after it
 ended shows the whole evening, not what this browser happened to see.
@@ -154,6 +157,40 @@ every late reading and the answer climbed with the standings instead of
 converging: on a cash cup whose top 20 finished at 607, it said 600 at the
 close and 651 twenty minutes later. It now says 600 and 607, and the range
 closes as the board settles.
+
+A threshold never falls, and the page holds that as a rule rather than as a
+tendency: a team's points only rise, so the k-th score of an evening only
+rises, so the final threshold at a rank cannot be below what the standings
+already show there. The forecast and the low end of both ranges are held at
+the board's own reading — and where a rank was not read, at the nearest deeper
+rank that was, since rank 50 stands at least where rank 100 does. Weighing
+readings against history had been able to land under the board they were
+built on: 82 of 10,182 replayed forecasts did.
+
+Whether the top of the board settles later than its bottom is measured rather
+than assumed, per band of rank — and the answer is no, on 25,642 readings: the
+board has the same 8 % left to give at the close whether the rank asked is the
+top 25 or the top 500. What does differ is how sure that is. The deep end is
+half again to twice as unpredictable at the same minute (±10 % against ±7 % at
+the close, ±6 % against ±3 % fifteen minutes later), so the range a deep rank
+gets past the close is wider, and the page reads the band of the rank it is
+asked about.
+
+Past the close the page is looking at a board that is still being published.
+The settling above is measured from each team's own game times, where twenty
+minutes past the buzzer every game has ended and nothing is left to come; but
+the page reads Osirion's copy, and Osirion lands minutes behind the games. So
+the *width* of the range past the close is measured on the feed's own
+evenings instead, and split on the one signal that separates a board still
+being published from one that is done: whether the same standing has been
+read again. Unchanged for ten minutes, it is the final board in every reading
+measured; fresher than that, it is 3 % short once in ten and 5 % once in
+twenty, where the page used to quote about 1 %. The centre is untouched — the
+board's own rate of climb, and a settling curve shifted or capped while the
+board moved, were all tried as ways to anticipate the rest of the rise, and
+every one of them was worse than the measured curve. So the page says how far
+the board can still travel rather than pretending to know where it will stop,
+and says in words that the last games are still landing.
 
 The window's clock running out is not the end of the board: the games that
 started on the hour land for another twenty minutes, and a reading taken at

@@ -3,7 +3,7 @@
  * and how far along the session is. The page reads the result as one more
  * reading and runs the model itself; nothing is forecast here.
  *
- * On a schedule (every 10 minutes): the week's calendar comes from the site,
+ * On a schedule (every 5 minutes): the week's calendar comes from the site,
  * the windows that are live now are picked out, each one's standings are
  * asked of Osirion's public API - the first page, then the pages holding the
  * cups' cuts (qualification first, then money, then cosmetics) and the
@@ -48,6 +48,17 @@ const LEAD_MINUTES = 5;                // a window is watched from this long bef
 // +25, the minute the feed used to stop looking.
 const TAIL_MINUTES = 45;
 const LATE_MINUTES = 20;               // a lobby that started late has this long past the window to finish
+// The endgame: from this many minutes before a window closes until its board
+// settles, the standings move fastest - a point a minute at the ranks a cup
+// qualifies on - and a reading ten minutes old is several points behind what
+// a player sees. The cron runs every five minutes; the full pass, which reads
+// the pages the cuts fall on as well as the first, runs on the ten-minute
+// marks, and the pass in between reads the first page only, and only of the
+// windows in their endgame. That is one request per window rather than four,
+// so halving the lag costs a few hundred calls a day rather than doubling
+// every one of them. The first page carries the top hundred, which is where
+// the qualification cuts of an open queue sit.
+const QUICK_BEFORE = 20;
 const GAP_MS = 250;                    // between requests; the API allows 60 a minute
 const SAME_SNAPSHOT_MS = 60e3;         // pages stamped this close together are one board
 const KEY = "live";
@@ -66,7 +77,11 @@ const CORS = {
 
 export default {
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(run(env));
+    // Cron every five minutes; the pass in between the ten-minute marks is
+    // the quick one. Read off the schedule rather than off the clock, so a
+    // firing that lands a few seconds early is not mistaken for the other.
+    const at = Number(event && event.scheduledTime) || Date.now();
+    ctx.waitUntil(run(env, new Date(at).getUTCMinutes() % 10 >= 5));
   },
 
   async fetch(request, env) {
@@ -94,7 +109,7 @@ export default {
                                              "Cache-Control": "public, max-age=120" } });
     }
     if (url.pathname === "/refresh" && env.REFRESH_TOKEN && url.searchParams.get("token") === env.REFRESH_TOKEN) {
-      const out = await run(env);
+      const out = await run(env, url.searchParams.get("quick") === "1");
       return new Response(JSON.stringify(out), { headers: { ...CORS, "Content-Type": "application/json" } });
     }
     return new Response("threshold-ladder live feed: GET /live.json", { headers: CORS });
@@ -103,15 +118,19 @@ export default {
 
 /* ------------------------------------------------------------------ */
 
-async function run(env) {
+async function run(env, quick) {
   const now = Date.now();
   const calendar = await loadCalendar(env);
   const previous = await readPrevious(env);
   const windows = (calendar.events || []).filter(row => watched(row, now));
   const out = [];
   for (const row of windows) {
+    // The quick pass leaves everything but the endgame alone, with its last
+    // reading standing: nothing is lost, and the calls go where the board is
+    // actually moving.
+    if (quick && !endgame(row, now)) { keep(previous, row, out); continue; }
     try {
-      const entry = await readWindow(row, now, calendar);
+      const entry = await readWindow(row, now, calendar, quick);
       if (entry) out.push(entry);
       else keep(previous, row, out);
     } catch (err) {
@@ -122,7 +141,16 @@ async function run(env) {
   const doc = { generated: new Date(now).toISOString().slice(0, 16) + "Z", windows: out };
   await env.LIVE.put(KEY, JSON.stringify(doc));
   const kept = await remember(env, out, now);
-  return { watched: windows.length, published: out.length, remembered: kept };
+  return { quick: !!quick, watched: windows.length, published: out.length, remembered: kept };
+}
+
+/* The last minutes of a window and the settling that follows it: where the
+ * standings move fast enough for a ten-minute-old reading to be wrong by
+ * several points. See QUICK_BEFORE. */
+function endgame(row, now) {
+  const end = Date.parse(row.end);
+  if (!isFinite(end)) return false;
+  return now >= end - QUICK_BEFORE * 60e3;
 }
 
 /* The day's history: every window read today, with each distinct reading
@@ -316,7 +344,7 @@ function settle(entries, scoring, now) {
   };
 }
 
-async function readWindow(row, now, calendar) {
+async function readWindow(row, now, calendar, firstPageOnly) {
   const text = await board(row.event, row.window, 0);
   if (!text) return null;
   let first = readPage(text, 0);
@@ -351,7 +379,10 @@ async function readWindow(row, now, calendar) {
     }
   };
   takeFrom(first.pairs, first.updatedAt);
-  for (const number of pagesToRead(row, first.totalPages)) {
+  // The quick pass stops at the first page: the top hundred, read five minutes
+  // sooner. The ranks deeper than that keep their reading from the full pass -
+  // the page holds each rank's latest reading whichever run it arrived in.
+  for (const number of firstPageOnly ? [] : pagesToRead(row, first.totalPages)) {
     await sleep(GAP_MS);
     const more = await board(row.event, row.window, number);
     const page = more ? readPage(more, number) : null;
@@ -488,4 +519,4 @@ function parsePage(text) {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export { run, watched, widestCut, cutRanks, pagesToRead, readWindow, readPage, settle, sealed, loadCalendar };
+export { run, watched, endgame, widestCut, cutRanks, pagesToRead, readWindow, readPage, settle, sealed, loadCalendar };

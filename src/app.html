@@ -678,9 +678,9 @@ const FR = {
   "points.last": "vers la dernière place (rang {r})",
   "points.need": "Saisis des points pour savoir quel rang ils donnent.",
   "status.auto": "Classement lu à {t} · prochaine lecture vers {n}",
+  "status.willAuto": " · le classement sera relevé automatiquement toutes les 10 min dès le début de la cup, et toutes les 5 min sur sa fin",
   "status.manual": "Dernier relevé saisi à {t}",
   "status.cold": "Prédiction d'avant tournoi",
-  "status.willAuto": " · le classement sera lu automatiquement toutes les 10 min une fois la cup lancée",
 "status.final": "Classement final · inchangé depuis {t}",
   "l.calover": "terminée",
   "h.chart": "Comment ça a bougé",
@@ -737,6 +737,9 @@ const FR = {
   "liveBlend": "Relevés et historique sont combinés selon leur précision : ici les relevés pèsent {w} % de la réponse.",
   "liveCarried": "Ce rang n'a pas été relevé ; {c} % de ce que disent les relevés lui est reporté — mesuré, et dans une file ouverte tout le classement bouge ensemble.",
   "liveBetween": "Ce rang n'a pas été relevé, mais le top {a} ({pa} pts) et le top {b} ({pb} pts) l'ont été, et il est estimé entre les deux d'après le classement — une interpolation qui se trompe de quelques pour cent sur les tournois passés, davantage quand l'écart est large.",
+  "liveFromFeed": "mesuré sur {n} relevés des soirées suivies par le flux",
+  "liveLanding": "La fenêtre est fermée et les dernières parties tombent encore : ce classement a été relevé {m} min après le buzzer et il n'a pas cessé de bouger, donc le tableau ne peut plus que monter. Mesuré sur les soirées du flux, un classement aussi frais est jusqu'à {p} % en dessous du final.",
+  "liveFloor": "L'historique seul dirait moins que ce que le classement affiche déjà. Un seuil ne redescend jamais : le relevé fait foi, {v} points est le minimum sur lequel ce rang peut finir.",
   "liveApart": "Ce rang n'a pas été relevé, et dans un lobby fermé un relevé ne vaut que pour son propre rang : les rangs y bougent indépendamment — une équipe qui s'échappe en tête prend les points qui seraient tombés plus bas. Ce chiffre est donc la prédiction issue de l'historique, intacte.",
   "untested": "La courbe de rythme est mesurée ; la façon de la combiner à l'historique n'a pas encore été validée sur des tournois tenus à l'écart.",
   "basis.model": "Modèle", "basis.trained": "Entraîné sur",
@@ -1415,6 +1418,19 @@ function paceKind(t) {
   return String(STATE.format) === "sealed" ? "closed_by_game" : "open_by_time";
 }
 
+/* The tail measured on the band of ranks this one falls in, or null when the
+ * model carries no such table - one pooled tail for every rank is the older
+ * shape. The bands and their bounds come from the model rather than from here:
+ * whether the top of the board settles later than its bottom is measured, not
+ * decided by the page. See the model's TAIL_BANDS. */
+function bandTable(list, rank) {
+  for (const row of list || []) {
+    const low = Number(row[0]), high = Number(row[1]);
+    if (rank >= low && (!high || rank <= high)) return row[2];
+  }
+  return null;
+}
+
 function paceAt(table, share) {
   // Linear interpolation between the measured tenths; linear in the share
   // itself where nothing was measured.
@@ -1528,6 +1544,10 @@ function refine(t, log) {
   if (!entry) return null;
   const games = Number(t.max_games) || 0;
   if (games < 1) return null;
+  // How long the newest standing has held: the feed reading the same board
+  // again is this evening's own evidence that it has stopped moving, and it
+  // is what decides how much the reading can still be short of the final.
+  const stood = boardHeld(entry) / 60e3;
   // How far along the evening is: the furthest any reading has reached, not
   // the last run's - a run handed a copy of the board from before the last
   // game does not un-play it.
@@ -1546,13 +1566,48 @@ function refine(t, log) {
   const byGames = kind === "closed_by_game" ? ((pace.games_curve || {})[String(games)] || null) : null;
   const byGamesSpread = kind === "closed_by_game" ? ((pace.games_dispersion || {})[String(games)] || null) : null;
   const gameOf = s => Math.round(s * games);
-  const expectedAt = (s, after) => {
-    if (after > 0) { const t = tailAt(tail, after); if (t !== null) return Math.max(t, 0.05); }
+  // Past the close, the band of the rank asked where the model carries one.
+  const tailFor = rank => (rank >= 1 ? bandTable((pace.tail || {}).by_rank, rank) : null) || tail;
+  const spreadFor = rank => (rank >= 1 ? bandTable((pace.tail_dispersion || {}).by_rank, rank) : null) || tailSpread;
+  const expectedAt = (s, after, rank) => {
+    if (after > 0) { const t = tailAt(tailFor(rank), after); if (t !== null) return Math.max(t, 0.05); }
     if (byGames && byGames[String(gameOf(s))] !== undefined) return Math.max(byGames[String(gameOf(s))], 0.05);
     const m = paceAt(curve, s); return m === null ? s : Math.max(m, 0.05);
   };
-  const relAt = (s, after) => {
-    if (after > 0) { const t = tailAt(tailSpread, after); if (t !== null) return t; }
+  const feedTail = (pace.tail_feed || {})[kind] || null;
+  // Set by relAt when the width came from the feed's own evenings rather than
+  // from the boards replayed game by game, so the page can say which.
+  let fromFeed = false;
+  const relAt = (s, after, rank) => {
+    if (after > 0) {
+      // Past the close the page holds a board that is still being published.
+      // `tail_dispersion` is measured on the games' own end times - by twenty
+      // minutes past the buzzer every game has ended and its spread is zero -
+      // but the feed reads Osirion's copy, which lands minutes later. Measured
+      // on the feed's own evenings: a standing younger than `held_minutes` can
+      // still be five per cent short of the final, and one that has held that
+      // long never was. So the width past the close comes from the feed where
+      // it has been measured, and the games' clock otherwise.
+      // Two measurements of the same shortfall, each blind to half of it. The
+      // feed's is the total - its board is short because games are still
+      // landing AND because Osirion has not published them - but it is
+      // pooled over ranks on the evenings tracked. The games' own clock is
+      // measured per band of rank on thousands of boards, and on his harvest
+      // the deep end of the ladder is half again to twice as unpredictable as
+      // the top at the same minute, though it settles at the same median pace.
+      // Neither can be dropped and adding them would count the games twice,
+      // so the band is the wider of the two: it never claims a precision
+      // either measurement refuses.
+      const games = tailAt(spreadFor(rank), after);
+      if (feedTail) {
+        const rel = stood >= (feedTail.held_minutes || 10) ? feedTail.held : feedTail.settling;
+        if (rel !== undefined && rel !== null) {
+          fromFeed = true;
+          return games === null ? rel : Math.max(rel, games);
+        }
+      }
+      if (games !== null) return games;
+    }
     if (byGamesSpread && byGamesSpread[String(gameOf(s))] !== undefined) return byGamesSpread[String(gameOf(s))];
     const d = paceAt(spread, s); return d === null ? 0.10 * Math.sqrt((1 - s) / s) + 0.03 : d;
   };
@@ -1560,6 +1615,9 @@ function refine(t, log) {
   const measured = paceAt(curve, share);
   const expected = expectedAt(share, after);
   const relPace = relAt(share, after);
+  // The board is past its window and has not held still: the last games are
+  // landing, and the page says so rather than quoting the reading as final.
+  const landing = after > 0 && stood < ((feedTail || {}).held_minutes || HELD_MS / 60e3);
   // Unmeasured means unknown, and unknown means a reading speaks for its own
   // rank only: the conservative reading of no evidence.
   const carried = (((pace.carry || {})[kind]) || {}).slope;
@@ -1577,14 +1635,14 @@ function refine(t, log) {
     seen[rank] = r.points; seenWhen[rank] = r.when;
     const cold = predictOne(t, rank);
     if (!(cold && cold.ok && cold.value > 0)) return;
-    const exp = expectedAt(r.share, r.after || 0);
+    const exp = expectedAt(r.share, r.after || 0, rank);
     const ratio = r.points / (cold.value * exp);
     ratios.push(ratio);
     byRank[rank] = ratio; points[rank] = r.points; whenOf[rank] = r.when;
     // What the reading would be worth now, on the pace curve: the scale
     // that lets readings taken at different minutes be compared.
-    norm[rank] = expected / exp;
-    relOf[rank] = relAt(r.share, r.after || 0);
+    norm[rank] = expectedAt(share, after, rank) / exp;
+    relOf[rank] = relAt(r.share, r.after || 0, rank);
   });
   if (!ratios.length) return null;
   const sorted = ratios.slice().sort((a, b) => a - b);
@@ -1629,7 +1687,29 @@ function refine(t, log) {
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
            game: clock.game, played: clock.game, games: games, byRank: byRank, kind: kind,
            points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at,
-           seen: seen, seenWhen: seenWhen, settled: settled, final: !!clock.final };
+           seen: seen, seenWhen: seenWhen, settled: settled, final: !!clock.final,
+           after: after, held: stood, landing: landing,
+           expectedFor: rank => expectedAt(share, after, rank),
+           relFor: rank => relAt(share, after, rank),
+           widthFrom: fromFeed ? "feed" : "boards",
+           widthRows: fromFeed ? ((feedTail.settling_rows || 0) + (feedTail.held_rows || 0)) : 0 };
+}
+
+/* The least the final threshold at this rank can be: what the board already
+ * shows there. A team's points never fall and the board is sorted, so the
+ * k-th score of an evening only ever rises - the one certainty a live
+ * standing hands out, and the reason a forecast below the board is not a
+ * forecast but a mistake. Where the rank itself was not read, the nearest
+ * deeper rank that was serves: rank 50 stands at least where rank 100 does. */
+function readFloor(live, rank) {
+  if (!live) return 0;
+  const seen = live.seen || live.points || {};
+  if (seen[rank] > 0) return seen[rank];
+  let floor = 0;
+  Object.keys(seen).forEach(key => {
+    if (Number(key) > rank && seen[key] > floor) floor = seen[key];
+  });
+  return floor;
 }
 
 /* The nearest ranks read on either side of one that was not, with their
@@ -1680,14 +1760,19 @@ function forecastAt(t, rank, live) {
     ratio = own; relLive = (live.relOf && live.relOf[rank] !== undefined) ? live.relOf[rank] : live.relOwn;
   } else if (between) {
     // Read on both sides: the standings themselves price the rank, between
-    // the two readings, and the band widens with the gap between them.
-    ratio = betweenReads(between, rank) / (cold.value * live.expected);
+    // the two readings, and the band widens with the gap between them. The
+    // pace is this rank's own, not the board's: past the close the deep end
+    // of the ladder may still be landing when the top has stopped.
+    const own = live.expectedFor ? live.expectedFor(rank) : live.expected;
+    const rel = live.relFor ? live.relFor(rank) : live.relOwn;
+    ratio = betweenReads(between, rank) / (cold.value * own);
     const gap = INTERP_REL * Math.log(between.b / between.a);
-    relLive = Math.sqrt(live.relOwn * live.relOwn + gap * gap);
+    relLive = Math.sqrt(rel * rel + gap * gap);
   } else if (live.carry >= CARRY_MIN) {
     // Read elsewhere: carry the measured share of it, in log space, so a carry
     // of zero leaves the cold forecast exactly where it was.
-    ratio = Math.pow(live.ratio, live.carry); relLive = live.rel;
+    ratio = Math.pow(live.ratio, live.carry);
+    relLive = live.relFor ? Math.sqrt(live.relFor(rank) ** 2 + (live.rel - live.relOwn) ** 2) : live.rel;
   } else {
     // A reading at another rank is not evidence about this one. Blending it in
     // anyway would move the number AND narrow the band, on nothing.
@@ -1695,8 +1780,14 @@ function forecastAt(t, rank, live) {
   }
   const fromReadings = cold.value * ratio;
   const wl = 1 / Math.max(relLive, 0.01) ** 2, wc = 1 / Math.max(cold.rel, 0.01) ** 2;
-  const value = (fromReadings * wl + cold.value * wc) / (wl + wc);
-  return { value: value, rel: 1 / Math.sqrt(wl + wc), weight: wl / (wl + wc), between: between };
+  const blended = (fromReadings * wl + cold.value * wc) / (wl + wc);
+  // Weighing the readings against the history can land under the board the
+  // readings came from, which no threshold can do. The floor is not a nudge
+  // to the answer: it is the part of it that is certain.
+  const floor = readFloor(live, rank);
+  const value = Math.max(blended, floor);
+  return { value: value, rel: 1 / Math.sqrt(wl + wc), weight: wl / (wl + wc),
+           between: between, floor: floor, floored: value > blended };
 }
 
 /* ==================================================================
@@ -2415,13 +2506,15 @@ function chartEntries() {
  * half-width, in log space, and asymmetric because the errors are: a
  * threshold can double, it cannot halve). Without that measurement the page
  * falls back to the single band it always drew. */
-function bandsOf(value, rel) {
+function bandsOf(value, rel, floor) {
   const table = (MODEL.quality || {}).bands || null;
+  const least = Math.max(0, Math.min(Number(floor) || 0, value));
   const span = key => {
     const b = table && table[key];
-    return b ? [Math.max(0, value * Math.exp(b[0] * rel)), value * Math.exp(b[1] * rel)] : null;
+    return b ? [Math.max(least, value * Math.exp(b[0] * rel)), value * Math.exp(b[1] * rel)] : null;
   };
-  return { near: span("50"), wide: span("90") || [Math.max(0, value * (1 - rel)), value * (1 + rel)],
+  return { near: span("50"),
+           wide: span("90") || [Math.max(least, value * (1 - rel)), value * (1 + rel)],
            measured: !!table };
 }
 
@@ -2442,7 +2535,7 @@ if (typeof window !== "undefined") {
  * in the wide one, both measured rather than assumed. A model that has not
  * been validated yet quotes the single band it always did. */
 function rangeText(answer) {
-  const band = bandsOf(answer.value, answer.rel);
+  const band = bandsOf(answer.value, answer.rel, answer.floor);
   const span = pair => num(pair[0]) + " – " + num(pair[1]);
   if (!band.near) return span(band.wide);
   return '<span class="odds">50 %</span> ' + span(band.near) +
@@ -2487,7 +2580,7 @@ function drawChart(t, cold) {
   const said = replay.map(p => {
     const f = p.live ? forecastAt(t, asked, p.live) : null;
     if (!f || !(f.value > 0)) return null;
-    const band = bandsOf(f.value, f.rel);
+    const band = bandsOf(f.value, f.rel, f.floor);
     return { x: xOf(p.e), y: f.value, lo: band.wide[0], hi: band.wide[1], near: band.near };
   }).filter(Boolean);
   if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked),
@@ -2643,10 +2736,27 @@ function explainBlock(live, cold, answer, rank) {
       T("liveAgainst", "against its history") + ". " +
       T("liveShare", "At this point a threshold has typically reached {p} % of its final value")
         .replace("{p}", Math.round(100 * live.expected)) +
-      (live.measured
+      (live.widthFrom === "feed"
+        // Past the close the width is measured on the boards the feed itself
+        // read, not on the games' end times: see the model's tail_feed.
+        ? " (" + T("liveFromFeed", "measured on {n} readings of the evenings the feed followed")
+            .replace("{n}", nf().format(live.widthRows)) + ", ±" + Math.round(100 * live.rel) + " %)."
+        : live.measured
         ? " (" + T("liveMeasured", "measured on {n} boards replayed game by game").replace("{n}", n) +
           ", ±" + Math.round(100 * live.rel) + " %)."
         : " (" + T("liveAssumed", "assumed linear — the pace has not been measured yet") + ")."));
+    if (live.landing) {
+      lines.push(T("liveLanding", "The window has closed and the last games are still landing: this "
+        + "standing was read {m} min after the buzzer and has not stopped moving, so the board can "
+        + "only rise from here. Measured on the feed's own evenings, a standing this fresh is up to "
+        + "{p} % short of the final.").replace("{m}", Math.round(live.after))
+        .replace("{p}", Math.round(100 * live.relOwn)));
+    }
+    if (answer && answer.floored) {
+      lines.push(T("liveFloor", "History alone would say less than the board already shows. A "
+        + "threshold never falls, so the reading stands: {v} points is the least this rank can end on.")
+        .replace("{v}", num(answer.floor)));
+    }
     const readHere = live.byRank[rank] !== undefined;
     const between = readHere ? null : bracketRead(live, rank);
     if (readHere || between || live.carry >= CARRY_MIN) {
@@ -3408,16 +3518,42 @@ window.addEventListener("popstate", () => {
  * so the live model, the log and the session file need no second path.
  * ================================================================== */
 const LIVE_EVERY = 5 * 60e3;
+// The last minutes of a cup and the settling that follows: the board moves a
+// point a minute at the ranks a cup qualifies on, and the feed refreshes the
+// top hundred every five minutes there rather than every ten. Asking twice as
+// often is a request for a cached file; being ten minutes behind the board is
+// a wrong number on the screen.
+const LIVE_ENDGAME = 2 * 60e3;
+const ENDGAME_BEFORE = 20;
+// How long the feed keeps reading past a window's close - the worker's own
+// TAIL_MINUTES. Past that there is nothing new to fetch.
+const TAIL_MINUTES = 45;
 let LIVE_TIMER = null;
 
 function liveUrl() {
   return SITE && SITE.live && /^https?:$/.test(location.protocol) ? SITE.live + "/live.json" : "";
 }
 
+/* Inside the last minutes of the cup being watched, or its settling. */
+function inEndgame() {
+  const end = Date.parse(STATE.end || "");
+  if (!isFinite(end)) return false;
+  // Until the feed stops looking: it reads for TAIL_MINUTES past the close,
+  // and a last look can land a poll later.
+  const stops = end + (TAIL_MINUTES + 5) * 60e3;
+  return Date.now() >= end - ENDGAME_BEFORE * 60e3 && Date.now() <= stops;
+}
+
 function startLive() {
   if (!liveUrl()) return;
   pollLive();
-  LIVE_TIMER = setInterval(pollLive, LIVE_EVERY);
+  // One timer, re-armed each time, so the cadence follows the cup rather than
+  // the minute the page happened to open.
+  const tick = () => {
+    pollLive();
+    LIVE_TIMER = setTimeout(tick, inEndgame() ? LIVE_ENDGAME : LIVE_EVERY);
+  };
+  LIVE_TIMER = setTimeout(tick, inEndgame() ? LIVE_ENDGAME : LIVE_EVERY);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pollLive(); });
 }
 
@@ -3569,7 +3705,11 @@ function drawStatus() {
   const auto = STATE.auto, manual = (STATE.log || []).length ? STATE.log[STATE.log.length - 1] : null;
   let text;
   if (auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0))) {
-    const next = new Date(Math.floor(Date.parse(auto.updated) / 600e3) * 600e3 + 12 * 60e3);
+    // The feed reads on the five-minute marks, and the reading lands a couple
+    // of minutes after the one it was taken on. Outside a cup's endgame only
+    // every other pass fetches, so the next reading is up to ten minutes off.
+    const every = inEndgame() ? 300e3 : 600e3;
+    const next = new Date(Math.floor(Date.parse(auto.updated) / every) * every + every + 2 * 60e3);
     const sealed = String(STATE.format) === "sealed";
     // The window is over and, for a lobby, its games are in. That is not yet
     // the final board in an open queue: the games that started on the hour
@@ -3614,7 +3754,8 @@ function drawStatus() {
     text = T("status.cold", "Pre-tournament forecast");
     const begins = Date.parse(STATE.begin || "");
     if (liveUrl() && STATE.window && isFinite(begins) && begins > Date.now()) {
-      text += T("status.willAuto", " · the standings will be read automatically every 10 min once the cup starts");
+      text += T("status.willAuto", " · the standings will be read automatically every 10 min once the cup "
+        + "starts, and every 5 min over its last minutes");
     }
   }
   line.textContent = text;

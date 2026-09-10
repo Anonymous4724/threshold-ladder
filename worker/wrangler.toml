@@ -1,12 +1,15 @@
 # The live feed's settings, for `wrangler deploy`. The dashboard route does
 # the same thing by hand: a Worker with this code, a KV namespace bound as
-# LIVE, a cron trigger every ten minutes, and SITE set to the site's address.
+# LIVE, a cron trigger every five minutes, and SITE set to the site's address.
 name = "threshold-ladder-live"
 main = "worker.js"
 compatibility_date = "2026-06-01"
 
 [triggers]
-crons = ["*/10 * * * *"]
+# Every five minutes. The ten-minute marks do the full pass; the ones between
+# read the first page of the windows in their endgame only - see QUICK_BEFORE
+# in worker.js. On the dashboard: Settings -> Triggers -> Cron, */5 * * * *.
+crons = ["*/5 * * * *"]
 
 # Optional: the code carries the same two addresses as defaults.
 [vars]

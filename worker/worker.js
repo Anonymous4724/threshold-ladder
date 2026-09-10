@@ -42,7 +42,11 @@ const GAME_OVER_MS = 35 * 60e3;        // a game whose first death is this old i
 const LOBBY_SHARE = 0.5;               // a match fewer teams than this played is not the lobby's game
 const SCORING_AGREE = 0.8;             // share of rosters whose points the scoring table reproduces
 const LEAD_MINUTES = 5;                // a window is watched from this long before it opens
-const TAIL_MINUTES = 25;               // ... until this long after it closes, for the final standing
+// ... until this long after it closes. The board keeps rising after the
+// buzzer: twenty minutes for most cups, but the feed's own first forty evenings
+// caught three-hour practice cups still 3 to 7 % short of their final board at
+// +25, the minute the feed used to stop looking.
+const TAIL_MINUTES = 45;
 const LATE_MINUTES = 20;               // a lobby that started late has this long past the window to finish
 const GAP_MS = 250;                    // between requests; the API allows 60 a minute
 const SAME_SNAPSHOT_MS = 60e3;         // pages stamped this close together are one board

@@ -200,27 +200,36 @@ Both languages, EN/FR, switched in the header.
 A cascade, most direct reading first, each rung answering only when the one
 above it cannot:
 
-1. **The previous edition of this cup, at this rank, read straight.** With a
-   band measured from how much that rank moved between editions. This is first
-   because nothing beat it: a strong evening lifts every rank together, and a
-   number read whole keeps that where a level times a ratio loses it. Two
-   corrections, both said out loud on the page. Who was let in: the same cup
-   admitting Unreal alone one week and Diamond upwards the next is two fields
-   of different sizes, so the edition read is the last one with the same entry
-   bar, and when none exists the band is widened by half. And the field: when
-   the number of teams is known — typed in, or a later round's cut — and is not
-   the edition's, the value moves along the curve from the edition's share of
-   its field to this cup's share of its own, capped at about a fifth.
+1. **The previous edition of this cup, in this format, at this rank, read
+   straight.** With a band measured from how much that rank moved between
+   editions. This is first because nothing beat it: a strong evening lifts every
+   rank together, and a number read whole keeps that where a level times a ratio
+   loses it. Three corrections, all said out loud on the page. Who was let in:
+   the same cup admitting Unreal alone one week and Diamond upwards the next is
+   two fields of different sizes, so the edition read is the last one with the
+   same entry bar, and when none exists the band is widened by half. The
+   format: a cup that has never run as Duo reads its last Trio edition with the
+   band widened by half, and a lobby that changed size is priced by rung 4
+   instead. And the field: when the number of teams is known — typed in, or a
+   later round's cut — and is not the edition's, the value moves along the
+   curve from the edition's share of its field to this cup's share of its own,
+   capped at about a fifth.
 2. **The cup's level times a measured shape** — what each rank was worth
    relative to rank 20 across the cup's editions. A lookup, not a curve.
-3. **The level times a fitted curve**, for ranks nobody has measured.
+3. **The level times a fitted curve**, for ranks nobody has measured — one
+   curve per band of field size, because a lobby of three hundred and a queue
+   of ten thousand do not empty at the same pace.
 4. **The finals of the same format, by share of the lobby**, for a final played
    in a single lobby that no edition has been seen of — the usual case for a
    Round 2 whose Round 1 the model knows. The two rungs either side of it are
    measured on open queues of thousands and price a twenty-team lobby off its
-   last place.
+   last place. The last places themselves — past 90 % of the lobby — get no
+   number unless the previous edition published them: they are teams that left
+   after a game or two.
 5. **The scoring table alone**, for a cup nobody has seen — the widest band, and
-   the page says when it is in that mode.
+   the page says when it is in that mode. A cup's later round is its own kind
+   of cup here: a few hundred qualified teams in a short session score another
+   share of the maximum than the open round did.
 
 The model is built from several thousand tournaments read from Osirion's public
 API — the page shows exactly how many it was trained on, and which rung it
@@ -228,25 +237,27 @@ answered from.
 
 ## How well it works
 
-Measured as a forecast: the newest 600 tournaments predicted from the 6,632
-before them, nothing seeing the future.
+Measured as a forecast: each of the newest 600 tournaments predicted from
+everything that had finished before its day, nothing seeing the future
+(7,329 tournaments on 8 September 2026; the figures are re-measured with every
+model and travel with it).
 
 | rank band | median error, cup seen before |
 |---|---:|
-| top 1 – 5 | 5.3 % |
-| top 6 – 25 | 3.6 % |
-| top 26 – 100 | 2.5 % |
-| top 101 – 500 | 4.1 % |
-| beyond 500 | 7.3 % |
-| **overall** | **4.2 %** |
+| top 1 – 5 | 4.2 % |
+| top 6 – 25 | 2.1 % |
+| top 26 – 100 | 1.8 % |
+| top 101 – 500 | 2.0 % |
+| beyond 500 | 3.8 % |
+| **overall** | **2.5 %** |
 
-85 % of real thresholds land inside a band that claims 80 %. Reading last
-week's result straight gives 5.0 %; the field correction of the first rung is
+91 % of real thresholds land inside a band that claims 80 %. Reading last
+week's result straight gives 2.8 %; the field correction of the first rung is
 what puts the model ahead of it.
 
 The forecast is quoted with two ranges rather than one, and both are measured
 on those held-out cups rather than assumed: the quantiles of the error, in
-units of the band the model quotes, on 5,290 held-out thresholds. Half the
+units of the band the model quotes, on every held-out threshold. Half the
 cups land in the near range, nine in ten in the wide one. "Between 500 and
 1,000 points" is no forecast at all; "between 700 and 750, one time in two"
 says something a player can act on, and the wide range says how wrong it can
@@ -260,10 +271,11 @@ there is nothing to show.
 
 Two caveats the page repeats where they apply:
 
-- A cup never seen before — half of a new season's tournaments — is forecast
-  from its scoring table alone, at about 20 % median error rather than 4 %; a
-  final in a single lobby never seen before, from the finals of its format, at
-  about 13 %. The page says which of these it is doing.
+- A cup never seen before — the first day of every new cup, a third of a new
+  season's thresholds — is forecast from its scoring table alone, at about
+  14 % median error rather than 3 %; a final in a single lobby never seen
+  before, from the finals of its format, at about 7 %. The page says which of
+  these it is doing.
 - The pace curve behind the live refinement is measured, but the rule that
   blends readings with history has not been validated on held-out tournaments.
   The live number is an indication with a measured band, not a result.

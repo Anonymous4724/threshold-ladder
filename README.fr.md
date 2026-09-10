@@ -209,31 +209,39 @@ Deux langues, EN/FR, bouton dans l'en-tête.
 Une cascade, du plus direct au plus indirect, chaque échelon ne répondant que si
 celui du dessus ne peut pas :
 
-1. **L'édition précédente de cette cup, à ce rang, lue telle quelle.** Avec une
-   fourchette mesurée sur l'ampleur des déplacements de ce rang d'une édition à
-   l'autre. En premier parce que rien ne l'a battu : une bonne soirée soulève
-   tous les rangs ensemble, et un nombre lu entier garde ça là où un niveau
-   multiplié par un rapport le perd. Deux corrections, toutes deux dites sur la
-   page. Qui était admis : la même cup réservée aux Unreal une semaine et
-   ouverte dès Diamant la suivante, ce sont deux effectifs de tailles
+1. **L'édition précédente de cette cup, dans ce format, à ce rang, lue telle
+   quelle.** Avec une fourchette mesurée sur l'ampleur des déplacements de ce
+   rang d'une édition à l'autre. En premier parce que rien ne l'a battu : une
+   bonne soirée soulève tous les rangs ensemble, et un nombre lu entier garde ça
+   là où un niveau multiplié par un rapport le perd. Trois corrections, toutes
+   dites sur la page. Qui était admis : la même cup réservée aux Unreal une
+   semaine et ouverte dès Diamant la suivante, ce sont deux effectifs de tailles
    différentes, donc l'édition lue est la dernière avec la même condition
-   d'accès, et s'il n'y en a aucune la fourchette est élargie de moitié. Et
-   l'effectif : quand le nombre d'équipes est connu — saisi, ou le palier du
-   tour d'avant — et n'est pas celui de l'édition, la valeur se déplace le long
-   de la courbe, de la part de l'effectif qu'était ce rang à l'édition à celle
-   qu'il est dans cette cup, plafonnée à un cinquième environ.
+   d'accès, et s'il n'y en a aucune la fourchette est élargie de moitié. Le
+   format : une cup jamais jouée en Duo lit sa dernière édition en Trio avec la
+   fourchette élargie de moitié, et un lobby qui a changé de taille est chiffré
+   par l'échelon 4 à la place. Et l'effectif : quand le nombre d'équipes est
+   connu — saisi, ou le palier du tour d'avant — et n'est pas celui de
+   l'édition, la valeur se déplace le long de la courbe, de la part de
+   l'effectif qu'était ce rang à l'édition à celle qu'il est dans cette cup,
+   plafonnée à un cinquième environ.
 2. **Le niveau de la cup multiplié par une forme mesurée** — ce que valait
    chaque rang par rapport au rang 20, sur les éditions de cette cup. Une table,
    pas une courbe.
 3. **Le niveau multiplié par une courbe ajustée**, pour les rangs que personne
-   n'a mesurés.
+   n'a mesurés — une courbe par tranche de taille de plateau, parce qu'un lobby
+   de trois cents et une file de dix mille ne se vident pas au même rythme.
 4. **Les finales du même format, par part du lobby**, pour une finale jouée dans
    un seul lobby dont aucune édition n'a été vue — le cas habituel d'un Round 2
    dont le modèle connaît le Round 1. Les deux échelons qui l'encadrent sont
    mesurés sur des files ouvertes de milliers d'équipes et chiffrent un lobby
-   de vingt d'après sa dernière place.
+   de vingt d'après sa dernière place. Les dernières places elles-mêmes — au-delà
+   de 90 % du lobby — n'ont pas de chiffre sauf si l'édition précédente les a
+   publiées : ce sont des équipes parties après une ou deux parties.
 5. **Le barème seul**, pour une cup que personne n'a vue — la fourchette la plus
-   large, et la page dit quand elle en est là.
+   large, et la page dit quand elle en est là. Le round suivant d'une cup y est
+   un genre de cup à part : quelques centaines d'équipes qualifiées sur une
+   session courte marquent une autre part du maximum que le round ouvert.
 
 Le modèle est bâti sur plusieurs milliers de tournois lus depuis l'API publique
 d'Osirion — la page affiche exactement sur combien il a été entraîné, et de quel
@@ -241,30 +249,32 @@ d'Osirion — la page affiche exactement sur combien il a été entraîné, et d
 
 ## Ce que ça vaut
 
-Mesuré comme une prévision : les 600 tournois les plus récents prédits à partir
-des 6 632 d'avant, sans que rien ne voie le futur.
+Mesuré comme une prévision : chacun des 600 tournois les plus récents prédit à
+partir de tout ce qui s'était terminé avant son jour, sans que rien ne voie le
+futur (7 329 tournois au 8 septembre 2026 ; les chiffres sont remesurés avec
+chaque modèle et voyagent avec lui).
 
 | tranche de rangs | erreur médiane, cup déjà vue |
 |---|---:|
-| top 1 – 5 | 5,3 % |
-| top 6 – 25 | 3,6 % |
-| top 26 – 100 | 2,5 % |
-| top 101 – 500 | 4,1 % |
-| au-delà de 500 | 7,3 % |
-| **ensemble** | **4,2 %** |
+| top 1 – 5 | 4,2 % |
+| top 6 – 25 | 2,1 % |
+| top 26 – 100 | 1,8 % |
+| top 101 – 500 | 2,0 % |
+| au-delà de 500 | 3,8 % |
+| **ensemble** | **2,5 %** |
 
 La prédiction est donnée avec deux fourchettes plutôt qu'une, et les deux sont
 mesurées sur ces mêmes tournois tenus à l'écart plutôt que supposées : les
 quantiles de l'erreur, en unités de la fourchette annoncée par le modèle, sur
-5 290 seuils. La moitié des cups tombe dans la fourchette serrée, neuf sur dix
+tous les seuils tenus à l'écart. La moitié des cups tombe dans la fourchette serrée, neuf sur dix
 dans la large. « Entre 500 et 1 000 points » n'est pas une prédiction ;
 « entre 700 et 750, une fois sur deux » dit quelque chose d'exploitable, et la
 fourchette large dit de combien on peut se tromper. Les deux sont
 asymétriques, comme les erreurs : un seuil peut doubler, il ne peut pas
 descendre sous zéro.
 
-85 % des seuils réels tombent dans une fourchette qui en annonce 80 %. Lire tel
-quel le résultat de la semaine dernière donne 5,0 % ; c'est la correction
+91 % des seuils réels tombent dans une fourchette qui en annonce 80 %. Lire tel
+quel le résultat de la semaine dernière donne 2,8 % ; c'est la correction
 d'effectif du premier barreau qui met le modèle devant.
 
 Ces chiffres ne sont pas tapés dans la page : ils sont emportés par le fichier
@@ -273,10 +283,11 @@ remplacés par un tiret quand il n'y a rien à afficher.
 
 Deux réserves que la page répète là où elles s'appliquent :
 
-- Une cup jamais vue — la moitié des tournois d'une nouvelle saison — est
-  prédite depuis son seul barème, avec environ 20 % d'erreur médiane au lieu de
-  4 % ; une finale à lobby unique jamais vue, depuis les finales de son format,
-  avec environ 13 %. La page indique dans lequel de ces cas elle se trouve.
+- Une cup jamais vue — le premier jour de chaque nouvelle cup, un tiers des
+  seuils d'une nouvelle saison — est prédite depuis son seul barème, avec
+  environ 14 % d'erreur médiane au lieu de 3 % ; une finale à lobby unique
+  jamais vue, depuis les finales de son format, avec environ 7 %. La page
+  indique dans lequel de ces cas elle se trouve.
 - La courbe de rythme du mode direct est mesurée, mais la règle qui combine
   relevés et historique n'a pas été validée sur des tournois tenus à l'écart. Le
   chiffre en direct est une indication avec une fourchette mesurée, pas un

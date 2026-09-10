@@ -624,7 +624,7 @@ const FR = {
   "result.read": "résultat final · lu à {t}",
   "status.settling": "Classement lu à {t} · les dernières parties tombent encore, "
     + "classement définitif vers {n}",
-  "status.finalRead": "Classement final lu à {t}",
+  "status.settlingLate": "Classement lu à {t} · les dernières parties tombent encore",
   "status.stale": "Classement lu à {t}, avant que les dernières parties ne tombent · "
     + "le flux n'a pas regardé depuis",
   "result.head": "La cup est terminée et ce rang a été lu sur le classement final.",
@@ -668,7 +668,6 @@ const FR = {
   "hint.cuts": "Ce que cette cup fait gagner. Clique un palier pour le chiffrer.",
   "cut.qualifies": "qualifie pour", "cut.first": "1re place", "cut.money": "argent",
   "cut.item": "cosmétique", "cut.share": "top {p} %", "cut.noField": "effectif inconnu",
-  "cut.prefilled": "Rang prérempli sur le palier de qualification.",
   "noStage": "sans manche",
   "opt.free": "Fenêtre ouverte - chacun joue à son rythme",
   "opt.sealed": "Scellé - horaires fixes, mêmes parties pour tous",
@@ -702,6 +701,7 @@ const FR = {
   "entrySame": "Lu sur la dernière édition avec la même condition d'accès ({bar}) : la dernière édition en date admettait un autre palier et a réuni un autre effectif.",
   "entryOther": "La dernière édition admettait {theirs} ; celle-ci admet {bar}. Un autre palier, c'est un autre effectif : la fourchette est élargie de moitié.",
   "entryBar": "Accès : {bar}, comme pour l'édition lue.",
+  "formatOther": "Cette cup n'a encore jamais été jouée en {mine} : lue sur sa dernière édition en {theirs}, un autre classement, donc la fourchette est élargie de moitié.",
   "fieldMoved": "L'effectif saisi ({f} équipes) n'est pas celui de l'édition : lu le long de la courbe, ça déplace le seuil de {p} %.",
   "tab.predict": "Prédiction", "tab.live": "En direct", "tab.settings": "Réglages",
   "btn.standings": "Classement complet sur osirion.gg", "h.readings": "Relevés",
@@ -714,16 +714,14 @@ const FR = {
   "m.name": "le nom du tournoi", "m.games": "la durée ou le nombre de parties",
   "m.scoring": "les points de placement",
   "points": "points", "top": "top", "of": "sur", "teams": "équipes",
-  "games": "parties", "played": "jouées",
+  "games": "parties",
   "tiers": "paliers", "ranksRecognised": "rangs reconnus",
   "noTiers": "Aucun palier reconnu - une ligne par rang, par exemple « 1 = 60 ».",
   "tiersHint": "Colle le barème tel qu'osirion.gg l'affiche, ou celui du règlement : une ligne par rang, par exemple « 1 = 60 ».",
-  "gamesAllowed": "les règles en autorisent",
-  "gamesClock": "la durée en permet",
-  "gamesSealed": "fixées par le format scellé",
   "nameExact": "le modèle connaît ce tournoi",
   "nameNear": "rapproché de",
   "nameNew": "inconnu du modèle - la prédiction viendra du barème seul, avec une fourchette bien plus large",
+  "source.previous edition": "l'édition précédente de cette cup, à ce rang, lue telle quelle",
   "source.category": "des éditions précédentes de ce tournoi dans cette région",
   "source.family": "ce tournoi dans les autres régions",
   "source.mode": "des tournois du même type",
@@ -750,6 +748,8 @@ const FR = {
   "basis.error": "Erreur médiane, cup déjà vue",
   "basis.measured": "Mesuré sur",
   "basis.split": "les {n} tournois les plus récents, prédits depuis les {m} d'avant",
+  "basis.rolling": "les {n} tournois les plus récents, chacun prédit à partir de tout ce qui s'était terminé avant son jour",
+  "basis.bands": "{k} courbes selon la taille du plateau",
   "basis.cold": "Erreur médiane, cup jamais jouée",
   "basis.lobby": "Erreur médiane, finale à lobby unique jamais vue",
   "basis.ofSample": "de l'échantillon",
@@ -766,7 +766,9 @@ const FR = {
   "noGames": "Le nombre de parties manque.",
   "noReference": "Aucune référence : pas d'édition comparable, et pas de barème saisi.",
   "unconfirmedScoring": "Le barème n'est pas renseigné et aucune édition comparable n'existe.",
-  "noAnchor": "Aucune référence utilisable."
+  "noAnchor": "Aucune référence utilisable.",
+  "result.only": "Le flux l'a récolté à {t} : c'est le résultat, pas une prédiction.",
+  "lastPlaces": "Le top {rank} sur {field} fait partie des dernières places d'un lobby fermé : des équipes parties après une ou deux parties, pas un seuil que l'on joue. Le modèle ne le prédit pas ; le classement de l'édition précédente est la seule lecture."
 };
 let LANG = "en";
 const EN = {};
@@ -800,6 +802,61 @@ function rowFor(rows, match) {
   }
   return index.get(fields.map(f => match[f]).join("\u0000")) || null;
 }
+/* A cup is the same cup only in the same format: the model keeps one row per
+ * cup, region, team size and game mode, and the page asks for the one it is
+ * looking at. A model exported before the rows carried a format is read the
+ * way it was written. */
+let FORMAT_KEYED = null;
+function formatKeyed() {
+  if (FORMAT_KEYED === null) FORMAT_KEYED = (MODEL.categories || []).some(r => r.team_mode !== undefined);
+  return FORMAT_KEYED;
+}
+function categoryRow(t) {
+  return formatKeyed()
+    ? rowFor(MODEL.categories, { category: t.category, region: t.region,
+                                 team_mode: t.team_mode || "", game_mode: t.game_mode || "" })
+    : rowFor(MODEL.categories, { category: t.category, region: t.region });
+}
+function familyRow(t) {
+  return formatKeyed()
+    ? rowFor(MODEL.families, { category: t.category, team_mode: t.team_mode || "", game_mode: t.game_mode || "" })
+    : rowFor(MODEL.families, { category: t.category });
+}
+/* The other formats this cup has run in, in this region, newest first - the
+ * port of the model's direct_kin. What a cup new to its own format reads. */
+let KIN = null;
+function kinRows(t) {
+  if (!KIN) {
+    KIN = new Map();
+    (MODEL.categories || []).forEach(row => {
+      if (!row.direct) return;
+      const key = row.category + " " + row.region;
+      if (!KIN.has(key)) KIN.set(key, []);
+      KIN.get(key).push(row);
+    });
+    const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+    KIN.forEach(rows => rows.sort((a, b) => cmp(b.latest || "", a.latest || "")
+      || cmp(b.team_mode || "", a.team_mode || "") || cmp(b.game_mode || "", a.game_mode || "")));
+  }
+  return (KIN.get(t.category + " " + t.region) || []).filter(r =>
+    (r.team_mode || "") !== (t.team_mode || "") || (r.game_mode || "") !== (t.game_mode || ""));
+}
+/* The curve for a field of this size: its band's fit, else the pooled one.
+ * A band runs from its lower edge up to, not including, its upper one; the
+ * last band has no upper edge (0). See the model's FIELD_BANDS. */
+function curveFor(field) {
+  const pooled = MODEL.curve;
+  field = Math.round(Number(field) || 0);
+  if (field > 0) {
+    for (const row of MODEL.curves || []) {
+      const lo = Number(row[0]), hi = Number(row[1]);
+      if (field >= lo && (hi === 0 || field < hi)) {
+        return { a: Number(row[2]), b: Number(row[3]), reference_rank: pooled.reference_rank };
+      }
+    }
+  }
+  return pooled;
+}
 /* Log of how much a threshold at a rank moves when the field changes: the
  * curve's quantile term alone, capped - see the model's field_move. */
 function fieldMove(rank, fieldNow, fieldThen, curve, cap) {
@@ -829,8 +886,8 @@ function maxGameScore(scoring) {
 }
 function guessField(t) {
   const tries = [
-    ["category", rowFor(MODEL.categories, { category: t.category, region: t.region })],
-    ["family", rowFor(MODEL.families, { category: t.category })],
+    ["category", categoryRow(t)],
+    ["family", familyRow(t)],
     ["mode", rowFor(MODEL.mode_fields,
       { game_mode: t.game_mode, team_mode: t.team_mode, region: t.region })]
   ];
@@ -884,8 +941,8 @@ function shapeFrom(t, rank, source) {
   const order = (rule.scopes || {})[source] || [];
   for (const scope of order) {
     let row = null;
-    if (scope === "category") row = rowFor(MODEL.categories, { category: t.category, region: t.region });
-    else if (scope === "family") row = rowFor(MODEL.families, { category: t.category });
+    if (scope === "category") row = categoryRow(t);
+    else if (scope === "family") row = familyRow(t);
     else row = rowFor(MODEL.modes, { game_mode: t.game_mode, team_mode: t.team_mode });
     const table = (row || {}).shape || {};
     const usable = e => !!e && e[1] >= least && !!e[0];
@@ -915,19 +972,25 @@ function coldSignature(t) {
   for (const pair of COLD_KINDS) { if (name.indexOf(pair[0]) !== -1) { kind = pair[1]; break; } }
   const platform = name.indexOf("mobile") !== -1 ? "mobile"
                  : (name.indexOf("console") !== -1 ? "console" : "pc");
+  // A later round of an open cup - "· Round 2" and up - is its own stage: a
+  // few hundred qualified teams in a shorter session score another share of
+  // the maximum than the open round did. Round 1 never ends a label.
   const label = String(t.category || "");
-  const stage = (/ Final$/.test(label) || /Semi-final$/.test(label)) ? "final" : "open";
+  const stage = (/ Final$/.test(label) || /Semi-final$/.test(label)) ? "final"
+              : (/ · Round ([2-9]|[1-9][0-9]+)$/.test(label) ? "later" : "open");
   return [t.game_mode || "", t.team_mode || "", kind, platform, stage];
 }
 
-/* Rung zero: this cup, this region, this rank, last time. Nothing modelled,
- * because measured, which beats modelling it: a strong evening lifts every
- * rank together, and a reading taken whole keeps that where a level times a
- * ratio loses it. */
-function directReading(t, rank) {
-  const row = rowFor(MODEL.categories, { category: t.category, region: t.region });
+/* Rung zero: this cup, this region, this format, this rank, last time.
+ * Nothing modelled, because measured, which beats modelling it: a strong
+ * evening lifts every rank together, and a reading taken whole keeps that
+ * where a level times a ratio loses it. `field` is the field the forecast
+ * settled on, typed or guessed: what decides whether the cup is one lobby. */
+function directReading(t, rank, field) {
+  const row = categoryRow(t);
   const table = (row || {}).direct || {};
   const usable = e => !!e && !!e[0];
+  const curve = curveFor(field);
   // Which edition is "previous" depends on who was let in: the same cup one
   // week admitting Unreal alone and the next Diamond upwards is two fields of
   // different sizes. When the cup states its entry bar, the last edition with
@@ -962,20 +1025,38 @@ function directReading(t, rank) {
     if (fieldNow > 0 && field > 0 && field !== fieldNow) {
       // A model exported before these were measured gets the measured values.
       const rule = MODEL.field_move || { cap: 0.2, rel: 0.3 };
-      const move = fieldMove(rank, fieldNow, field, MODEL.curve, rule.cap);
+      const move = fieldMove(rank, fieldNow, field, curve, rule.cap);
       value *= Math.exp(move);
       rel = Math.sqrt(rel * rel + Math.pow(rule.rel * move, 2));
       effect = 100 * (Math.exp(move) - 1);
     }
     return { value: value, rel: rel, n: n, note: note, effect: effect };
   };
-  const entry = table[String(rank)];
-  if (usable(entry)) return read(entry);
-  const found = bracketOf(table, rank, usable);
-  if (!found) return null;
-  const a = read(table[String(found.lo)]), b = read(table[String(found.hi)]);
-  return { value: between(a.value, b.value, found.f), rel: Math.max(a.rel, b.rel), n: Math.min(a.n, b.n),
-           note: a.note, effect: (1 - found.f) * a.effect + found.f * b.effect };
+  const fromTable = tbl => {
+    const entry = tbl[String(rank)];
+    if (usable(entry)) return read(entry);
+    const found = bracketOf(tbl, rank, usable);
+    if (!found) return null;
+    const a = read(tbl[String(found.lo)]), b = read(tbl[String(found.hi)]);
+    return { value: between(a.value, b.value, found.f), rel: Math.max(a.rel, b.rel), n: Math.min(a.n, b.n),
+             note: a.note, effect: (1 - found.f) * a.effect + found.f * b.effect };
+  };
+  const own = fromTable(table);
+  if (own) return own;
+  // A cup that has never run in this format - the first Duo week after a
+  // Trio season - reads its last edition in another one, band widened like a
+  // different entry bar; unless it is a single lobby, which the closed-lobby
+  // rung prices better than a lobby of another size does.
+  if (Object.keys(table).length || singleLobby(t, field)) return null;
+  for (const other of kinRows(t)) {
+    const got = fromTable(other.direct || {});
+    if (got) {
+      got.rel *= MODEL.widen.entry || 1.5;
+      got.note = ["other_format", other.team_mode || "", other.game_mode || ""];
+      return got;
+    }
+  }
+  return null;
 }
 
 function anchorLevel(t) {
@@ -997,8 +1078,8 @@ function anchorLevel(t) {
              rel: spread[source] * (once ? widen.single_edition : 1) };
   };
   const direct = [
-    ["category", rowFor(MODEL.categories, { category: t.category, region: t.region })],
-    ["family", rowFor(MODEL.families, { category: t.category })]
+    ["category", categoryRow(t)],
+    ["family", familyRow(t)]
   ];
   for (const pair of direct) {
     const found = measured(pair[0], pair[1]);
@@ -1065,12 +1146,22 @@ function predictOne(t, rank) {
     field = found.field; guessed = found.source; fieldSpread = found.spread;
   }
   if (rank < 1) return null;
-  const straight = directReading(t, rank);
+  const straight = directReading(t, rank, field);
   if (straight) {
     const v = straight.value, rel = straight.rel;
     return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel),
       rel: rel, n: straight.n, source: "previous edition", field: field, guessedField: guessed,
       shapeSource: "direct", level: v, fieldEffect: Math.round(straight.effect * 10) / 10, entryNote: straight.note };
+  }
+  // The last places of a single lobby are not a ladder: teams that left
+  // after a game or two. The previous edition's own reading, above, is the
+  // one honest answer; short of it the model says so rather than guess.
+  const last = (MODEL.lobby_rule || {}).last || 0.9;
+  if (singleLobby(t, field) && rank / field > last) {
+    return { ok: false, reason: T("lastPlaces", MODEL.messages.last_places
+        || "Rank {rank} of {field} is among the last places of a closed lobby: teams that left "
+        + "after a game or two, not a threshold anyone plays for. The model does not forecast them.")
+      .replace("{rank}", String(rank)).replace("{field}", String(field)) };
   }
   const top = anchorLevel(t);
   // A final in one lobby the model has no editions of: read off the finals of
@@ -1087,7 +1178,7 @@ function predictOne(t, rank) {
     }
   }
   if (!top) return { ok: false, reason: whyNoAnchor(t) };
-  const curve = MODEL.curve;
+  const curve = curveFor(field);
   const slope = fieldSensitivity(rank, field, curve);
   // Measured first, modelled second. Where editions of this cup have actually
   // been to this rank, their median says what it was worth; the curve answers
@@ -1377,9 +1468,11 @@ const READ_MIN_SHARE = 0.1;
  * finished board when it sees one. */
 const SETTLED_AFTER = 20;
 /* The same standing read again this long after it first appeared: the board
- * is not moving any more. One run of the feed apart is enough - it reads
- * every ten minutes - and a minute guards against two runs of the same one. */
-const HELD_MS = 60e3;
+ * is not moving any more. Two runs of the feed, not one: a board can come
+ * back unchanged five minutes later because Osirion ingested nothing in
+ * between, and a Middle East final called "final" that way was still 13 %
+ * short of its board twenty minutes on. */
+const HELD_MS = 10 * 60e3;
 
 /* How long a standing has stood: the gap between the minute it first appeared
  * and the minute the feed last read the very same numbers. */
@@ -1450,12 +1543,21 @@ function refine(t, log) {
   const kind = paceKind(t);
   const curve = (pace.curve || {})[kind], spread = (pace.dispersion || {})[kind];
   const tail = (pace.tail || {})[kind], tailSpread = (pace.tail_dispersion || {})[kind];
+  // A lobby is clocked on its games, and a lobby of six has its own curve
+  // when enough of them were replayed: "after game 2 of 6" read exactly,
+  // rather than the pooled curve snapped to tenths, where 0.33 falls between
+  // steps other game counts filled and reads ten per cent too far along.
+  const byGames = kind === "closed_by_game" ? ((pace.games_curve || {})[String(games)] || null) : null;
+  const byGamesSpread = kind === "closed_by_game" ? ((pace.games_dispersion || {})[String(games)] || null) : null;
+  const gameOf = s => Math.round(s * games);
   const expectedAt = (s, after) => {
     if (after > 0) { const t = tailAt(tail, after); if (t !== null) return Math.max(t, 0.05); }
+    if (byGames && byGames[String(gameOf(s))] !== undefined) return Math.max(byGames[String(gameOf(s))], 0.05);
     const m = paceAt(curve, s); return m === null ? s : Math.max(m, 0.05);
   };
   const relAt = (s, after) => {
     if (after > 0) { const t = tailAt(tailSpread, after); if (t !== null) return t; }
+    if (byGamesSpread && byGamesSpread[String(gameOf(s))] !== undefined) return byGamesSpread[String(gameOf(s))];
     const d = paceAt(spread, s); return d === null ? 0.10 * Math.sqrt((1 - s) / s) + 0.03 : d;
   };
   const after = clock.after || 0;
@@ -1469,9 +1571,14 @@ function refine(t, log) {
   const best = standing(entries, Date.parse(entry.seen || entry.at || 0));
 
   const ratios = [], byRank = {}, points = {}, norm = {}, relOf = {}, whenOf = {};
+  // Every rank the board was read at, whether or not the model prices it:
+  // the last places of a lobby are refused a forecast, but once the board is
+  // final their reading is a result like any other.
+  const seen = {}, seenWhen = {};
   Object.keys(best).map(Number).sort((a, b) => a - b).forEach(rank => {
     const r = best[rank];
     if (!(r.share >= READ_MIN_SHARE)) return;
+    seen[rank] = r.points; seenWhen[rank] = r.when;
     const cold = predictOne(t, rank);
     if (!(cold && cold.ok && cold.value > 0)) return;
     const exp = expectedAt(r.share, r.after || 0);
@@ -1505,15 +1612,28 @@ function refine(t, log) {
   // The feed reading the same standing twice says it has stopped - a fact
   // about this cup, not a median over hundreds - and the measured tail is the
   // fallback for the evening where the feed only got one last look.
-  const still = boardHeld(entry) >= HELD_MS;
-  const settled = !!clock.final && (still || after >= SETTLED_AFTER
-                                    || (kind === "closed_by_game" && expected >= 0.999));
+  // Two things have to be true. The window is over and, for a lobby, every
+  // game is in: a lobby that still owes a game re-reads the same settled
+  // board every run while the game plays, which is not the board standing
+  // still. And the standing has been read twice unchanged, both times after
+  // the board could still have been landing - a board read at the buzzer
+  // and again ten minutes later can be the same because nothing has been
+  // ingested yet, not because nothing is left to ingest. Replaying the feed's
+  // first forty evenings found both mistakes: a "result" called on five
+  // games of six, and one called at the buzzer of a three-hour practice
+  // whose board went on rising for half an hour.
+  const held = boardHeld(entry) / 60e3;
+  const still = held >= HELD_MS / 60e3;
+  const owes = kind === "closed_by_game" && Number(clock.game) > 0 && Number(clock.game) < games;
+  const firstAfter = after - held;
+  const settled = !!clock.final && !owes && still
+    && (kind === "closed_by_game" || firstAfter >= SETTLED_AFTER);
   return { ratio: ratio, rel: Math.sqrt(relPace * relPace + mad * mad), relOwn: relPace,
            carry: carried === undefined ? 0 : carried,
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
            game: clock.game, played: clock.game, games: games, byRank: byRank, kind: kind,
            points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at,
-           settled: settled, final: !!clock.final };
+           seen: seen, seenWhen: seenWhen, settled: settled, final: !!clock.final };
 }
 
 /* The nearest ranks read on either side of one that was not, with their
@@ -2111,6 +2231,7 @@ function setFrozen(frozen) {
  * ================================================================== */
 function sourceLabel(source) {
   const english = {
+    "previous edition": "the previous edition of this cup, at this rank, read straight",
     "category": "earlier editions of this tournament in this region",
     "family": "this tournament in other regions",
     "mode": "tournaments of the same type",
@@ -2185,7 +2306,20 @@ function render() {
   const cold = predictOne(t, rank);
   if (!cold || !cold.ok) {
     drawCuts(fieldNow(), rank);
-    board.innerHTML = '<div class="note bad">' + esc(cold ? cold.reason : whyNoAnchor(t)) + "</div>";
+    // A rank the model will not forecast can still have been read off the
+    // final board - the last places of a lobby - and a result needs no model.
+    const read = live && live.settled && (live.seen || {})[rank] > 0
+      ? { value: live.seen[rank], when: (live.seenWhen || {})[rank] || live.at } : null;
+    board.innerHTML = read
+      ? '<div class="headline live result"><span class="big">' + num(read.value) + "</span>" +
+        '<span class="unit">' + T("points", "points") + "</span>" +
+        '<span class="verdict-tag">' + esc(T("result.read", "final result · read at {t}").replace("{t}", hhmm(read.when))) +
+        "</span></div>" +
+        '<div class="note good"><b>' + T("result.head", "The cup is over and this rank was read off the final standings.") +
+        "</b> " + T("result.only", "The feed collected them at {t}; this is the result, not a forecast.")
+          .replace("{t}", hhmm(read.when)) + "</div>" +
+        '<div class="note">' + esc(cold ? cold.reason : whyNoAnchor(t)) + "</div>"
+      : '<div class="note bad">' + esc(cold ? cold.reason : whyNoAnchor(t)) + "</div>";
     $("ladder").innerHTML = "";
     $("ladder-wrap").hidden = true;
     // A format the model has never measured still has standings, and the feed
@@ -2552,6 +2686,11 @@ function explainBlock(live, cold, answer, rank) {
         lines.push(T("entryOther", "The last edition admitted {theirs}; this one admits {bar}. Another tier "
           + "is another field, so the band is widened by half.")
           .replace("{theirs}", rankName(note[1]) || "—").replace("{bar}", bar || "—"));
+      } else if (note && note[0] === "other_format") {
+        lines.push(T("formatOther", "This cup has not run as {mine} before: read from its last edition "
+          + "as {theirs}, another ladder, so the band is widened by half.")
+          .replace("{mine}", [STATE.team_mode, STATE.game_mode].filter(Boolean).join(" · ") || "—")
+          .replace("{theirs}", [note[1], note[2]].filter(Boolean).join(" · ") || "—"));
       } else if (bar) {
         lines.push(T("entryBar", "Entry: {bar}, as for the edition read.").replace("{bar}", bar));
       }
@@ -2584,7 +2723,9 @@ function basisRows() {
       T("basis.tournaments", "tournaments") + ", " + (s.thresholds || 0) + " " +
       T("basis.thresholds", "thresholds")],
     [T("basis.measured", "Measured on"), q
-      ? T("basis.split", "the newest {n} tournaments, forecast from the {m} before them")
+      ? (q.split === "rolling"
+          ? T("basis.rolling", "the newest {n} tournaments, each forecast from everything that had finished before its day")
+          : T("basis.split", "the newest {n} tournaments, forecast from the {m} before them"))
           .replace("{n}", nf().format(q.targets || 0)).replace("{m}", nf().format(q.pool || 0))
       : "—"],
     // "Warm" is the rows where a previous edition existed - the number the
@@ -2605,8 +2746,9 @@ function basisRows() {
     [T("basis.coverage", "Real thresholds inside the band"),
       q && q.coverage !== undefined ? pct(100 * q.coverage, 0) : "—"],
     [T("basis.anchor", "Anchor"), "top " + MODEL.curve.reference_rank],
-    [T("basis.model", "Model"), "level · exp(−" + MODEL.curve.a + " · (q^" + MODEL.curve.b +
-      " − qref^" + MODEL.curve.b + "))"],
+    [T("basis.model", "Model"), "level · exp(−a · (q^b − qref^b))" + ((MODEL.curves || []).length
+      ? " · " + T("basis.bands", "{k} curves by field size").replace("{k}", MODEL.curves.length)
+      : " · a = " + MODEL.curve.a + ", b = " + MODEL.curve.b)],
     [T("basis.exported", "Model exported"), MODEL.generated]
   ].map(p => "<tr><td>" + p[0] + "</td><td>" + p[1] + "</td></tr>").join("");
 }
@@ -3040,14 +3182,16 @@ function closedLobby(row) {
   if (Number(row.field) > 0) {
     return cap && row.field <= cap ? { field: Number(row.field), guessed: false } : null;
   }
-  let known = rowFor(MODEL.categories, { category: row.kind, region: row.region })
-           || rowFor(MODEL.families, { category: row.kind });
+  const asked = { category: row.kind, region: row.region, team_mode: row.team, game_mode: row.mode };
+  let known = categoryRow(asked) || familyRow(asked);
   if (!known) {
     // The same cup under a spelling the model knows: the match the forecast
     // itself will use, so the field and the level come from the same editions.
     const near = matchTournament(row.name, row.region);
-    if (near) known = rowFor(MODEL.categories, { category: near.label, region: row.region })
-                   || rowFor(MODEL.families, { category: near.label });
+    if (near) {
+      const named = Object.assign({}, asked, { category: near.label });
+      known = categoryRow(named) || familyRow(named);
+    }
   }
   if (known && known.field && cap && known.field <= cap) {
     return { field: Math.round(known.field), guessed: false };
@@ -3362,7 +3506,10 @@ function historyUrls() {
   if (!SITE || !SITE.live || !STATE.event || !STATE.window) return [];
   const begin = Date.parse(STATE.begin || ""), end = Date.parse(STATE.end || "");
   if (!isFinite(begin)) return [];
-  const last = (isFinite(end) ? end : begin + 4 * 3600e3) + 30 * 60e3;
+  // The feed keeps reading for TAIL_MINUTES past the close (45 at the time of
+  // writing); a cup that ends before midnight has its last readings filed
+  // under the next day, so the horizon runs an hour past the end.
+  const last = (isFinite(end) ? end : begin + 4 * 3600e3) + 60 * 60e3;
   const days = [];
   for (let d = new Date(begin); d.getTime() <= last; d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10));
   const lastDay = new Date(last).toISOString().slice(0, 10);
@@ -3432,24 +3579,28 @@ function drawStatus() {
     // the final board in an open queue: the games that started on the hour
     // are still landing.
     const over = !!auto.final && !(sealed && Number(auto.game) > 0 && Number(auto.game) < gameCount(STATE));
-    const still = boardHeld(auto) >= HELD_MS;
     const ends = Date.parse(STATE.end || "");
     const settleBy = isFinite(ends) ? ends + SETTLED_AFTER * 60e3 : 0;
-    // How long after the close the reading itself was taken - the clock that
-    // matters. A reading taken three minutes after the hour does not become
-    // the final board by our waiting half an hour for it.
-    const readAfter = isFinite(ends) ? (Date.parse(auto.updated) - ends) / 60e3 : 0;
-    if (over && (sealed || still || readAfter >= SETTLED_AFTER)) {
-      text = still
-        ? T("status.final", "Final standings · unchanged since {t}").replace("{t}", clock(auto.at))
-        : T("status.finalRead", "Final standings read at {t}").replace("{t}", clock(auto.updated));
-    } else if (over && Date.now() >= settleBy) {
+    // The standing has to have been read twice unchanged, and - in an open
+    // queue - both times after the games could still have been landing: the
+    // same board at the buzzer and ten minutes on is Osirion not having
+    // ingested yet, not the cup being over. The clock that matters is the
+    // reading's own, never the wall clock: a reading taken three minutes
+    // after the hour does not become the final board by our waiting.
+    const held = boardHeld(auto) / 60e3;
+    const still = held >= HELD_MS / 60e3;
+    const firstAfter = isFinite(ends) ? (Date.parse(auto.at) - ends) / 60e3 : -1;
+    if (over && still && (sealed || firstAfter >= SETTLED_AFTER)) {
+      text = T("status.final", "Final standings · unchanged since {t}").replace("{t}", clock(auto.at));
+    } else if (over && Date.now() >= settleBy + SETTLED_AFTER * 60e3) {
       text = T("status.stale", "Standings read at {t}, before the last games had landed · "
         + "the feed has not looked since").replace("{t}", clock(auto.updated));
     } else if (over) {
       // Between the two: the clock has run out, the board has not settled.
-      text = T("status.settling", "Standings read at {t} · the last games are still landing, "
-        + "final around {n}")
+      // The minute it should be in by is only worth saying while it is ahead.
+      text = (Date.now() < settleBy
+        ? T("status.settling", "Standings read at {t} · the last games are still landing, final around {n}")
+        : T("status.settlingLate", "Standings read at {t} · the last games are still landing"))
         .replace("{t}", clock(auto.updated)).replace("{n}", clock(new Date(settleBy).toISOString()));
     } else if (auto.partial && String(STATE.format) === "sealed") {
       // A game under way: the board is half updated, and the forecast waits

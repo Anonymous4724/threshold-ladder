@@ -100,6 +100,30 @@ ensuite combinés selon leur précision, le plus précis pesant le plus, si bien
 qu'à la dernière partie les relevés sont la réponse ; la page dit quelle part
 ils en ont portée.
 
+Cette courbe est celle du genre de cette cup, pas de toutes les files ouvertes
+confondues. Rejouée par famille — mode de jeu, taille d'équipe, durée de la
+fenêtre, plafond de parties — la part atteinte à mi-session va de 0,42 à 0,53
+et la part à l'heure de 0,87 à 0,94 : une cup Battle Royale de deux heures a
+une partie de trente minutes encore en l'air au buzzer, une cup plafonnée à dix
+parties Reload courtes n'a plus rien à jouer dans sa dernière demi-heure. La
+page lit d'abord les éditions récentes de la cup elle-même — telles que le flux
+les a lues dès qu'il en a suivi quatre, car le rejeu par la moisson d'une cup
+Solo grand public court 4 à 9 % trop bas à mi-session, ses premières pages ne
+contenant pas les joueurs en tête au début qui se sont arrêtés ensuite — puis la
+famille, puis la courbe commune, et dit laquelle. Le fond d'une file a aussi
+son propre rythme, fixé par la profondeur du rang dans le peloton et non par le
+rang : le millième d'un peloton de deux mille, c'est la moitié grand public,
+finie au dernier cinquième de la session ; le millième de dix mille garde le
+rythme du haut. Ce rapport est mesuré sur les soirées du flux, et le peloton
+contre lequel il se mesure, c'est le nombre de joueurs déjà au classement — le
+chiffre sous la barre de progression — que le flux lit avec chaque relevé.
+Rejouée sur 110 soirées avec seulement ce qui était connu chaque matin,
+l'erreur médiane passe de 5,0 à 4,2 % entre trois et cinq dixièmes de la
+session, de 4,7 à 3,6 % entre cinq et sept, de 2,1 à 1,4 % dans les dix minutes
+après la clôture ; les fourchettes d'une réponse en direct sont mesurées sur
+ces mêmes soirées, là où elles empruntaient celles de la prédiction d'avant
+tournoi.
+
 Jusqu'où un relevé se propage dans l'échelle a été mesuré de la même façon, et
 les deux formats ne répondent pas pareil. Dans une file ouverte de milliers
 d'équipes, tout le classement bouge ensemble : un relevé au rang 20 chiffre le

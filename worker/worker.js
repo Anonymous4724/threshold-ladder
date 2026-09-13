@@ -25,7 +25,9 @@
  * YYYY-MM-DD`, to which every run appends its readings and which expires
  * after a month: what the research side pulls back into its database, so an
  * evening followed by the feed becomes a tournament with a reading every ten
- * minutes without anyone pressing anything.
+ * minutes without anyone pressing anything. Each reading also carries the
+ * board's page count at the time - a hundred rosters a page - which is how
+ * many have played so far.
  */
 
 const API = "https://fnapi.osirion.gg/v1";
@@ -172,7 +174,11 @@ async function remember(env, out, now) {
     // it: a reading is the same one only when everything in it is.
     const body = JSON.stringify(w.readings);
     if (kept.readings.some(r => r.updated === w.updated && JSON.stringify(r.readings) === body)) continue;
-    kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, final: w.final,
+    // The page count says how many rosters the board ranked when it was
+    // read - who has played so far, growing through the session - and it
+    // is kept so the research side can measure the pace of a cup's arrival
+    // as well as its points.
+    kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, pages: w.pages || null, final: w.final,
                          partial: w.partial === undefined ? null : w.partial, readings: w.readings });
     if (kept.readings.length > HISTORY_MAX) kept.readings = kept.readings.slice(-HISTORY_MAX);
     added++;

@@ -98,6 +98,28 @@ fifteen per cent from one cup to the next. Readings and history are then
 combined by precision, whichever is sharper weighing more, so on the last game
 the readings are the answer; the page says what share of it they carried.
 
+That curve is the curve of this cup's own kind, not of every open queue
+pooled. Replayed per family — game mode, team size, window length, game cap —
+the share reached at half time runs from 0.42 to 0.53 and the share on the
+hour from 0.87 to 0.94: a two-hour Battle Royale cup has a thirty-minute game
+still in the air at the buzzer, a cup capped at ten short Reload games has
+nothing left to play in its last half hour. The page reads the cup's own
+recent editions first — as the feed read them once it has followed four, since
+the harvest's replay of a casual Solo cup runs 4 to 9 % low at half time, its
+first pages missing the players who led early and then stopped — then the
+family, then the pooled curve, and says which. The deep end of a queue runs on
+its own clock too, set by how deep into the field the rank sits rather than by
+the rank: the thousandth of a field of two thousand is the casual half, done by
+the last fifth of the session; the thousandth of ten thousand keeps the top's
+pace. That ratio is measured on the feed's own evenings, and the field it is
+measured against is the board's own count of who has played so far — the
+number under the progress bar — which the feed reads with every standing.
+Replayed over 110 evenings with only what was known each morning, the median
+error falls from 5.0 to 4.2 % at three to five tenths of the session, from 4.7
+to 3.6 % at five to seven, from 2.1 to 1.4 % in the ten minutes after the
+close; the ranges of a live answer are measured on those evenings as well,
+where they used to borrow the pre-tournament forecast's.
+
 How far a reading travels along the ladder was measured the same way, and the
 two formats answer differently. In an open queue of thousands the whole board
 moves together, so a reading at rank 20 prices rank 500 almost exactly. Inside

@@ -9,6 +9,12 @@ name = "threshold-ladder-live"
 main = "worker.js"
 compatibility_date = "2026-06-01"
 
+# The feed answers on its workers.dev address, and site.json names that
+# address: a deploy has to keep it. True is the default when no route is
+# configured; it is written out so that a later edit cannot take the feed's
+# address away without saying so.
+workers_dev = true
+
 [triggers]
 # Every five minutes. The ten-minute marks do the full pass; the ones between
 # read the first page of the windows in their endgame only - see QUICK_BEFORE
@@ -20,9 +26,16 @@ crons = ["*/5 * * * *"]
 SITE = "https://fortnitepredcomp.com"
 CALENDAR_URL = "https://raw.githubusercontent.com/Anonymous4724/threshold-ladder/main/calendar.js"
 
-# The namespace the feed writes to. Created once - on the dashboard under
-# Storage & Databases -> KV, or with `wrangler kv namespace create LIVE` - and
-# its id copied here; the dashboard lists it beside the namespace's name.
+# The namespace the feed writes to - `live`, and one key per day. Created once
+# (on the dashboard under KV, or with `wrangler kv namespace create LIVE`) and
+# its id copied here; the dashboard shows it beside the namespace's name. It
+# must be the namespace the running Worker is already bound to, which the
+# Worker's own Settings -> Bindings page names: pointed at a fresh namespace
+# the feed would answer with an empty board until the next cron and the days
+# of history kept beside it would be out of reach. The id is an identifier,
+# not a credential - Cloudflare's own documentation commits it - and it is
+# useless without the account's API token, which lives in GitHub's secrets
+# and nowhere in this repository.
 [[kv_namespaces]]
 binding = "LIVE"
-id = "REPLACE_WITH_THE_NAMESPACE_ID"
+id = "f5ed8ec70e0d4c4d93a40ebf8da40b32"

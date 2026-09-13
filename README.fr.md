@@ -282,18 +282,27 @@ celui du dessus ne peut pas :
    quelle.** Avec une fourchette mesurée sur l'ampleur des déplacements de ce
    rang d'une édition à l'autre. En premier parce que rien ne l'a battu : une
    bonne soirée soulève tous les rangs ensemble, et un nombre lu entier garde ça
-   là où un niveau multiplié par un rapport le perd. Trois corrections, toutes
+   là où un niveau multiplié par un rapport le perd. Quatre corrections, toutes
    dites sur la page. Qui était admis : la même cup réservée aux Unreal une
    semaine et ouverte dès Diamant la suivante, ce sont deux effectifs de tailles
    différentes, donc l'édition lue est la dernière avec la même condition
-   d'accès, et s'il n'y en a aucune la fourchette est élargie de moitié. Le
-   format : une cup jamais jouée en Duo lit sa dernière édition en Trio avec la
+   d'accès quand elle a été jouée dans la même saison que la dernière en date,
+   et sinon la dernière en date, la fourchette élargie de moitié. Le format :
+   une cup jamais jouée en Duo lit sa dernière édition en Trio avec la
    fourchette élargie de moitié, et un lobby qui a changé de taille est chiffré
-   par l'échelon 4 à la place. Et l'effectif : quand le nombre d'équipes est
+   par l'échelon 4 à la place. L'effectif : quand le nombre d'équipes est
    connu — saisi, ou le palier du tour d'avant — et n'est pas celui de
    l'édition, la valeur se déplace le long de la courbe, de la part de
    l'effectif qu'était ce rang à l'édition à celle qu'il est dans cette cup,
-   plafonnée à un cinquième environ.
+   plafonnée à un cinquième environ. Et la saison : une nouvelle saison monte
+   toutes les cups d'un coup — +5 % en tête et +11 % au-delà du rang 500 au
+   passage à la saison 42, rien au passage à la saison 41 —, donc une édition
+   lue dans une saison antérieure est déplacée de ce que les premières cups de
+   la saison ont montré à cette tranche de rangs, sa fourchette élargie de ce
+   que ce déplacement laisse ; avant qu'aucune cup de la saison n'ait été jouée,
+   elle est reprise telle quelle, la fourchette élargie. La dernière édition est
+   lue aussi profond qu'elle a été moissonnée, et un rang au-delà vient d'une
+   plus ancienne : la page dit quelle édition elle a lue, et de quelle saison.
 2. **Le niveau de la cup multiplié par une forme mesurée** — ce que valait
    chaque rang par rapport au rang 20, sur les éditions de cette cup. Une table,
    pas une courbe.

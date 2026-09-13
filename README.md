@@ -269,16 +269,24 @@ above it cannot:
    straight.** With a band measured from how much that rank moved between
    editions. This is first because nothing beat it: a strong evening lifts every
    rank together, and a number read whole keeps that where a level times a ratio
-   loses it. Three corrections, all said out loud on the page. Who was let in:
+   loses it. Four corrections, all said out loud on the page. Who was let in:
    the same cup admitting Unreal alone one week and Diamond upwards the next is
    two fields of different sizes, so the edition read is the last one with the
-   same entry bar, and when none exists the band is widened by half. The
-   format: a cup that has never run as Duo reads its last Trio edition with the
-   band widened by half, and a lobby that changed size is priced by rung 4
-   instead. And the field: when the number of teams is known — typed in, or a
-   later round's cut — and is not the edition's, the value moves along the
-   curve from the edition's share of its field to this cup's share of its own,
-   capped at about a fifth.
+   same entry bar when it was played in the same season as the latest, and
+   otherwise the latest with the band widened by half. The format: a cup that
+   has never run as Duo reads its last Trio edition with the band widened by
+   half, and a lobby that changed size is priced by rung 4 instead. The field:
+   when the number of teams is known — typed in, or a later round's cut — and
+   is not the edition's, the value moves along the curve from the edition's
+   share of its field to this cup's share of its own, capped at about a fifth.
+   And the season: a new season lifts every cup at once — +5 % at the top and
+   +11 % past rank 500 at the turn of season 42, nothing at the turn of season
+   41 — so an edition read from an earlier season is moved by what the season's
+   earlier cups showed at that band of rank, its band widened by what that
+   move leaves; before any cup of the season has run it is carried as it is,
+   the band widened. The latest edition is read as deep as it was harvested,
+   and a rank past that comes from an older one: the page says which edition
+   it read, and from which season.
 2. **The cup's level times a measured shape** — what each rank was worth
    relative to rank 20 across the cup's editions. A lookup, not a curve.
 3. **The level times a fitted curve**, for ranks nobody has measured — one

@@ -702,11 +702,14 @@ const FR = {
   "l.entry": "Accès", "entryOpen": "ouvert à tous", "rank.orAbove": "{r} ou plus",
   "rank.bronze": "Bronze", "rank.silver": "Argent", "rank.gold": "Or", "rank.platinum": "Platine",
   "rank.diamond": "Diamant", "rank.elite": "Élite", "rank.champion": "Champion",
-  "entrySame": "Lu sur la dernière édition avec la même condition d'accès ({bar}) : la dernière édition en date admettait un autre palier et a réuni un autre effectif.",
+  "entrySame": "Lu sur la dernière édition avec la même condition d'accès ({bar}), celle du {date} : la dernière édition en date admettait un autre palier et a réuni un autre effectif.",
   "entryOther": "La dernière édition admettait {theirs} ; celle-ci admet {bar}. Un autre palier, c'est un autre effectif : la fourchette est élargie de moitié.",
   "entryBar": "Accès : {bar}, comme pour l'édition lue.",
   "formatOther": "Cette cup n'a encore jamais été jouée en {mine} : lue sur sa dernière édition en {theirs}, un autre classement, donc la fourchette est élargie de moitié.",
   "fieldMoved": "L'effectif saisi ({f} équipes) n'est pas celui de l'édition : lu le long de la courbe, ça déplace le seuil de {p} %.",
+  "editionRead": "Lu sur l'édition du {date} : la dernière en date ({latest}) n'a pas été relevée à ce rang.",
+  "seasonMoved": "Cette édition date de la saison {from} ; cette cup se joue en saison {to}. Les cups déjà jouées cette saison sont revenues à {p} % de leur dernière édition de la saison précédente à ces rangs ({n} relevés), et la valeur est déplacée d'autant ; la fourchette est élargie de ce que ce déplacement laisse inexpliqué.",
+  "seasonNew": "Cette édition date de la saison {from} ; cette cup se joue en saison {to}, et aucune cup de cette saison n'a encore été mesurée à ces rangs : la valeur est reprise telle quelle, la fourchette élargie de ce qu'un changement de saison a déjà déplacé les cups par le passé.",
   "tab.predict": "Prédiction", "tab.live": "En direct", "tab.settings": "Réglages",
   "btn.standings": "Classement complet sur osirion.gg", "h.readings": "Relevés",
   "chart.forecastShort": "prédiction",
@@ -992,6 +995,45 @@ function coldSignature(t) {
   return [t.game_mode || "", t.team_mode || "", kind, platform, stage];
 }
 
+/* Seasons. Epic numbers them in its event ids ("S42"); a new season moves
+ * every cup's level at once - a new loot pool, a new crowd - and the move is
+ * shared, so an edition read across a turn of season is moved by what the
+ * season's earlier cups showed, per band of rank, and its band widened by
+ * what is left once that is taken out. The port of the model's season_move:
+ * the turns of season between the edition's and the cup's summed, an unknown
+ * one at the fallback spread and no shift. */
+function seasonNumber(text) {
+  const found = String(text || "").match(/(\d+)/);
+  return found ? parseInt(found[1], 10) : null;
+}
+function seasonOfEvent(eventId) {
+  const found = String(eventId || "").match(/(?:^|_)S(\d+)_/i);
+  return found ? parseInt(found[1], 10) : null;
+}
+function seasonBand(rank) {
+  return rank <= 100 ? "100" : (rank <= 500 ? "500" : "0");
+}
+function seasonMove(since, until, rank) {
+  if (since === null || since === undefined || until === null || until === undefined || until <= since) {
+    return { shift: 0, spread: 0, pairs: 0 };
+  }
+  const shifts = MODEL.season_shifts || {};
+  const known = (MODEL.seasons || []).map(s => Number(s[0]));
+  const band = seasonBand(rank);
+  const steps = known.filter(n => since < n && n <= until);
+  if (known.indexOf(until) < 0) steps.push(until);
+  const table = new Map((shifts.boundaries || []).map(b => [Number(b[0]) + ">" + Number(b[1]), b[2] || {}]));
+  const fallback = Number(((shifts.fallback || {})[band] !== undefined ? shifts.fallback[band] : 0.12));
+  let shift = 0, variance = 0, pairs = 0, previous = since;
+  for (const step of steps) {
+    const row = (table.get(previous + ">" + step) || {})[band];
+    if (row) { shift += Number(row[0]); variance += Math.pow(Number(row[1]), 2); pairs += Number(row[2]) || 0; }
+    else variance += fallback * fallback;
+    previous = step;
+  }
+  return { shift: shift, spread: Math.sqrt(variance), pairs: pairs };
+}
+
 /* Rung zero: this cup, this region, this format, this rank, last time.
  * Nothing modelled, because measured, which beats modelling it: a strong
  * evening lifts every rank together, and a reading taken whole keeps that
@@ -1005,7 +1047,9 @@ function directReading(t, rank, field) {
   // Which edition is "previous" depends on who was let in: the same cup one
   // week admitting Unreal alone and the next Diamond upwards is two fields of
   // different sizes. When the cup states its entry bar, the last edition with
-  // the same bar is read; when none exists, the latest, band widened. Then a
+  // the same bar is read - when it was played in the same season as the
+  // latest; a season back it reads worse than last week's edition under
+  // the other bar, measured - and otherwise the latest, band widened. Then a
   // field known outright - typed, or a later round's cut, never the API's
   // ten-thousand ceiling - moves the value along the curve from the edition's
   // share of its field to this cup's share of its own.
@@ -1013,6 +1057,9 @@ function directReading(t, rank, field) {
   // (A stored tournament replayed through here can say otherwise.)
   const want = String(t.entry || "");
   const fieldNow = t.field_counted === false ? 0 : Math.round(Number(t.field_size) || 0);
+  const until = t.season === undefined ? MODEL.season : t.season;
+  let latest = String((row || {}).latest || ""), rowSeason = (row || {}).season;
+  if (rowSeason === undefined) rowSeason = null;
   const read = e => {
     let value = e[0]; const n = e[1], measured = e[2];
     const fallback = MODEL.anchor_spread.category;
@@ -1026,10 +1073,20 @@ function directReading(t, rank, field) {
     let field = e.length > 3 && e[3] ? Math.round(Number(e[3])) : 0;
     const theirs = e.length > 4 && Number.isInteger(e[4]) && e[4] >= 0 ? String(bars[e[4]] || "") : "";
     const alt = e.length > 5 && e[5] && typeof e[5] === "object" ? e[5] : {};
+    // The season and the date of the edition actually read: the row's own
+    // season and latest date where the cells say nothing.
+    let since = e.length > 6 && Number.isInteger(e[6]) && e[6] >= 0 ? e[6] : rowSeason;
+    let date = e.length > 7 && e[7] ? String(e[7]) : latest;
     let note = null;
     if (want && theirs && want !== theirs) {
       const other = bars.indexOf(want) >= 0 ? alt[String(bars.indexOf(want))] : null;
-      if (other) { value = Number(other[0]); field = Math.round(Number(other[1]) || 0); note = ["same_entry"]; }
+      const otherSeason = other ? (other.length > 2 && Number.isInteger(other[2]) && other[2] >= 0 ? other[2] : rowSeason) : null;
+      if (other && (otherSeason === null || since === null || otherSeason === since)) {
+        value = Number(other[0]); field = Math.round(Number(other[1]) || 0);
+        since = otherSeason;
+        if (other.length > 3 && other[3]) date = String(other[3]);
+        note = ["same_entry"];
+      }
       else { rel *= MODEL.widen.entry || 1.5; note = ["other_entry", theirs]; }
     }
     let effect = 0;
@@ -1041,7 +1098,15 @@ function directReading(t, rank, field) {
       rel = Math.sqrt(rel * rel + Math.pow(rule.rel * move, 2));
       effect = 100 * (Math.exp(move) - 1);
     }
-    return { value: value, rel: rel, n: n, note: note, effect: effect };
+    // Read across a turn of season: moved, and the band widened.
+    const moved = seasonMove(since, until, rank);
+    let season = { effect: 0, pairs: 0, since: null, until: null, date: date };
+    if (moved.spread > 0) {
+      value *= Math.exp(moved.shift);
+      rel = Math.sqrt(rel * rel + moved.spread * moved.spread);
+      season = { effect: 100 * (Math.exp(moved.shift) - 1), pairs: moved.pairs, since: since, until: until, date: date };
+    }
+    return { value: value, rel: rel, n: n, note: note, effect: effect, season: season };
   };
   const fromTable = tbl => {
     const entry = tbl[String(rank)];
@@ -1049,8 +1114,9 @@ function directReading(t, rank, field) {
     const found = bracketOf(tbl, rank, usable);
     if (!found) return null;
     const a = read(tbl[String(found.lo)]), b = read(tbl[String(found.hi)]);
+    const season = Object.assign({}, a.season, { effect: (1 - found.f) * a.season.effect + found.f * b.season.effect });
     return { value: between(a.value, b.value, found.f), rel: Math.max(a.rel, b.rel), n: Math.min(a.n, b.n),
-             note: a.note, effect: (1 - found.f) * a.effect + found.f * b.effect };
+             note: a.note, effect: (1 - found.f) * a.effect + found.f * b.effect, season: season };
   };
   const own = fromTable(table);
   if (own) return own;
@@ -1060,6 +1126,7 @@ function directReading(t, rank, field) {
   // rung prices better than a lobby of another size does.
   if (Object.keys(table).length || singleLobby(t, field)) return null;
   for (const other of kinRows(t)) {
+    latest = String(other.latest || ""); rowSeason = other.season === undefined ? null : other.season;
     const got = fromTable(other.direct || {});
     if (got) {
       got.rel *= MODEL.widen.entry || 1.5;
@@ -1074,6 +1141,7 @@ function anchorLevel(t) {
   const games = Number(t.max_games) || 0;
   if (games <= 0) return null;
   const spread = MODEL.anchor_spread, widen = MODEL.widen;
+  const until = t.season === undefined ? MODEL.season : t.season;
   // The stored level is what those editions reached over the games they played.
   // A tournament running the same number is not rescaled at all; one running a
   // different number is scaled at the measured per-game exponent, not at 1.0 -
@@ -1084,9 +1152,15 @@ function anchorLevel(t) {
     // Widened when the cup has run once - `seen` - not when the level was read
     // off one edition of many by choice.
     const once = (row.seen === undefined || row.seen === null ? row.n : row.seen) === 1;
-    return { value: row.level * Math.pow(games / theirs, MODEL.games_exponent),
-             source: source, n: row.n,
-             rel: spread[source] * (once ? widen.single_edition : 1) };
+    let value = row.level * Math.pow(games / theirs, MODEL.games_exponent);
+    let rel = spread[source] * (once ? widen.single_edition : 1);
+    // A level read across a turn of season moves with the season.
+    const moved = seasonMove(row.season === undefined ? null : row.season, until, MODEL.curve.reference_rank);
+    if (moved.spread > 0) {
+      value *= Math.exp(moved.shift);
+      rel = Math.sqrt(rel * rel + moved.spread * moved.spread);
+    }
+    return { value: value, source: source, n: row.n, rel: rel };
   };
   const direct = [
     ["category", categoryRow(t)],
@@ -1159,10 +1233,14 @@ function predictOne(t, rank) {
   if (rank < 1) return null;
   const straight = directReading(t, rank, field);
   if (straight) {
-    const v = straight.value, rel = straight.rel;
+    const v = straight.value, rel = straight.rel, season = straight.season || {};
     return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel),
       rel: rel, n: straight.n, source: "previous edition", field: field, guessedField: guessed,
-      shapeSource: "direct", level: v, fieldEffect: Math.round(straight.effect * 10) / 10, entryNote: straight.note };
+      shapeSource: "direct", level: v, fieldEffect: Math.round(straight.effect * 10) / 10, entryNote: straight.note,
+      // The edition the rank was read off, and what carrying it across a
+      // turn of season did to it.
+      edition: season.date || "", seasonEffect: Math.round((season.effect || 0) * 10) / 10,
+      seasonPairs: season.pairs || 0, seasonFrom: season.since, seasonTo: season.until };
   }
   // The last places of a single lobby are not a ladder: teams that left
   // after a game or two. The previous edition's own reading, above, is the
@@ -2136,12 +2214,16 @@ function gameCount(s) {
 function asTournament(s) {
   const loose = matchTournament(s.name, s.region);
   const matched = s.variant ? { label: s.variant, kind: "picked" } : loose;
+  // The season the cup is played in: the one its event id names, else the
+  // model's current one - a cup typed by hand is one of this season.
+  const season = seasonOfEvent(s.event);
   return {
     category: matched ? matched.label : s.name,
     name: s.name || "",
     region: s.region, team_mode: s.team_mode, game_mode: s.game_mode,
     max_games: gameCount(s), field_size: s.field_size, scoring: s.scoring,
     entry: s.entry || "",
+    season: season === null ? (MODEL.season === undefined ? null : MODEL.season) : season,
     scoring_known: (s.scoring.placement || []).length > 0,
     matched: matched
   };
@@ -2991,8 +3073,9 @@ function explainBlock(live, cold, answer, rank) {
       const note = cold.entryNote;
       const bar = rankName(STATE.entry);
       if (note && note[0] === "same_entry") {
-        lines.push(T("entrySame", "Read from the last edition with the same entry bar ({bar}): the latest "
-          + "edition admitted another tier and drew another field.").replace("{bar}", bar || "—"));
+        lines.push(T("entrySame", "Read from the last edition with the same entry bar ({bar}), the one of {date}: "
+          + "the latest edition admitted another tier and drew another field.").replace("{bar}", bar || "—")
+          .replace("{date}", dateLabel(cold.edition)));
       } else if (note && note[0] === "other_entry") {
         lines.push(T("entryOther", "The last edition admitted {theirs}; this one admits {bar}. Another tier "
           + "is another field, so the band is widened by half.")
@@ -3009,6 +3092,34 @@ function explainBlock(live, cold, answer, rank) {
         lines.push(T("fieldMoved", "The field entered ({f} teams) is not the edition's: read along the curve, "
           + "that moves the threshold by {p} %.").replace("{f}", num(cold.field))
           .replace("{p}", (cold.fieldEffect > 0 ? "+" : "−") + Math.abs(cold.fieldEffect).toFixed(1)));
+      }
+      // Which edition the rank was read off, when it is not the latest: the
+      // latest edition is read as deep as it was harvested, and a rank past
+      // that comes from an older one - said, so a number from last season is
+      // not taken for last week's.
+      const latest = String((categoryRow(asTournament(STATE)) || {}).latest || "");
+      if (cold.edition && latest && cold.edition !== latest && !(note && note[0] === "same_entry")) {
+        lines.push(T("editionRead", "Read off the edition of {date}: the latest one ({latest}) was not read "
+          + "at this rank.").replace("{date}", dateLabel(cold.edition)).replace("{latest}", dateLabel(latest)));
+      }
+      // Read across a turn of season: moved by what the season's earlier
+      // cups showed, or carried as it is when none has been measured yet.
+      if (cold.seasonTo !== null && cold.seasonTo !== undefined && cold.seasonFrom !== null
+          && cold.seasonFrom !== undefined) {
+        if (cold.seasonPairs > 0) {
+          lines.push(T("seasonMoved", "That edition is from season {from}; this cup is in season {to}. The "
+            + "cups already played this season came back {p} % against their last edition of the previous "
+            + "one at these ranks ({n} readings), and the value is moved by that; the band is widened by "
+            + "what that move leaves unexplained.")
+            .replace("{from}", cold.seasonFrom).replace("{to}", cold.seasonTo)
+            .replace("{p}", (cold.seasonEffect >= 0 ? "+" : "−") + Math.abs(cold.seasonEffect).toFixed(1))
+            .replace("{n}", nf().format(cold.seasonPairs)));
+        } else {
+          lines.push(T("seasonNew", "That edition is from season {from}; this cup is in season {to}, and no "
+            + "cup of this season has been measured at these ranks yet: the value is carried as it is, "
+            + "the band widened by what a turn of season has moved cups by before.")
+            .replace("{from}", cold.seasonFrom).replace("{to}", cold.seasonTo));
+        }
       }
     }
     if (cold.guessedField) {
@@ -3905,6 +4016,15 @@ function hhmm(iso) {
   return isFinite(d.getTime())
     ? d.toLocaleTimeString(LANG === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })
     : "—";
+}
+/* A day the model dates an edition by ("2026-07-25"), in the reader's words:
+ * a date, never a time, so the zone does not move it to the day before. */
+function dateLabel(day) {
+  const m = String(day || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(day || "—");
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.toLocaleDateString(LANG === "fr" ? "fr-FR" : "en-GB",
+                              { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
 /* When the forecast last moved, and when it will next: the answer's clock.

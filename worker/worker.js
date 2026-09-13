@@ -415,7 +415,7 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
     const more = await board(row.event, row.window, number);
     const page = more ? readPage(more, number) : null;
     if (page) takeFrom(page.pairs, page.updatedAt);
-    if (page && number === last) ranked = (total - 1) * PAGE_SIZE + page.teams;
+    if (page && number === last) ranked = await countFrom(row, page, number);
   }
   readings.sort((a, b) => a[0] - b[0]);
   // Standings never rise with rank on one board. Among the readings of one
@@ -452,6 +452,30 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
       !(partial !== null && Number(row.games) > 0 && Number(first.games) < Number(row.games)
         && now < end + LATE_MINUTES * 60e3),
   };
+}
+
+/* The count off the board's last page - and past it. The page count comes
+ * off the first page, and the copies the API hands back are not all the same
+ * age: on a board still filling, by the time the last page is read the board
+ * has grown past it, the page comes back full, and the count would be the
+ * page count times a hundred - which is what the first evening showed, every
+ * ten minutes. So while the page read is full and says the board has more
+ * pages than were counted, the next one is read, a page or two at most: the
+ * board gains under a hundred rosters a minute. */
+const COUNT_EXTRA = 2;
+async function countFrom(row, page, number) {
+  let extra = 0;
+  while (page && page.teams >= PAGE_SIZE && page.totalPages > number + 1 && number + 1 < PAGES_CAP
+         && extra < COUNT_EXTRA) {
+    await sleep(GAP_MS);
+    number += 1; extra += 1;
+    const more = await board(row.event, row.window, number);
+    page = more ? readPage(more, number) : null;
+  }
+  // Still full with more behind it: the board outran the reading; no count
+  // is better than a wrong one, and the page count still says "about".
+  if (!page || (page.teams >= PAGE_SIZE && page.totalPages > number + 1)) return null;
+  return number * PAGE_SIZE + page.teams;
 }
 
 async function board(eventId, windowId, page) {

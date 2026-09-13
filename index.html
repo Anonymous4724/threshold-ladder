@@ -684,8 +684,8 @@ const FR = {
   "status.auto": "Classement lu à {t} · prochaine lecture vers {n}",
   "status.willAuto": " · le classement sera relevé automatiquement toutes les 10 min dès le début de la cup, et toutes les 5 min sur sa fin",
   "status.manual": "Dernier relevé saisi à {t}",
-  "status.rankedPlayers": "≈ {n} joueurs au classement",
-  "status.rankedTeams": "≈ {n} équipes au classement",
+  "status.rankedPlayers": "{about}{n} joueurs au classement",
+  "status.rankedTeams": "{about}{n} équipes au classement",
   "status.rankedCapPlayers": "{n} joueurs ou plus au classement — le classement s'arrête là",
   "status.rankedCapTeams": "{n} équipes ou plus au classement — le classement s'arrête là",
   "status.cold": "Prédiction d'avant tournoi",
@@ -3791,10 +3791,12 @@ function entryFrom(found) {
                   elapsed: isFinite(gone) ? Math.max(0, Math.round(gone)) : 0,
                   at: found.updated, seen: found.updated, updated: found.updated, readings: readings, auto: true,
                   final: !!found.final, partial: found.partial === true,
-                  // How many pages the board had when it was read: a hundred
+                  // How many pages the board had when it was read - a hundred
                   // rosters a page, so how many have played so far, give or
-                  // take the last page (see rankedSoFar).
-                  pages: Number(found.pages) > 0 ? Number(found.pages) : 0 };
+                  // take the last page - and the exact count where the feed
+                  // read that page too (see rankedSoFar).
+                  pages: Number(found.pages) > 0 ? Number(found.pages) : 0,
+                  ranked: Number(found.ranked) > 0 ? Number(found.ranked) : 0 };
   entry.share = entry.final ? 1 : liveShare(STATE, entry);
   return entry;
 }
@@ -3908,15 +3910,21 @@ function hhmm(iso) {
 /* When the forecast last moved, and when it will next: the answer's clock.
  * Automatic readings come every ten minutes; typed ones whenever they were
  * typed; before any, the forecast is the one from history. */
-/* How many rosters the board ranks, from its page count: every page but the
- * last holds a hundred, and the last is taken as half full - the same
- * reading of the same number the harvest makes of a finished board. Live it
- * is a count of who has played so far, which grows through the session as
- * players finish their first game, and settles at the field. Zero when the
- * reading did not carry a page count. */
+/* How many rosters the board ranks: exactly, where the feed read the last
+ * page too; from the page count otherwise - every page but the last holds a
+ * hundred, and the last is taken as half full, the same reading of the same
+ * number the harvest makes of a finished board. Live it is a count of who
+ * has played so far, which grows through the session as players finish
+ * their first game, and settles at the field. Zero when the reading carried
+ * no page count. */
 function rankedSoFar(entry) {
+  const exact = Number((entry || {}).ranked) || 0;
+  if (exact > 0) return exact;
   const pages = Number((entry || {}).pages) || 0;
   return pages > 0 ? (pages - 1) * 100 + 50 : 0;
+}
+function rankedExactly(entry) {
+  return (Number((entry || {}).ranked) || 0) > 0;
 }
 /* The API pages a board a hundred pages deep at most, so a board that reaches
  * that page says "ten thousand or more", not a count - the same reading the
@@ -3996,8 +4004,9 @@ function drawStatus() {
       ? (solo ? T("status.rankedCapPlayers", "{n} players or more on the board — the leaderboard stops there")
               : T("status.rankedCapTeams", "{n} teams or more on the board — the leaderboard stops there"))
           .replace("{n}", nf().format(PAGES_CAP * 100))
-      : (solo ? T("status.rankedPlayers", "≈ {n} players on the board")
-              : T("status.rankedTeams", "≈ {n} teams on the board")).replace("{n}", nf().format(ranked)));
+      : (solo ? T("status.rankedPlayers", "{about}{n} players on the board")
+              : T("status.rankedTeams", "{about}{n} teams on the board"))
+          .replace("{about}", rankedExactly(auto) ? "" : "≈ ").replace("{n}", nf().format(ranked)));
   }
   line.textContent = text;
   // The Live tab says when there is something live to look at.

@@ -26,8 +26,9 @@
  * after a month: what the research side pulls back into its database, so an
  * evening followed by the feed becomes a tournament with a reading every ten
  * minutes without anyone pressing anything. Each reading also carries the
- * board's page count at the time - a hundred rosters a page - which is how
- * many have played so far.
+ * board's page count at the time - a hundred rosters a page - and, where the
+ * API pages the board whole, the exact count off its last page: how many
+ * have played so far.
  */
 
 const API = "https://fnapi.osirion.gg/v1";
@@ -37,6 +38,9 @@ const RANKS = [1, 3, 5, 10, 20, 25, 50, 100];
 const DEEP = [250, 500, 1000, 2500];   // the ladder's deeper rungs, read when a page is to spare
 const MAX_CUT = 5000;                  // deeper cuts are not fetched: too many pages
 const MAX_PAGES = 3;                   // pages read per window beyond the first
+// The API pages a board this deep at most. A board on its last page is ten
+// thousand rosters or more, and how many more the API does not say.
+const PAGES_CAP = 100;
 // One lobby holds this many teams; Reload and Blitz lobbies seat forty players.
 const LOBBY = { Solo: 100, Duo: 50, Trio: 33, Squad: 25 };
 const LOBBY_SMALL = { Solo: 40, Duo: 20, Trio: 13, Squad: 10 };
@@ -132,7 +136,8 @@ async function run(env, quick) {
     // actually moving.
     if (quick && !endgame(row, now)) { keep(previous, row, out); continue; }
     try {
-      const entry = await readWindow(row, now, calendar, quick);
+      const before = (previous.windows || []).find(w => w.window === row.window && w.event === row.event) || null;
+      const entry = await readWindow(row, now, calendar, quick, before);
       if (entry) out.push(entry);
       else keep(previous, row, out);
     } catch (err) {
@@ -178,7 +183,8 @@ async function remember(env, out, now) {
     // read - who has played so far, growing through the session - and it
     // is kept so the research side can measure the pace of a cup's arrival
     // as well as its points.
-    kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, pages: w.pages || null, final: w.final,
+    kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, pages: w.pages || null,
+                         ranked: w.ranked || null, final: w.final,
                          partial: w.partial === undefined ? null : w.partial, readings: w.readings });
     if (kept.readings.length > HISTORY_MAX) kept.readings = kept.readings.slice(-HISTORY_MAX);
     added++;
@@ -350,11 +356,23 @@ function settle(entries, scoring, now) {
   };
 }
 
-async function readWindow(row, now, calendar, firstPageOnly) {
+async function readWindow(row, now, calendar, firstPageOnly, before) {
   const text = await board(row.event, row.window, 0);
   if (!text) return null;
   let first = readPage(text, 0);
   if (!first || !first.teams) return null;
+  // How many rosters the board ranks: every page but the last holds a
+  // hundred, and the last page says the rest - one more request on a full
+  // pass, none on a board that fits on one page, and none on a board that
+  // reaches the API's last page, where the count is "ten thousand or more"
+  // and the field only the site's own match data could say. A quick pass
+  // keeps the previous count while the page count has not moved.
+  const total = first.totalPages || 0;
+  let ranked = null;
+  if (total === 1) ranked = first.teams;
+  else if (total > 1 && total < PAGES_CAP) {
+    if (firstPageOnly) ranked = before && before.pages === total && before.ranked > 0 ? before.ranked : null;
+  }
   let partial = null;
   if (sealed(row, first)) {
     // The whole lobby is on the first page: rebuild it as of the last
@@ -388,11 +406,16 @@ async function readWindow(row, now, calendar, firstPageOnly) {
   // The quick pass stops at the first page: the top hundred, read five minutes
   // sooner. The ranks deeper than that keep their reading from the full pass -
   // the page holds each rank's latest reading whichever run it arrived in.
-  for (const number of firstPageOnly ? [] : pagesToRead(row, first.totalPages)) {
+  const pages = firstPageOnly ? [] : pagesToRead(row, first.totalPages);
+  // The last page, for the count, when a full pass has not read it already.
+  const last = total > 1 && total < PAGES_CAP ? total - 1 : -1;
+  if (!firstPageOnly && last >= 0 && !pages.includes(last)) pages.push(last);
+  for (const number of pages) {
     await sleep(GAP_MS);
     const more = await board(row.event, row.window, number);
     const page = more ? readPage(more, number) : null;
     if (page) takeFrom(page.pairs, page.updatedAt);
+    if (page && number === last) ranked = (total - 1) * PAGE_SIZE + page.teams;
   }
   readings.sort((a, b) => a[0] - b[0]);
   // Standings never rise with rank on one board. Among the readings of one
@@ -414,6 +437,8 @@ async function readWindow(row, now, calendar, firstPageOnly) {
     // How many games are finished: the clock of a sealed lobby. In an open
     // queue, the most the leaders have completed.
     games: first.games, teams: first.teams, pages: first.totalPages || null,
+    // The rosters the board ranks, exactly, where the API pages it whole.
+    ranked: ranked,
     // In a sealed lobby: whether a game is under way, the standings above
     // being those at the end of the last finished one. Null where that
     // reading is not made.

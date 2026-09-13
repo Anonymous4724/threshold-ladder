@@ -114,10 +114,12 @@ the last fifth of the session; the thousandth of ten thousand keeps the top's
 pace. That ratio is measured on the feed's own evenings, and the field it is
 measured against is the board's own count of who has played so far — the
 number under the progress bar — which the feed reads with every standing.
-The API pages a board a hundred pages deep at most, so past ten thousand the
-line says "10,000 or more": the leaderboard stops there, where Osirion's
-own site, which counts players from the games it parses, can say fifteen
-thousand.
+On a full pass the feed also reads the board's last page, so the count is
+exact — 6,743 players, not about 6,750 — and the line says so by dropping
+the "≈". The API pages a board a hundred pages deep at most, so past ten
+thousand the line says "10,000 or more": the leaderboard stops there, where
+Osirion's own site, which counts players from the games it parses, can say
+fifteen thousand.
 Replayed over 110 evenings with only what was known each morning, the median
 error falls from 5.0 to 4.2 % at three to five tenths of the session, from 4.7
 to 3.6 % at five to seven, from 2.1 to 1.4 % in the ten minutes after the

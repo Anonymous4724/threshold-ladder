@@ -1,6 +1,10 @@
-# The live feed's settings, for `wrangler deploy`. The dashboard route does
-# the same thing by hand: a Worker with this code, a KV namespace bound as
-# LIVE, a cron trigger every five minutes, and SITE set to the site's address.
+# The live feed's settings, for `wrangler deploy` - run by the repository's
+# own workflow (.github/workflows/deploy-worker.yml) on every push that
+# changes this folder, or by hand with wrangler installed. The dashboard route
+# does the same thing by hand: a Worker with this code, a KV namespace bound
+# as LIVE, a cron trigger every five minutes, and SITE set to the site's
+# address. A deploy from here replaces the code, the cron and the bindings
+# with what this file says, so the namespace id below has to be the real one.
 name = "threshold-ladder-live"
 main = "worker.js"
 compatibility_date = "2026-06-01"
@@ -16,8 +20,9 @@ crons = ["*/5 * * * *"]
 SITE = "https://fortnitepredcomp.com"
 CALENDAR_URL = "https://raw.githubusercontent.com/Anonymous4724/threshold-ladder/main/calendar.js"
 
-# Create the namespace once (`wrangler kv namespace create LIVE`) and put its
-# id here; the dashboard shows the same id under Storage & Databases → KV.
+# The namespace the feed writes to. Created once - on the dashboard under
+# Storage & Databases -> KV, or with `wrangler kv namespace create LIVE` - and
+# its id copied here; the dashboard lists it beside the namespace's name.
 [[kv_namespaces]]
 binding = "LIVE"
 id = "REPLACE_WITH_THE_NAMESPACE_ID"

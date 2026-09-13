@@ -1,0 +1,30 @@
+# Deploys the live feed (worker/worker.js) to Cloudflare whenever the worker
+# folder changes on main - the same push that publishes the site. The two
+# secrets are set once in the repository's settings (Settings -> Secrets and
+# variables -> Actions): CLOUDFLARE_API_TOKEN, a token made from the "Edit
+# Cloudflare Workers" template, and CLOUDFLARE_ACCOUNT_ID, shown on the
+# Workers & Pages overview. wrangler.toml carries everything else: the
+# worker's name, the cron, the KV binding. Secrets set on the dashboard
+# (REFRESH_TOKEN) survive a deploy; --keep-vars keeps any plain variable set
+# there too.
+name: Deploy the live feed
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - ".github/workflows/deploy-worker.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: deploy --keep-vars

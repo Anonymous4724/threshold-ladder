@@ -117,6 +117,10 @@ finie au dernier cinquième de la session ; le millième de dix mille garde le
 rythme du haut. Ce rapport est mesuré sur les soirées du flux, et le peloton
 contre lequel il se mesure, c'est le nombre de joueurs déjà au classement — le
 chiffre sous la barre de progression — que le flux lit avec chaque relevé.
+L'API pagine un classement sur cent pages au plus, donc au-delà de dix mille
+la ligne dit « 10 000 ou plus » : le classement s'arrête là, quand le site
+d'Osirion, qui compte les joueurs à partir des parties qu'il analyse, peut en
+afficher quinze mille.
 Rejouée sur 110 soirées avec seulement ce qui était connu chaque matin,
 l'erreur médiane passe de 5,0 à 4,2 % entre trois et cinq dixièmes de la
 session, de 4,7 à 3,6 % entre cinq et sept, de 2,1 à 1,4 % dans les dix minutes

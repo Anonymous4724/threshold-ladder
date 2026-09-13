@@ -682,6 +682,8 @@ const FR = {
   "status.manual": "Dernier relevé saisi à {t}",
   "status.rankedPlayers": "≈ {n} joueurs au classement",
   "status.rankedTeams": "≈ {n} équipes au classement",
+  "status.rankedCapPlayers": "{n} joueurs ou plus au classement — le classement s'arrête là",
+  "status.rankedCapTeams": "{n} équipes ou plus au classement — le classement s'arrête là",
   "status.cold": "Prédiction d'avant tournoi",
 "status.final": "Classement final · inchangé depuis {t}",
   "l.calover": "terminée",
@@ -1676,6 +1678,9 @@ function refine(t, log) {
   // only grows from there; else the cup's own editions', the field the cold
   // forecast works from, which on the evenings followed was out by half
   // or more for one cup in two.
+  // At the API's ceiling the count reads 9,950 for a field of ten thousand or
+  // more, and so does every harvested field the depth was measured on: the
+  // depth of a rank is measured against the same ceiling it is read against.
   const typed = Math.max(0, Math.round(Number(t.field_size) || 0));
   const counted = kind === "open_by_time" && share >= FAMILY_FROM ? rankedSoFar(entry) : 0;
   const field = typed || counted || ((kind === "open_by_time" && guessField(t)) || {}).field || 0;
@@ -3909,6 +3914,15 @@ function rankedSoFar(entry) {
   const pages = Number((entry || {}).pages) || 0;
   return pages > 0 ? (pages - 1) * 100 + 50 : 0;
 }
+/* The API pages a board a hundred pages deep at most, so a board that reaches
+ * that page says "ten thousand or more", not a count - the same reading the
+ * model makes of a harvested field at its ceiling. Osirion's own site counts
+ * the players from the games it parses and can say fifteen thousand where
+ * the leaderboard stops at ten. */
+const PAGES_CAP = 100;
+function rankedCapped(entry) {
+  return (Number((entry || {}).pages) || 0) >= PAGES_CAP;
+}
 
 function drawStatus() {
   const line = $("status-line");
@@ -3973,9 +3987,13 @@ function drawStatus() {
   // its own, and the number the depth of a rank is measured against.
   const ranked = auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0)) ? rankedSoFar(auto) : 0;
   if (ranked > 0) {
-    text += " · " + (String(STATE.team_mode) === "Solo"
-      ? T("status.rankedPlayers", "≈ {n} players on the board")
-      : T("status.rankedTeams", "≈ {n} teams on the board")).replace("{n}", nf().format(ranked));
+    const solo = String(STATE.team_mode) === "Solo";
+    text += " · " + (rankedCapped(auto)
+      ? (solo ? T("status.rankedCapPlayers", "{n} players or more on the board — the leaderboard stops there")
+              : T("status.rankedCapTeams", "{n} teams or more on the board — the leaderboard stops there"))
+          .replace("{n}", nf().format(PAGES_CAP * 100))
+      : (solo ? T("status.rankedPlayers", "≈ {n} players on the board")
+              : T("status.rankedTeams", "≈ {n} teams on the board")).replace("{n}", nf().format(ranked)));
   }
   line.textContent = text;
   // The Live tab says when there is something live to look at.

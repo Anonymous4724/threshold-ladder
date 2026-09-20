@@ -736,7 +736,15 @@ const FR = {
   "source.scoring (thin sample)": "le barème, rapport mesuré sur peu d'éditions",
   "source.scoring (prior)": "le barème seul - rapport jamais mesuré pour ce format",
   "source.closed lobby": "des finales de ce format jouées en lobby unique, par part du lobby",
-  "basedOn": "Estimé à partir de", "editions": "édition(s)", "matched": "Rapproché de",
+  "source.re-scored boards": "des classements récents de ce format dans cette région, rejoués avec le barème de cette cup",
+  "source.family + re-scored boards": "ce tournoi dans les autres régions, moyenné avec des classements récents de cette région rejoués avec son barème",
+  "replayHow": "Aucune édition de cette cup dans cette région : les {n} derniers classements de ce format et de cette plateforme ici ont été rejoués partie par partie avec le barème de cette cup — chaque placement et chaque élimination repayés à son tarif — et ce rang est la médiane de ce qu'ils donnent. Mesuré sur les cups de la fin d'été jamais vues dans leur région, l'erreur médiane est de 4 à 5 % aux rangs 1 à 250, contre 8 à 10 % pour le barème seul.",
+  "replayAveraged": "Cette cup a déjà tourné dans d'autres régions : la lecture de ces éditions et le rejeu de {n} classements récents de cette région avec son barème comptent chacun pour moitié, ce qui bat l'un comme l'autre pris seul (3,5 % contre 6 %, mesuré).",
+  "replayBeyond": "Les classements rejoués sont fiables jusqu'au rang {d} — au-delà, le rejeu remonte des équipes que les pages chargées ne contiennent pas. À partir de là le seuil suit l'échelle mesurée des files ouvertes de cette taille et de ce mode, depuis le rang {d}.",
+  "ladderShape": "Aucune édition de cette cup n'a été relevée à ce rang : le rapport entre ce rang et le top 20 est lu sur l'échelle des files ouvertes de cette taille de plateau et de ce mode — la médiane de tous les classements harvestés, qui remplace la courbe ajustée, deux fois moins fausse qu'elle en profondeur (mesuré).",
+  "status.unfollowed": " · le flux n'a pas suivi cette cup : elle n'était pas dans le calendrier pendant qu'elle tournait. Le classement final est sur osirion.gg, lien ci-dessus.",
+  "status.waiting": " · le classement est relevé toutes les 10 min ; rien n'est encore arrivé pour cette cup",
+  "basedOn": "Estimé à partir de", "editions": "édition(s)", "boardsReplayed": "classement(s) rejoué(s)", "matched": "Rapproché de",
   "assumedField": "Effectif supposé", "under": "moins de",
   "fieldEffect": "une erreur de 30 % ne déplace le seuil que de",
   "reading": "relevé(s)",
@@ -942,35 +950,55 @@ function between(vLo, vHi, f) {
   return Math.exp((1 - f) * Math.log(vLo) + f * Math.log(vHi));
 }
 
-function shapeFrom(t, rank, source) {
+/* The ladder rows a field of this size reads: its band of field size in this
+ * game mode, then the band across game modes. See the model's `ladders`. */
+function ladderRowsFor(field, gameMode) {
+  const rows = (MODEL.ladders || []).filter(r => field >= Number(r.lo) && (Number(r.hi) === 0 || field < Number(r.hi)));
+  return rows.filter(r => r.game_mode === (gameMode || "")).concat(rows.filter(r => r.game_mode === ""));
+}
+function shapeFrom(t, rank, source, field) {
   const rule = MODEL.shape_rule || {};
   const least = rule.min_editions || 3, prior = rule.prior_weight || 4;
-  // Past this rank the curve beat the table, measured: few editions are
-  // harvested deep enough, and the ratio down there turns on the field size,
-  // which the curve carries and a table does not.
-  if (rank > (rule.max_rank || 500)) return null;
-  // Read from the model, not retyped here. The mode scope is deliberately not
-  // in it: a ratio deep in the standings depends on how many teams there are,
-  // and a mode groups a five-hundred-team cup with a ten-thousand-team one.
+  const maxRank = rule.max_rank || 500, ladderMin = rule.ladder_min || 20;
+  // Read from the model, not retyped here. The mode alone is deliberately not
+  // a scope: a ratio deep in the standings depends on how many teams there
+  // are, and a mode groups a five-hundred-team cup with a ten-thousand-team
+  // one. The ladder is the pooled shape that carries the field size, read
+  // where the cup's own editions have not been to the rank.
   const order = (rule.scopes || {})[source] || [];
+  const read = e => {
+    const weight = e[1] / (e[1] + prior);
+    return { ratio: e[0], rel: Math.sqrt(weight * e[2] * e[2]
+                                         + (1 - weight) * MODEL.spread.shape * MODEL.spread.shape) };
+  };
+  const off = (table, floor) => {
+    const usable = e => !!e && e[1] >= floor && !!e[0];
+    const entry = table[String(rank)];
+    if (usable(entry)) return read(entry);
+    const found = bracketOf(table, rank, usable);
+    if (!found) return null;
+    const a = read(table[String(found.lo)]), b = read(table[String(found.hi)]);
+    return { ratio: between(a.ratio, b.ratio, found.f), rel: Math.max(a.rel, b.rel) };
+  };
   for (const scope of order) {
+    if (scope === "ladder") {
+      if (!(field > 0)) continue;
+      for (const row of ladderRowsFor(field, t.game_mode)) {
+        const got = off(row.shape || {}, ladderMin);
+        if (got) return { ratio: got.ratio, rel: got.rel, scope: "ladder" };
+      }
+      continue;
+    }
+    // Past this rank a cup's own table lost to the curve, measured: few
+    // editions are harvested deep enough, and the ratio down there turns on
+    // the field size, which a category's table does not carry.
+    if (rank > maxRank) continue;
     let row = null;
     if (scope === "category") row = categoryRow(t);
     else if (scope === "family") row = familyRow(t);
     else row = rowFor(MODEL.modes, { game_mode: t.game_mode, team_mode: t.team_mode });
-    const table = (row || {}).shape || {};
-    const usable = e => !!e && e[1] >= least && !!e[0];
-    const read = e => {
-      const weight = e[1] / (e[1] + prior);
-      return { ratio: e[0], rel: Math.sqrt(weight * e[2] * e[2]
-                                           + (1 - weight) * MODEL.spread.shape * MODEL.spread.shape) };
-    };
-    const entry = table[String(rank)];
-    if (usable(entry)) return read(entry);
-    const found = bracketOf(table, rank, usable);
-    if (!found) continue;
-    const a = read(table[String(found.lo)]), b = read(table[String(found.hi)]);
-    return { ratio: between(a.ratio, b.ratio, found.f), rel: Math.max(a.rel, b.rel) };
+    const got = off((row || {}).shape || {}, least);
+    if (got) return { ratio: got.ratio, rel: got.rel, scope: scope };
   }
   return null;
 }
@@ -1214,6 +1242,59 @@ function anchorLevel(t) {
  * explains a refusal in the words of the model that refused; the two spelled
  * out here are the ones an older model file phrases for a form this page
  * does not have. */
+/* A compact spelling of a scoring table and a game count - the port of the
+ * model's table_signature. A re-scored table carries the signature of the
+ * table it was replayed under; a form edited since does not read it. */
+function tableSignature(scoring, games) {
+  const rows = ((scoring || {}).placement || []).map(r => [Math.round(Number(r[0])), Math.round(Number(r[1])), Number(r[2])])
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]);
+  const g = v => String(Number(v));
+  const cap = (scoring || {}).kill_cap;
+  return rows.map(r => r[0] + "-" + r[1] + ":" + g(r[2])).join(";")
+    + "|k" + g((scoring || {}).kill || 0) + "|c" + (cap ? Math.round(Number(cap)) : 0) + "|g" + Math.round(Number(games) || 0);
+}
+/* The re-scored boards' value at this rank, or null: the port of the model's
+ * replay_reading. Recent boards of the same region, format and platform were
+ * replayed under this cup's table by the calendar (`cold`), the median
+ * standing at each rank down to the depth the boards were loaded to. Read
+ * straight where the table reaches the rank, between two of its ranks like
+ * the other tables, and past its depth continued from the deepest rank along
+ * the ladder - the curve where the ladder has no boards. */
+function replayReading(t, rank, field) {
+  const cold = t.cold;
+  if (!cold || typeof cold !== "object" || !Array.isArray(cold.ranks) || !cold.ranks.length) return null;
+  if (cold.sig && cold.sig !== tableSignature(t.scoring, t.max_games)) return null;
+  const table = {};
+  cold.ranks.forEach(pair => {
+    const at = Math.round(Number(pair[0])), value = Number(pair[1]);
+    if (at >= 1 && value > 0) table[String(at)] = value;
+  });
+  const ranks = Object.keys(table).map(k => parseInt(k, 10));
+  if (!ranks.length) return null;
+  const rel = Number(cold.rel) || Number(MODEL.replay_rel) || 0.12;
+  const donors = Math.round(Number(cold.donors) || 0);
+  const deepest = Math.max.apply(null, ranks);
+  if (table[String(rank)] !== undefined) {
+    return { value: table[String(rank)], rel: rel, n: donors, shapeSource: "replay", deep: deepest };
+  }
+  if (rank < deepest) {
+    const found = bracketOf(table, rank, v => !!v);
+    if (!found) return null;
+    return { value: between(table[String(found.lo)], table[String(found.hi)], found.f), rel: rel, n: donors,
+             shapeSource: "replay", deep: deepest };
+  }
+  const here = shapeFrom(t, rank, "scoring", field), there = shapeFrom(t, deepest, "scoring", field);
+  let ratio, shapeRel, shapeSource;
+  if (here && there) {
+    ratio = here.ratio / there.ratio; shapeRel = Math.sqrt(here.rel * here.rel + there.rel * there.rel); shapeSource = "ladder";
+  } else {
+    const curve = curveFor(field);
+    ratio = shapeRatio(rank, field, curve) / shapeRatio(deepest, field, curve);
+    shapeRel = MODEL.spread.shape; shapeSource = "curve";
+  }
+  return { value: table[String(deepest)] * ratio, rel: Math.sqrt(rel * rel + shapeRel * shapeRel),
+           n: donors, shapeSource: shapeSource, deep: deepest };
+}
 function whyNoAnchor(t) {
   if ((Number(t.max_games) || 0) <= 0) return T("noGames", MODEL.messages.no_games);
   if (!((t.scoring || {}).placement || []).length) {
@@ -1266,6 +1347,21 @@ function predictOne(t, rank) {
         shapeSource: "lobby", level: v, fieldEffect: 0 };
     }
   }
+  // The cup nobody has seen in this region: recent boards of its format
+  // replayed under its own table, see replayReading. Alone where the cup has
+  // no editions anywhere; where it has run in other regions, half of that
+  // reading and half of this one, in log terms - measured better than
+  // either. Never for one lobby, whose ladder is another thing.
+  const replay = singleLobby(t, field) ? null : replayReading(t, rank, field);
+  if (replay && (!top || (top.source !== "category" && top.source !== "family"))) {
+    const v = replay.value, rel = replay.rel;
+    const slope = fieldSensitivity(rank, field, curveFor(field));
+    return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel),
+      rel: rel, n: replay.n, source: "re-scored boards", field: field, guessedField: guessed,
+      shapeSource: replay.shapeSource, level: v,
+      fieldEffect: rank > replay.deep ? 100 * slope * MODEL.spread.field_probe : 0,
+      replayDeep: replay.deep };
+  }
   if (!top) return { ok: false, reason: whyNoAnchor(t) };
   const curve = curveFor(field);
   const slope = fieldSensitivity(rank, field, curve);
@@ -1273,10 +1369,10 @@ function predictOne(t, rank) {
   // been to this rank, their median says what it was worth; the curve answers
   // only for ranks none of them reached. Line for line the same cascade as
   // the Python model, which the export compares this port against.
-  const found = shapeFrom(t, rank, top.source);
+  const found = shapeFrom(t, rank, top.source, field);
   let ratio, shapeRel, shapeSource, fieldPart;
   if (found) {
-    ratio = found.ratio; shapeRel = found.rel; shapeSource = "measured";
+    ratio = found.ratio; shapeRel = found.rel; shapeSource = found.scope === "ladder" ? "ladder" : "measured";
     // No separate field term: the spread above is what these very editions did
     // at this very rank, fields and all, so a field correction on top would be
     // counting the same variation twice.
@@ -1286,12 +1382,21 @@ function predictOne(t, rank) {
     shapeSource = "curve";
     fieldPart = slope * (guessed ? fieldSpread : MODEL.spread.field_entered);
   }
-  const value = top.value * ratio;
-  const rel = Math.sqrt(top.rel * top.rel + shapeRel * shapeRel + fieldPart * fieldPart);
+  let value = top.value * ratio;
+  let rel = Math.sqrt(top.rel * top.rel + shapeRel * shapeRel + fieldPart * fieldPart);
+  let source = top.source, replayDeep = null;
+  if (replay && source === "family") {
+    // Two readings of two populations - the cup elsewhere, this region's
+    // boards under this table - averaged in log terms; the band of an
+    // average of two independent readings.
+    value = Math.sqrt(value * replay.value);
+    rel = Math.sqrt(rel * rel + replay.rel * replay.rel) / 2;
+    source = "family + re-scored boards"; replayDeep = replay.deep;
+  }
   return { ok: true, value: value, low: Math.max(0, value * (1 - rel)), high: value * (1 + rel),
-    rel: rel, n: top.n, source: top.source, field: field, guessedField: guessed,
+    rel: rel, n: top.n, source: source, field: field, guessedField: guessed,
     shapeSource: shapeSource, level: top.value,
-    fieldEffect: 100 * slope * MODEL.spread.field_probe };
+    fieldEffect: 100 * slope * MODEL.spread.field_probe, replayDeep: replayDeep };
 }
 
 /* ------------------------------------------------------------------
@@ -1552,26 +1657,50 @@ function categoryKey(name) {
  * tables the way the page reads them. */
 const FAMILY_FROM = 0.3;
 const DEPTH_FROM = 0.4;
+// A cup's own pace replayed from the harvest counts as its own only while
+// the editions replayed are recent - the analysis' CAT_MAX_DAYS. Older, the
+// family answers; the feed's own reading of a cup is recent by construction.
+const CAT_MAX_DAYS = 45;
 function familyPace(pace, t) {
   const cats = Array.isArray((pace || {}).categories) ? pace.categories : [];
   const name = categoryKey(t.name || STATE.name);
+  const minutes = Number(STATE.duration) || 0, games = Number(t.max_games) || 0;
+  const begins = Date.parse(STATE.begin || "");
   // The cup's own recent editions first, whatever the region: the same cup
   // queues and plays the same way from one week to the next, and a week is
   // enough for the pace of a kind of cup to move by the width of a family.
-  const own = name ? cats.find(row => row[0] === name) : null;
+  // A row of another format - another length, another game count - or a
+  // replay of editions older than CAT_MAX_DAYS is not this cup's pace.
+  const own = name ? cats.find(row => {
+    if (row[0] !== name) return false;
+    if (row.length > 7 && Number(row[6]) > 0 && (Math.abs(Number(row[6]) - minutes) > FAMILY_MINUTES
+        || Number(row[7]) !== games)) return false;
+    const fromFeed = row[5] === "feed";
+    if (!fromFeed && row[4] && isFinite(begins)) {
+      const latest = Date.parse(String(row[4]) + "T00:00Z");
+      if (isFinite(latest) && (begins - latest) / 86400e3 > CAT_MAX_DAYS) return false;
+    }
+    return true;
+  }) : null;
   if (own) return { curve: own[1] || null, tail: own[2] || null, boards: Number(own[3]) || 0,
-                    minutes: Number(STATE.duration) || 0, match: "category", name: own[0], latest: own[4] || "",
+                    minutes: minutes, match: "category", name: own[0], latest: own[4] || "",
                     // Read by the feed on the evenings it followed, or replayed
                     // from the harvest: the rows say which.
                     source: own[5] === "feed" ? "feed" : "harvest" };
   const rows = Array.isArray((pace || {}).families) ? pace.families : [];
   if (!rows.length) return null;
   const mode = String(t.game_mode || ""), team = String(t.team_mode || "");
-  const minutes = Number(STATE.duration) || 0, games = Number(t.max_games) || 0;
-  const exact = rows.find(row => row[0] === mode && row[1] === team
-    && Math.abs(Number(row[2]) - minutes) <= FAMILY_MINUTES && Number(row[3]) === games);
-  if (exact) return { curve: exact[4] || null, tail: exact[5] || null, boards: Number(exact[7]) || 0,
-                      minutes: Number(exact[2]), match: "family" };
+  // The family by kind of cup and platform - an FNCS practice and a skin cup
+  // of the same format do not queue alike, measured - then the family
+  // pooled, which a table written before the rows carried a kind still is.
+  const sig = coldSignature(t);
+  for (const want of [[sig[2], sig[3]], ["", ""]]) {
+    const exact = rows.find(row => row[0] === mode && row[1] === team
+      && Math.abs(Number(row[2]) - minutes) <= FAMILY_MINUTES && Number(row[3]) === games
+      && String(row.length > 9 ? row[8] || "" : "") === want[0] && String(row.length > 9 ? row[9] || "" : "") === want[1]);
+    if (exact) return { curve: exact[4] || null, tail: exact[5] || null, boards: Number(exact[7]) || 0,
+                        minutes: Number(exact[2]), match: "family", kind: want[0] };
+  }
   return null;
 }
 
@@ -2101,6 +2230,7 @@ function blankState() {
   blank.log = []; blank.readings = []; blank.game = 1; blank.elapsed = 0;
   blank.event = ""; blank.window = ""; blank.auto = null; blank.autoLog = [];
   blank.entry = "";
+  blank.cold = null;
   return blank;
 }
 
@@ -2223,6 +2353,7 @@ function asTournament(s) {
     region: s.region, team_mode: s.team_mode, game_mode: s.game_mode,
     max_games: gameCount(s), field_size: s.field_size, scoring: s.scoring,
     entry: s.entry || "",
+    cold: s.cold || null,
     season: season === null ? (MODEL.season === undefined ? null : MODEL.season) : season,
     scoring_known: (s.scoring.placement || []).length > 0,
     matched: matched
@@ -2564,7 +2695,9 @@ function sourceLabel(source) {
     "scoring": "the scoring, with a measured points-to-scoring ratio",
     "scoring (thin sample)": "the scoring, ratio measured on few editions",
     "scoring (prior)": "the scoring alone - the ratio was never measured for this format",
-    "closed lobby": "finals of this format played in a single lobby, by share of the lobby"
+    "closed lobby": "finals of this format played in a single lobby, by share of the lobby",
+    "re-scored boards": "recent boards of this format in this region, replayed under this cup's scoring table",
+    "family + re-scored boards": "this tournament in other regions, averaged with recent boards of this region replayed under its scoring table"
   }[source] || source;
   const key = "source." + source;
   return (LANG === "fr" && FR[key]) ? FR[key] : english;
@@ -3068,7 +3201,8 @@ function explainBlock(live, cold, answer, rank) {
       + "blended with the history has not yet been validated on held-out tournaments.") + "</span>");
   } else {
     lines.push("<b>" + T("basedOn", "Estimated from") + " " + sourceLabel(cold.source) + "</b>" +
-      (cold.n ? " · " + cold.n + " " + T("editions", "edition(s)") : ""));
+      (cold.n ? " · " + cold.n + " " + (cold.source === "re-scored boards"
+        ? T("boardsReplayed", "board(s) replayed") : T("editions", "edition(s)")) : ""));
     if (cold.source === "previous edition") {
       const note = cold.entryNote;
       const bar = rankName(STATE.entry);
@@ -3121,6 +3255,26 @@ function explainBlock(live, cold, answer, rank) {
             .replace("{from}", cold.seasonFrom).replace("{to}", cold.seasonTo));
         }
       }
+    }
+    if (cold.source === "re-scored boards") {
+      lines.push(T("replayHow", "No edition of this cup in this region: the last {n} boards of this format and "
+        + "platform here were replayed game by game under this cup's scoring table - every placement and "
+        + "every elimination paid at its rate - and this rank is the median of what they give. Measured on "
+        + "the late-summer cups nobody had seen in their region, the median error is 4 to 5 % at ranks 1 to 250, "
+        + "against 8 to 10 % for the scoring table alone.").replace("{n}", nf().format(cold.n || 0)));
+    } else if (cold.source === "family + re-scored boards") {
+      lines.push(T("replayAveraged", "This cup has already run in other regions: the reading of those editions "
+        + "and the replay of {n} recent boards of this region under its table each count for half, which beats "
+        + "either alone (3.5 % against 6 %, measured).").replace("{n}", nf().format((STATE.cold || {}).donors || 0)));
+    }
+    if (cold.replayDeep && rank > cold.replayDeep) {
+      lines.push(T("replayBeyond", "The replayed boards are trusted down to rank {d} - past it the replay pulls "
+        + "up teams the pages loaded do not hold. From there the threshold follows the measured ladder of open "
+        + "queues of this size and mode, from rank {d} on.").replace(/\{d\}/g, nf().format(cold.replayDeep)));
+    } else if (cold.shapeSource === "ladder") {
+      lines.push(T("ladderShape", "No edition of this cup was read at this rank: the ratio between this rank and "
+        + "the top 20 is read off the ladder of open queues of this field size and game mode - the median of "
+        + "every board harvested, which replaces the fitted curve and is half as wrong at the deep end (measured)."));
     }
     if (cold.guessedField) {
       lines.push(T("assumedField", "Assumed field") + ": " + num(cold.field) + " " +
@@ -3755,6 +3909,10 @@ function pickFromCalendar(row) {
   STATE.tiers = Array.isArray(row.tiers) ? row.tiers : [];
   STATE.tiersFor = (row.name || "") + "|" + (row.region || "");
   STATE.entry = String(row.entry || "");
+  // Recent boards replayed under this cup's table, when the calendar wrote
+  // them beside a cup with no edition in this region: see the model's
+  // replay rung. Kept with the cup; the signature says which table it is for.
+  STATE.cold = row.cold && typeof row.cold === "object" ? row.cold : null;
   // Another tournament, another evening: the window's own clock, and no
   // acquisitions carried over from the last one.
   STATE.begin = row.begin || ""; STATE.end = row.end || "";
@@ -4109,10 +4267,19 @@ function drawStatus() {
     text = T("status.manual", "Last reading typed at {t}").replace("{t}", clock(manual.at));
   } else {
     text = T("status.cold", "Pre-tournament forecast");
-    const begins = Date.parse(STATE.begin || "");
+    const begins = Date.parse(STATE.begin || ""), ends = Date.parse(STATE.end || "");
     if (liveUrl() && STATE.window && isFinite(begins) && begins > Date.now()) {
       text += T("status.willAuto", " · the standings will be read automatically every 10 min once the cup "
         + "starts, and every 5 min over its last minutes");
+    } else if (liveUrl() && STATE.window && isFinite(ends) && Date.now() > ends + TAIL_MINUTES * 60e3) {
+      // Over, and the feed has nothing: it follows the cups on the published
+      // calendar, and this one was not on it while it ran - the calendar
+      // was refreshed after. The evening is not recoverable; the board is.
+      text += T("status.unfollowed", " · the feed did not follow this cup: it was not on the calendar while "
+        + "it ran. The final standings are on osirion.gg, link above.");
+    } else if (liveUrl() && STATE.window && isFinite(begins) && begins <= Date.now()) {
+      text += T("status.waiting", " · the standings are read every 10 min; nothing has come in for this "
+        + "cup yet");
     }
   }
   // Who has played so far, when the reading said: a count worth seeing on

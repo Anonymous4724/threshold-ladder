@@ -103,11 +103,16 @@ pooled. Replayed per family — game mode, team size, window length, game cap �
 the share reached at half time runs from 0.42 to 0.53 and the share on the
 hour from 0.87 to 0.94: a two-hour Battle Royale cup has a thirty-minute game
 still in the air at the buzzer, a cup capped at ten short Reload games has
-nothing left to play in its last half hour. The page reads the cup's own
-recent editions first — as the feed read them once it has followed four, since
-the harvest's replay of a casual Solo cup runs 4 to 9 % low at half time, its
-first pages missing the players who led early and then stopped — then the
-family, then the pooled curve, and says which. The deep end of a queue runs on
+nothing left to play in its last half hour. Within a family the kind of cup
+matters too: at half the session the FNCS practice cups had reached 45 % of
+their final where the skin cups of the same format had reached 56 %, so the
+family rows are kept per kind of cup and platform as well as pooled. The page
+reads the cup's own recent editions first — as the feed read them once it has
+followed four, since the harvest's replay of a casual Solo cup runs 4 to 9 %
+low at half time, its first pages missing the players who led early and then
+stopped, and only while those editions are within 45 days and of the same
+length and game count — then the family by kind, then the family pooled, then
+the pooled curve, and says which. The deep end of a queue runs on
 its own clock too, set by how deep into the field the rank sits rather than by
 the rank: the thousandth of a field of two thousand is the casual half, done by
 the last fifth of the session; the thousandth of ten thousand keeps the top's
@@ -150,6 +155,14 @@ read every five minutes instead, and the page asks for it every two. A reading t
 by hand still works and takes over while it is the fresher one. The feed keeps
 every reading it took, so a cup opened late, on another device, or after it
 ended shows the whole evening, not what this browser happened to see.
+
+The feed follows the cups on the published calendar, and the calendar used to
+be written only by the machine that harvests, when it ran: a cup Epic announced
+between two runs ran unfollowed, and an evening the feed did not sit through
+cannot be recovered afterwards. The repository's own workflow now refreshes
+the calendar every three hours, so the list — and the feed behind it — is
+never further behind Epic than that. A cup that is over with nothing from the
+feed says so on its Live tab, and points at the full board on osirion.gg.
 
 A run of the feed is not one snapshot. Every page of a board is a request of
 its own and the copies the API hands back are not all the same age: the page
@@ -289,20 +302,35 @@ above it cannot:
    it read, and from which season.
 2. **The cup's level times a measured shape** — what each rank was worth
    relative to rank 20 across the cup's editions. A lookup, not a curve.
-3. **The level times a fitted curve**, for ranks nobody has measured — one
-   curve per band of field size, because a lobby of three hundred and a queue
-   of ten thousand do not empty at the same pace.
-4. **The finals of the same format, by share of the lobby**, for a final played
+3. **The level times the ladder**, for ranks nobody has measured — what each
+   rank is worth relative to rank 20 across every open queue of the same band
+   of field size and game mode, a median per rank over at least twenty boards.
+   A fitted curve used to answer here and ran 9 % low at rank 500 and 13 % low
+   at rank 1,000 (two parameters cannot bend both ends of a ladder); it still
+   answers for queues under three hundred teams and where the ladder has too
+   few boards.
+4. **Recent boards replayed under this cup's scoring table**, for a cup with no
+   finished edition in its region. Every board carries each roster's placement
+   and eliminations in each game; re-scored under the new table, the same
+   games give the standings that table would have produced, and rank 20 of
+   them is the forecast for rank 20 here — the six most recent boards of the
+   same region, team size, mode and platform, the median across them, trusted
+   down to a third of the rosters loaded and continued along the ladder past
+   that. Where the cup has already run in other regions, half of that reading
+   and half of this one. The replay is written beside the week's calendar by
+   the machine that holds the boards; the page reads a dozen numbers per cup
+   and says how many boards they rest on and to what depth.
+5. **The finals of the same format, by share of the lobby**, for a final played
    in a single lobby that no edition has been seen of — the usual case for a
    Round 2 whose Round 1 the model knows. The two rungs either side of it are
    measured on open queues of thousands and price a twenty-team lobby off its
    last place. The last places themselves — past 90 % of the lobby — get no
    number unless the previous edition published them: they are teams that left
    after a game or two.
-5. **The scoring table alone**, for a cup nobody has seen — the widest band, and
-   the page says when it is in that mode. A cup's later round is its own kind
-   of cup here: a few hundred qualified teams in a short session score another
-   share of the maximum than the open round did.
+6. **The scoring table alone**, for a cup nobody has seen and no board to replay
+   — the widest band, and the page says when it is in that mode. A cup's later
+   round is its own kind of cup here: a few hundred qualified teams in a short
+   session score another share of the maximum than the open round did.
 
 The model is built from several thousand tournaments read from Osirion's public
 API — the page shows exactly how many it was trained on, and which rung it
@@ -344,9 +372,11 @@ there is nothing to show.
 
 Two caveats the page repeats where they apply:
 
-- A cup never seen before — the first day of every new cup, a third of a new
-  season's thresholds — is forecast from its scoring table alone, at about
-  14 % median error rather than 3 %; a final in a single lobby never seen
+- A cup never seen in its region is forecast by replaying recent boards under
+  its table, at 4 to 5 % median error at ranks 1–250 and about 6 % to rank
+  1,000 (102 cups since mid-August, each read from boards played before it),
+  where the scoring table alone read 8 to 11 %; a cup with no board to replay still
+  reads the scoring table, at about 14 %; a final in a single lobby never seen
   before, from the finals of its format, at about 7 %. The page says which of
   these it is doing.
 - The pace curve behind the live refinement is measured, but the rule that

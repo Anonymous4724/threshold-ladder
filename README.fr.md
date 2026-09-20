@@ -105,12 +105,18 @@ confondues. Rejouée par famille — mode de jeu, taille d'équipe, durée de la
 fenêtre, plafond de parties — la part atteinte à mi-session va de 0,42 à 0,53
 et la part à l'heure de 0,87 à 0,94 : une cup Battle Royale de deux heures a
 une partie de trente minutes encore en l'air au buzzer, une cup plafonnée à dix
-parties Reload courtes n'a plus rien à jouer dans sa dernière demi-heure. La
-page lit d'abord les éditions récentes de la cup elle-même — telles que le flux
-les a lues dès qu'il en a suivi quatre, car le rejeu par la moisson d'une cup
-Solo grand public court 4 à 9 % trop bas à mi-session, ses premières pages ne
-contenant pas les joueurs en tête au début qui se sont arrêtés ensuite — puis la
-famille, puis la courbe commune, et dit laquelle. Le fond d'une file a aussi
+parties Reload courtes n'a plus rien à jouer dans sa dernière demi-heure. Au
+sein d'une famille, le genre de cup compte aussi : à mi-session les cups
+d'entraînement FNCS avaient atteint 45 % de leur valeur finale là où les cups
+skin du même format en étaient à 56 %, donc les lignes de famille sont tenues
+par genre de cup et plateforme en plus de la ligne confondue. La page lit
+d'abord les éditions récentes de la cup elle-même — telles que le flux les a
+lues dès qu'il en a suivi quatre, car le rejeu par la moisson d'une cup Solo
+grand public court 4 à 9 % trop bas à mi-session, ses premières pages ne
+contenant pas les joueurs en tête au début qui se sont arrêtés ensuite, et
+seulement tant que ces éditions ont moins de 45 jours et le même format — puis
+la famille par genre, puis la famille confondue, puis la courbe commune, et
+dit laquelle. Le fond d'une file a aussi
 son propre rythme, fixé par la profondeur du rang dans le peloton et non par le
 rang : le millième d'un peloton de deux mille, c'est la moitié grand public,
 finie au dernier cinquième de la session ; le millième de dix mille garde le
@@ -156,6 +162,15 @@ relu toutes les cinq minutes et la page le demande toutes les deux. Un relevé s
 main marche toujours et prend le dessus tant qu'il est le plus récent. Le flux
 garde chaque lecture qu'il a faite : une cup ouverte tard, sur un autre
 appareil ou après sa fin montre toute la soirée, pas ce que ce navigateur a vu.
+
+Le flux suit les cups du calendrier publié, et ce calendrier n'était écrit que
+par la machine qui moissonne, quand elle tournait : une cup annoncée par Epic
+entre deux passages tournait sans être suivie, et une soirée que le flux n'a
+pas vécue ne se récupère pas après coup. Le workflow du dépôt rafraîchit
+désormais le calendrier toutes les trois heures, donc la liste — et le flux
+derrière elle — n'a jamais plus de retard que ça sur Epic. Une cup terminée
+sans rien du flux le dit sur son onglet En direct, et renvoie au classement
+complet sur osirion.gg.
 
 Un passage du flux n'est pas un instantané. Chaque page d'un classement est
 une requête à part et les copies que l'API renvoie n'ont pas toutes le même
@@ -306,18 +321,35 @@ celui du dessus ne peut pas :
 2. **Le niveau de la cup multiplié par une forme mesurée** — ce que valait
    chaque rang par rapport au rang 20, sur les éditions de cette cup. Une table,
    pas une courbe.
-3. **Le niveau multiplié par une courbe ajustée**, pour les rangs que personne
-   n'a mesurés — une courbe par tranche de taille de plateau, parce qu'un lobby
-   de trois cents et une file de dix mille ne se vident pas au même rythme.
-4. **Les finales du même format, par part du lobby**, pour une finale jouée dans
+3. **Le niveau multiplié par l'échelle**, pour les rangs que personne n'a
+   mesurés — ce que vaut chaque rang par rapport au rang 20 sur toutes les files
+   ouvertes de la même tranche de taille de plateau et du même mode de jeu, une
+   médiane par rang sur au moins vingt classements. Une courbe ajustée répondait
+   là et tombait 9 % trop bas au rang 500, 13 % trop bas au rang 1 000 (deux
+   paramètres ne plient pas les deux bouts d'une échelle) ; elle répond encore
+   pour les files de moins de trois cents équipes et là où l'échelle a trop peu
+   de classements.
+4. **Des classements récents rejoués avec le barème de cette cup**, pour une cup
+   sans édition terminée dans sa région. Chaque classement porte, pour chaque
+   équipe, son placement et ses éliminations à chaque partie ; repayées avec le
+   nouveau barème, les mêmes parties donnent le classement que ce barème aurait
+   produit, et son rang 20 est la prévision du rang 20 ici — les six classements
+   les plus récents de la même région, taille d'équipe, mode et plateforme, la
+   médiane entre eux, fiable jusqu'au tiers des équipes chargées et prolongée le
+   long de l'échelle au-delà. Quand la cup a déjà tourné dans d'autres régions,
+   moitié de cette lecture et moitié de celle-ci. Le rejeu est écrit à côté du
+   calendrier de la semaine par la machine qui détient les classements ; la
+   page lit une douzaine de nombres par cup et dit sur combien de classements
+   ils reposent et jusqu'à quelle profondeur.
+5. **Les finales du même format, par part du lobby**, pour une finale jouée dans
    un seul lobby dont aucune édition n'a été vue — le cas habituel d'un Round 2
    dont le modèle connaît le Round 1. Les deux échelons qui l'encadrent sont
    mesurés sur des files ouvertes de milliers d'équipes et chiffrent un lobby
    de vingt d'après sa dernière place. Les dernières places elles-mêmes — au-delà
    de 90 % du lobby — n'ont pas de chiffre sauf si l'édition précédente les a
    publiées : ce sont des équipes parties après une ou deux parties.
-5. **Le barème seul**, pour une cup que personne n'a vue — la fourchette la plus
-   large, et la page dit quand elle en est là. Le round suivant d'une cup y est
+6. **Le barème seul**, pour une cup que personne n'a vue et sans classement à
+   rejouer — la fourchette la plus large, et la page dit quand elle en est là. Le round suivant d'une cup y est
    un genre de cup à part : quelques centaines d'équipes qualifiées sur une
    session courte marquent une autre part du maximum que le round ouvert.
 
@@ -361,11 +393,13 @@ remplacés par un tiret quand il n'y a rien à afficher.
 
 Deux réserves que la page répète là où elles s'appliquent :
 
-- Une cup jamais vue — le premier jour de chaque nouvelle cup, un tiers des
-  seuils d'une nouvelle saison — est prédite depuis son seul barème, avec
-  environ 14 % d'erreur médiane au lieu de 3 % ; une finale à lobby unique
-  jamais vue, depuis les finales de son format, avec environ 7 %. La page
-  indique dans lequel de ces cas elle se trouve.
+- Une cup jamais vue dans sa région est prédite en rejouant des classements
+  récents avec son barème, avec 4 à 5 % d'erreur médiane aux rangs 1 à 250 et
+  environ 6 % jusqu'au rang 1 000 (102 cups depuis la mi-août, chacune lue sur des classements
+  joués avant elle), là où le barème seul lisait 8 à 11 % ; une cup sans aucun
+  classement à rejouer lit encore le barème, avec environ 14 % ; une finale à
+  lobby unique jamais vue, depuis les finales de son format, avec environ 7 %.
+  La page indique dans lequel de ces cas elle se trouve.
 - La courbe de rythme du mode direct est mesurée, mais la règle qui combine
   relevés et historique n'a pas été validée sur des tournois tenus à l'écart. Le
   chiffre en direct est une indication avec une fourchette mesurée, pas un

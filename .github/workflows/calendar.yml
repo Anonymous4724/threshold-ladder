@@ -1,0 +1,48 @@
+# Refreshes calendar.js between two runs of the machine that harvests. The
+# live feed follows the cups on the published calendar, so a cup Epic
+# announces after that machine's last run would otherwise run unfollowed -
+# and once it is over, an evening the feed did not sit through cannot be
+# recovered. Every three hours this reads Osirion's public calendar (no key,
+# eight requests), writes the same derived rows calendar_snapshot.py writes
+# on the machine, keeps the replay tables that machine wrote for the rows
+# still listed (it has the boards, this runner does not), rebuilds the
+# standalone page, and commits. Nothing here needs a secret: the repository's
+# own token pushes to itself. The tracker's code is read from its own public
+# repository, so the two never carry two copies of it.
+name: Refresh the calendar
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: calendar
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: Anonymous4724/fortnite-tracker
+          path: tracker
+      # The runner's own Python: both scripts are standard library only.
+      - name: Refresh calendar.js
+        run: python3 tracker/src/calendar_snapshot.py --out calendar.js --days 7
+      - name: Rebuild the page
+        run: python3 build.py
+      - name: Commit what changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add calendar.js index.html standalone.html model.js
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          git commit -m "Calendar refresh $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase
+          git push

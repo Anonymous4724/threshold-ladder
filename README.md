@@ -11,6 +11,12 @@ playing, or how aggressively, is guessing. This estimates the answer from the
 tournament's scoring table, its field size, and what earlier editions of
 comparable tournaments did.
 
+Around it, the site has [this week's cups](https://fortnitepredcomp.com/this-week/)
+with the forecast at each one's qualifying rank, and
+[guides](https://fortnitepredcomp.com/guides/) to what sets a cutoff — scoring,
+the pace of a session, regions, deep ranks, new seasons, brand-new cups — each
+built from the same data as the model, in English and in French.
+
 No installation, no account, no API key. There are two ways to have it:
 
 - **the site** — [open it](https://fortnitepredcomp.com/)
@@ -299,7 +305,11 @@ above it cannot:
    move leaves; before any cup of the season has run it is carried as it is,
    the band widened. The latest edition is read as deep as it was harvested,
    and a rank past that comes from an older one: the page says which edition
-   it read, and from which season.
+   it read, and from which season. The reading itself is the run of recent
+   editions played the same way as the latest — same entry bar, season, games
+   and table — averaged in log terms with the latest weighing 0.7 and each one
+   before it 0.7 of what is left: one team's great night no longer sets next
+   week's number, which trims the tail of the error without moving its median.
 2. **The cup's level times a measured shape** — what each rank was worth
    relative to rank 20 across the cup's editions. A lookup, not a curve.
 3. **The level times the ladder**, for ranks nobody has measured — what each
@@ -319,7 +329,11 @@ above it cannot:
    that. Where the cup has already run in other regions, half of that reading
    and half of this one. The replay is written beside the week's calendar by
    the machine that holds the boards; the page reads a dozen numbers per cup
-   and says how many boards they rest on and to what depth.
+   and says how many boards they rest on and to what depth. A cup opened from
+   the calendar is the cup the calendar names — its own label, the model's —
+   and never a neighbour whose name shares its words: matching names once
+   priced a Solo Zero Build cup off a Trio cup, 463 points at rank 100 where
+   the replay of its own format read 294.
 5. **The finals of the same format, by share of the lobby**, for a final played
    in a single lobby that no edition has been seen of — the usual case for a
    Round 2 whose Round 1 the model knows. The two rungs either side of it are
@@ -340,21 +354,22 @@ answered from.
 
 Measured as a forecast: each of the newest 600 tournaments predicted from
 everything that had finished before its day, nothing seeing the future
-(7,329 tournaments on 8 September 2026; the figures are re-measured with every
-model and travel with it).
+(7,632 tournaments on 22 September 2026; the figures are re-measured every three
+days and travel with the model).
 
 | rank band | median error, cup seen before |
 |---|---:|
-| top 1 – 5 | 4.2 % |
+| top 1 – 5 | 4.3 % |
 | top 6 – 25 | 2.1 % |
-| top 26 – 100 | 1.8 % |
-| top 101 – 500 | 2.0 % |
-| beyond 500 | 3.8 % |
-| **overall** | **2.5 %** |
+| top 26 – 100 | 2.2 % |
+| top 101 – 500 | 2.6 % |
+| beyond 500 | 5.6 % |
+| **overall** | **2.8 %** |
 
-91 % of real thresholds land inside a band that claims 80 %. Reading last
-week's result straight gives 2.8 %; the field correction of the first rung is
-what puts the model ahead of it.
+94 % of real thresholds land inside a band that claims 80 %. Reading last
+week's result straight gives 3.1 % on the same rows, and 9.2 % past rank 500
+where the model reads 5.6 %; the top five ranks are the one band where it is as
+good as the model.
 
 The forecast is quoted with two ranges rather than one, and both are measured
 on those held-out cups rather than assumed: the quantiles of the error, in
@@ -379,9 +394,12 @@ Two caveats the page repeats where they apply:
   reads the scoring table, at about 14 %; a final in a single lobby never seen
   before, from the finals of its format, at about 7 %. The page says which of
   these it is doing.
-- The pace curve behind the live refinement is measured, but the rule that
-  blends readings with history has not been validated on held-out tournaments.
-  The live number is an indication with a measured band, not a result.
+- The live refinement is measured on held-out evenings: between a third and
+  two thirds of the session the answer was about 3 % off the final in median,
+  and its ranges held 46 % and 88 % of the finals where they claim 50 % and
+  90 %. How much the readings weigh against the history is measured again
+  every three days on the evenings the feed followed. It is still a forecast
+  with a band, not a result, until the board is final.
 
 ## Privacy
 
@@ -389,15 +407,57 @@ Everything the page computes happens in the browser. No analytics, no storage
 beyond the browser keeping an evening in progress and the evenings saved. The
 page opens on the week's calendar and an empty form.
 
-The hosted page shows one advertising banner, served by Google; visitors in
-Europe are asked for consent first, and the banner has no bearing on anything
-else on the page. While a tournament under way is open, it also asks the site's
-own feed for that cup's current standings, a request that carries nothing about
-you. The [privacy note](privacy.html) says exactly what each does.
-The standalone file carries no banner and makes no request at all, apart from
-falling back to a system font.
+The hosted pages may show advertising served by Google; visitors in Europe are
+asked for their choice first, and the advertising has no bearing on anything
+else on the page. The pages load their typeface from Google Fonts, and while a
+tournament under way is open the forecast asks the site's own feed for that
+cup's current standings, a request that carries nothing about you. The
+[privacy note](https://fortnitepredcomp.com/privacy/) says exactly what each does.
+The standalone file carries no advertising and no web font, and makes no request
+at all.
 
 Tournament data comes from [Osirion](https://osirion.gg)'s public Fortnite API.
+
+## Building it
+
+`python build.py` writes everything the host serves from what is in this
+folder, standard library only:
+
+| from | to |
+|---|---|
+| `src/app.html` + `model.json` + `calendar.js` | `index.html` + `model.js`, and `standalone.html` |
+| `src/site/pages/en/*.html`, `src/site/pages/fr/*.html` | the guides, the week, method, about, contact, privacy — one folder per page, `fr/` for French |
+| `src/site/site.css`, `src/site/site.js` | the same two files, shared by those pages |
+| everything above | `sitemap.xml`, `robots.txt`, `404.html`, `privacy.html` (which now points at `privacy/`) |
+
+A page under `src/site/pages/` is an HTML fragment behind a short JSON header
+(its address, title, description, and the page it translates). The figures in
+its prose are not typed in: `{{model_ape}}`, `{{pace_open 0.5}}` or
+`<!--data:region_chart {"rank": "100"}-->` are read off the model and the
+calendar at every build, so a guide never quotes a number the model has since
+revised. `sitegen.py` says which exist. `python build.py --check` fails when any
+built file is behind its sources.
+
+`site.json` holds the site's settings, all optional but the feed:
+
+```json
+{"live": "https://…workers.dev", "name": "Threshold Ladder",
+ "url": "https://fortnitepredcomp.com", "contact": "hello@example.com"}
+```
+
+`name` is the site's name in every title and header; `url` its address for the
+canonical links and the sitemap (without it, the domain in `CNAME`); `contact`
+an address readers may write to (without it, the contact page offers the
+issue tracker alone). Moving the site to another name or domain is these two
+lines, `CNAME`, the worker's `SITE` in `worker/wrangler.toml`, and the domain's
+DNS; the pages follow at the next build.
+
+The week's list reads each cup's forecast from `calendar.js`, where the
+tracker's `calendar_snapshot.py` writes it from the same model
+(`export_model.calendar_forecast`, checked against this page row by row), so the
+list says what the page would say without running it. The repository's own
+workflow rebuilds everything every three hours with the calendar and commits
+what changed.
 
 ---
 

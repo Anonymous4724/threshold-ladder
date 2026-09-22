@@ -1,0 +1,95 @@
+<!--page
+{"path": "guides/points-to-qualify/", "pair": "points-to-qualify", "section": "guides", "order": 1,
+ "title": "How many points do you need to qualify in a Fortnite cup?",
+ "h1": "How many points do you need to qualify in a Fortnite cup?",
+ "description": "What sets the cutoff in a Fortnite cup, how far last week's edition gets you, and the typical thresholds of this season's most played cups, measured on thousands of tournaments.",
+ "summary": "What sets a cutoff, how much last week's edition tells you, and this season's typical thresholds.",
+ "updated": "2026-09-22", "published": "2026-09-22", "data": "model"}
+-->
+<h1>How many points do you need to qualify in a Fortnite cup?</h1>
+<p class="lede">There is no single number, and anyone who quotes one without naming the cup, the
+region and the rank is guessing. But the cutoff is far from random: a cup's threshold at a given
+rank moves only a few per cent from one week to the next, and the few things that move it can be
+measured. This guide goes through them, with the numbers from {{tournaments}} tournaments.</p>
+
+<h2>Five things set the cutoff</h2>
+<p><strong>The scoring table.</strong> Every cup publishes how many points each placement is worth
+and how many an elimination adds. A Victory Cup that pays 60 for a win and 2 per elimination and
+an FNCS session that pays 65 for a win are not on the same scale, so a "good score" in one says
+little about the other. The <a href="~/guides/scoring/">scoring guide</a> goes through the common
+tables.</p>
+<p><strong>The number of games.</strong> Points add up game after game, so a ten-game session
+simply produces bigger numbers than a six-game one. In most solo, duo and trio formats the team at
+rank 20 finishes with between two fifths and a little over half of the most a team could possibly
+have scored over the session – a share far steadier than the raw points.</p>
+<p><strong>The size of the field.</strong> Rank 1,000 is the middle of the board when 2,000 teams
+play and the very bottom when 1,100 do. Near the top the field barely matters – doubling the number
+of teams moves the threshold at rank 20 by about 3.5% – but deep in the board it decides almost
+everything. The <a href="~/guides/deep-ranks/">guide to deep ranks</a> shows by how much.</p>
+<p><strong>The rank of the cut.</strong> "Top 100 qualify" and "top 2,500 qualify" are two different
+questions. The drop from one to the other depends on the field and the game mode, not on a fixed
+rule of thumb.</p>
+<p><strong>The region, the format and the season.</strong> The same cup is cheaper in regions with
+smaller fields, especially far down the board (see <a href="~/guides/regions/">regions
+compared</a>). Zero Build, Reload and Battle Royale have their own ladders. And a new season can lift
+or lower every cup at once – by more than a third at the start of one season, by a tenth downwards
+at another (see <a href="~/guides/new-season/">what a new season does</a>).</p>
+
+<h2>Last week is the best single guide</h2>
+<p>Most cups run every week or every few days, under the same table, in the same region. The
+single most useful number is therefore what the same rank took in the previous edition. On the
+newest {{targets}} tournaments, each forecast only from what had finished before its day:</p>
+<ul>
+<li>carrying the previous edition's threshold forward was {{carry_ape}} off in median;</li>
+<li>the median of every edition of the cup's category was {{median_base_ape}} off;</li>
+<li>the forecast this site publishes, which starts from the previous edition and corrects it, was
+{{model_ape}} off.</li>
+</ul>
+<p>The corrections are what the previous edition cannot know by itself: the recent editions played
+the same way are averaged, the latest weighing most, so one team's great night does not set next
+week's number; a field that is bigger or smaller than last time moves the threshold along the
+measured ladder; a change of who may enter (a cup opening to lower ranks, for instance) reads the
+last edition with the same entry bar; and a change of season applies the shift the first cups of the
+new season showed.</p>
+<div class="note"><p>A median error of {{model_ape}} means that on a cut of 300 points, half of the
+forecasts land within about {{ape_points 300}} points of the final threshold. The other half land further out, and
+that is why every forecast on this site comes with a range.</p></div>
+
+<!--ad-->
+
+<h2>This season's most played cups in Europe</h2>
+<p>The table below is the reading the model starts from for this season's most played cups in
+Europe: the threshold at each rank over the recent editions played the same way, the latest counting
+most. It is not a forecast of the next edition – the forecast adds the corrections above – but it is
+the right order of magnitude to have in mind before you queue.</p>
+<!--data:popular_cups {"region": "EU", "limit": 10}-->
+<p class="muted">Points at the end of the session. A dash means the edition did not reach that deep,
+or the field is smaller than that rank.</p>
+
+<h2>Reading a forecast</h2>
+<p>Each forecast on this site is a number and a range. The number is the model's best estimate of
+the final threshold at that rank. The range is measured, not assumed: on past cups, the stated share
+of final thresholds landed inside it. When the forecast rests on a cup's own recent editions, the
+range is narrow; when the cup is new, or the season has just changed, it widens, and it is honest
+to read the whole range rather than the middle.</p>
+<p>During the cup the forecast changes: the live standings are read every few minutes and weighed
+against the history, and the range narrows as the session goes. <a href="~/guides/cut-during-a-cup/">How
+the cutoff moves during a cup</a> explains what the board is worth at each point of the evening.</p>
+
+<h2>Turning a cutoff into a plan</h2>
+<p>A cutoff is most useful divided by the games you have. A cut of 250 points over ten games is
+25 points a game on average; under the FNCS table (32 points for tenth place, 22 for fifteenth,
+2 per elimination) that is roughly a top-fifteen finish with two eliminations, every game – or a few
+very good games and some quiet ones. Three habits help:</p>
+<ol>
+<li><strong>Know the cut before the first game.</strong> Check the cup's rules for how many teams go
+through and look the rank up in the forecast. The <a href="~/this-week/">list of this week's cups</a>
+already prices the qualifying rank of each.</li>
+<li><strong>Do not read the early board literally.</strong> After a third of the session the
+threshold at your rank is typically {{pace_open 0.3}} of its final value, and cups differ a lot at
+that point. Compare your total with the forecast for the end, not with the board.</li>
+<li><strong>Use the last hour.</strong> In a three-hour open queue about a third of the final
+threshold is still to be scored when the last hour starts, and the last games land up to twenty
+minutes after the window closes.</li>
+</ol>
+<p><a class="cta" href="~/">Open the forecast</a></p>

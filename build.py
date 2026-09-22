@@ -1,4 +1,5 @@
-"""Join the page and the model, for a site and for a single file.
+"""Join the page and the model, for a site and for a single file - and build
+the site around them.
 
 `src/app.html` is the source: markup, style and logic, with a single
 `__MODEL_JSON__` placeholder where the numbers go. `model.json` is exported by
@@ -16,31 +17,46 @@ the Python model before writing it. This joins the two, twice:
                             double-click. It is the version that survives the
                             site going away.
 
+and then the pages around them, from `src/site/` (see sitegen.py): the week's
+cups with their forecasts, the guides, the method, about, contact, privacy -
+in English and in French - with `sitemap.xml`, `robots.txt` and a `404.html`.
+
 The model travels as `model.js` and not `model.json` on purpose. A page opened
 from `file://` is forbidden to `fetch` a neighbouring file — browsers treat
 every local file as its own origin — but it may always load a `<script>`. One
 format therefore serves both the host and the folder, and the page needs no
-async boot to read it.
+async boot to read it. On the hosted page it loads at the end of the body,
+after everything a reader sees: a megabyte and a half in the head held the
+whole page blank until it had arrived.
 
 Keeping the page and the model apart matters more than it looks: the page is
 edited by hand and the model is regenerated whenever the training set grows, and
 neither should force a merge on the other.
 
-`site.json` beside this file names the live feed, if any: `{"live": "https://..."}`,
-the address of the worker that reads the standings of the cups under way every
-few minutes. Given, the hosted page asks it for `live.json`; empty, or absent,
-the page works the way it always has, on readings typed by hand. The standalone
-file never asks: it is the copy that makes no request at all.
+`site.json` beside this file holds the site's settings:
+
+    {"live": "https://...",       the worker that reads the standings of the
+                                  cups under way; empty, the page works on
+                                  readings typed by hand
+     "name": "Threshold Ladder",  the site's name, in every title and header
+     "url": "https://...",        its address, for the canonical links and the
+                                  sitemap; without it, the domain in CNAME
+     "contact": "..."}            an address readers may write to; without
+                                  it, the contact page offers GitHub alone
+
+The standalone file never asks the live feed anything: it is the copy that
+makes no request at all.
 
 `ads.json` beside this file names the advertising account and unit, if any:
-`{"client": "ca-pub-...", "slot": "..."}`. Given both, the hosted page carries
-the account's tags in its head, one banner above the footer, and an `ads.txt`
-at the root for the account to be checked against. Empty, or absent, means no
-banner and no `ads.txt`. The standalone file never carries one: it is the copy
-that makes no request at all.
+`{"client": "ca-pub-...", "slot": "..."}`. Given the account, every hosted page
+carries its tags in the head and an `ads.txt` goes at the root for the
+account to be checked against; given a unit as well, the predictor shows one
+banner above its footer and the guides one unit in the text and none on the
+pages that are lists or legal notices. Empty, or absent, means none of it. The
+standalone file never carries any.
 
-    python build.py            writes index.html, model.js and standalone.html
-    python build.py --check    verifies all three match the sources
+    python build.py            writes the page, the model, the standalone file and the site
+    python build.py --check    verifies all of them match the sources
 """
 from __future__ import annotations
 
@@ -49,6 +65,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+import sitegen
 
 HERE = Path(__file__).resolve().parent
 SOURCE = HERE / "src" / "app.html"
@@ -64,13 +82,19 @@ ADS_JSON = "__ADS_JSON__"
 ADS_HEAD = "__ADS_HEAD__"
 SITE = HERE / "site.json"
 SITE_JSON = "__SITE_JSON__"
+CNAME = HERE / "CNAME"
+MARKERS = ("<!--__HEAD__-->", "<!--__NAV__-->", "<!--__HOMELINKS__-->", "<!--__FOOTLINKS__-->", "<!--__DATA__-->")
 # The seller id every AdSense ads.txt line ends with; it names Google, not the account.
 ADS_TAG = "f08c47fec0942fa0"
 
 # What the hosted page puts where the model would have been. `defer` is wrong
 # here and `async` worse: the model has to be defined before the page's own
-# script runs, and an ordinary tag in the head guarantees exactly that.
+# script runs, and an ordinary tag just before that script guarantees it.
 LOAD = '(window.MODEL || (() => { throw new Error("model.js did not load"); })())'
+TITLE_EN = "Fortnite cup cutoffs, forecast before and during every cup"
+DESCRIPTION_EN = ("How many points will it take to qualify? Forecasts of every Fortnite cup's point "
+                  "thresholds, at any rank, before the cup and live while it runs, for every region, "
+                  "with a measured range.")
 
 
 def blob() -> str:
@@ -104,17 +128,55 @@ def ads() -> dict:
 
 
 def site() -> dict:
-    """The site's own settings: the live feed's address, or nothing."""
+    """The site's own settings: the live feed, the name, the address, a contact."""
     if not SITE.exists():
         return {}
     try:
         given = json.loads(SITE.read_text(encoding="utf-8"))
     except ValueError as exc:
         raise SystemExit(f"{SITE.name} is not valid JSON: {exc}")
+    out = {}
     live = str(given.get("live") or "").strip().rstrip("/")
     if live and not re.fullmatch(r"(?:https://[A-Za-z0-9.\-]+|http://(?:127\.0\.0\.1|localhost)(?::\d+)?)(?:/[^\s]*)?", live):
         raise SystemExit(f"{SITE.name}: 'live' should be an https address, not {live!r}.")
-    return {"live": live} if live else {}
+    if live:
+        out["live"] = live
+    url = str(given.get("url") or "").strip().rstrip("/")
+    if url and not re.fullmatch(r"https://[A-Za-z0-9.\-]+(?:/[^\s]*)?", url):
+        raise SystemExit(f"{SITE.name}: 'url' should be the site's https address, not {url!r}.")
+    if url:
+        out["url"] = url
+    name = str(given.get("name") or "").strip()
+    if name:
+        out["name"] = name
+    contact = str(given.get("contact") or "").strip()
+    if contact and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", contact):
+        raise SystemExit(f"{SITE.name}: 'contact' should be an email address, not {contact!r}.")
+    if contact:
+        out["contact"] = contact
+    return out
+
+
+def base_url(settings: dict) -> str:
+    """The site's address: site.json's `url`, else the custom domain GitHub
+    Pages serves it on, else nothing (and no canonical links or sitemap)."""
+    if settings.get("url"):
+        return settings["url"]
+    lines = CNAME.read_text(encoding="utf-8").split() if CNAME.exists() else []
+    if lines and re.fullmatch(r"[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", lines[0]):
+        return "https://" + lines[0]
+    return ""
+
+
+def calendar() -> dict | None:
+    if not CALENDAR.exists():
+        return None
+    text = CALENDAR.read_text(encoding="utf-8")
+    start, stop = text.find("{"), text.rfind("}")
+    try:
+        return json.loads(text[start:stop + 1]) if start >= 0 else None
+    except ValueError:
+        return None
 
 
 def ads_head(settings: dict) -> str:
@@ -132,6 +194,53 @@ def ads_txt(settings: dict) -> str:
     return f"google.com, {settings['client'][3:]}, DIRECT, {ADS_TAG}\n" if settings else ""
 
 
+def head_meta(own: dict, base: str) -> str:
+    """The predictor's description, canonical address and French counterpart."""
+    name = own.get("name") or sitegen.DEFAULT_NAME
+    esc = sitegen.esc
+    lines = [f'<meta name="description" content="{esc(DESCRIPTION_EN)}">']
+    if base:
+        root = base.rstrip("/") + "/"
+        lines += [f'<link rel="canonical" href="{root}">',
+                  f'<link rel="alternate" hreflang="en" href="{root}">',
+                  f'<link rel="alternate" hreflang="fr" href="{root}fr/">',
+                  f'<link rel="alternate" hreflang="x-default" href="{root}">',
+                  f'<meta property="og:title" content="{esc(name)} — {esc(TITLE_EN)}">',
+                  f'<meta property="og:description" content="{esc(DESCRIPTION_EN)}">',
+                  '<meta property="og:type" content="website">',
+                  f'<meta property="og:url" content="{root}">',
+                  f'<meta property="og:site_name" content="{esc(name)}">',
+                  '<meta name="twitter:card" content="summary">',
+                  '<script type="application/ld+json">' + json.dumps({
+                      "@context": "https://schema.org", "@type": "WebApplication", "name": name, "url": root,
+                      "applicationCategory": "GameApplication", "operatingSystem": "Any",
+                      "description": DESCRIPTION_EN, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+                      "inLanguage": ["en", "fr"]}, ensure_ascii=False) + "</script>"]
+    lines.append('<meta name="theme-color" content="#e8a13a">')
+    return "\n".join(lines) + "\n"
+
+
+def chrome(page: str, own: dict, absolute: str) -> str:
+    """The header's links, the front page's links and the footer's, pointing
+    at the site's pages - relative on the site, absolute in the standalone
+    file (which has no neighbours), absent there when the address is unknown."""
+    if absolute is None:
+        return page.replace("<!--__NAV__-->", "").replace("<!--__HOMELINKS__-->", "") \
+                   .replace("<!--__FOOTLINKS__-->", "")
+    parts = sitegen.tool_chrome(own, "en", absolute)
+    base = absolute.rstrip("/") + "/" if absolute else ""
+    def href(path_en, path_fr):
+        return (base + path_en) if base else path_en, (base + path_fr) if base else path_fr
+    links = []
+    for (en, fr), key, text in ((href("guides/", "fr/guides/"), "home.guides", "The guides"),
+                                ((href("this-week/", "fr/cette-semaine/")), "home.week", "This week's cups"),
+                                ((href("methodology/", "fr/methode/")), "home.method", "Method and accuracy")):
+        links.append(f'<a href="{en}" data-href-en="{en}" data-href-fr="{fr}" data-t="{key}">{text}</a>')
+    home = '<p class="home-links">' + " · ".join(links) + "</p>"
+    return page.replace("<!--__NAV__-->", parts["nav"]).replace("<!--__HOMELINKS__-->", home) \
+               .replace("<!--__FOOTLINKS__-->", parts["foot"])
+
+
 def render() -> tuple[str, str, str, str]:
     """(hosted page, model script, standalone page, ads.txt).
 
@@ -146,31 +255,44 @@ def render() -> tuple[str, str, str, str]:
     if PLACEHOLDER not in page:
         raise SystemExit(f"{SOURCE.name} has no {PLACEHOLDER} to fill.")
     data = blob()
-    if "<script" not in page:
-        raise SystemExit(f"{SOURCE.name} has no script tag to load the model before.")
-
-    for marker in (ADS_JSON, ADS_HEAD, SITE_JSON):
+    for marker in (ADS_JSON, ADS_HEAD, SITE_JSON) + MARKERS:
         if marker not in page:
             raise SystemExit(f"{SOURCE.name} has no {marker} to fill.")
     settings = ads()
     own = site()
+    base = base_url(own)
+    name = own.get("name") or sitegen.DEFAULT_NAME
+    feed = {"live": own["live"]} if own.get("live") else {}
 
     hosted = page.replace(PLACEHOLDER, LOAD).replace(ADS_JSON, json.dumps(settings)) \
-                 .replace(ADS_HEAD, ads_head(settings)).replace(SITE_JSON, json.dumps(own))
-    # The head tags come first, so the account script is loading while the
-    # rest of the head parses; the model still precedes the page's own script.
-    hosted = hosted.replace(
-        "<script", '<script src="model.js"></script>\n'
-                   '<script src="calendar.js"></script>\n<script', 1) if not settings else hosted.replace(
-        "<style>", '<script src="model.js"></script>\n'
-                   '<script src="calendar.js"></script>\n<style>', 1)
+                 .replace(ADS_HEAD, ads_head(settings)).replace(SITE_JSON, json.dumps(feed))
+    hosted = re.sub(r"<title>[^<]*</title>", f"<title>{sitegen.esc(name)} — {sitegen.esc(TITLE_EN)}</title>", hosted, 1)
+    hosted = hosted.replace("<!--__HEAD__-->", head_meta(own, base).rstrip("\n"))
+    hosted = chrome(hosted, own, "")
+    hosted = hosted.replace("<!--__DATA__-->", '<script src="model.js"></script>\n<script src="calendar.js"></script>')
 
     alone = page.replace(PLACEHOLDER, data).replace(ADS_JSON, "{}").replace(ADS_HEAD, "") \
                .replace(SITE_JSON, "{}")
+    alone = re.sub(r"<title>[^<]*</title>", f"<title>{sitegen.esc(name)}</title>", alone, 1)
+    # A copy to keep, not a page to find: search engines are told so, and the
+    # web fonts go, so that it makes no request at all - it falls back to the
+    # system's own sans-serif.
+    alone = alone.replace("<!--__HEAD__-->", '<meta name="robots" content="noindex">')
+    alone = "\n".join(line for line in alone.split("\n")
+                      if "fonts.googleapis.com" not in line and "fonts.gstatic.com" not in line)
+    alone = chrome(alone, own, base if base else None)
+    frozen = ""
     if CALENDAR.exists():
-        frozen = CALENDAR.read_text(encoding="utf-8").replace("</", "<\\/")
-        alone = alone.replace("<script", "<script>\n" + frozen + "</script>\n<script", 1)
+        frozen = "<script>\n" + CALENDAR.read_text(encoding="utf-8").replace("</", "<\\/") + "</script>"
+    alone = alone.replace("<!--__DATA__-->", frozen)
     return hosted, f"window.MODEL = {data};\n", alone, ads_txt(settings)
+
+
+def site_files() -> dict[str, str]:
+    """The pages around the predictor, from src/site/ (see sitegen.py)."""
+    model = json.loads(MODEL.read_text(encoding="utf-8"))
+    own = site()
+    return sitegen.build(own, ads(), model, calendar(), base_url(own))
 
 
 def size(text: str) -> str:
@@ -184,32 +306,40 @@ def main() -> int:
     args = parser.parse_args()
 
     hosted, script, alone, sellers = render()
-    built = ((PAGE, hosted), (SCRIPT, script), (ALONE, alone), (ADS_TXT, sellers))
+    built = [(PAGE, hosted), (SCRIPT, script), (ALONE, alone), (ADS_TXT, sellers)]
+    pages = site_files()
+    built += [(HERE / path, text) for path, text in sorted(pages.items())]
 
     if args.check:
-        stale = [path.name for path, want in built
+        stale = [str(path.relative_to(HERE)) for path, want in built
                  if (path.read_text(encoding="utf-8") if path.exists() else "") != want]
         if stale:
-            print(f"{', '.join(stale)} out of date — run: python build.py")
+            print(f"{', '.join(stale[:8])}{' …' if len(stale) > 8 else ''} out of date — run: python build.py")
             return 1
-        print("index.html, model.js and standalone.html match their sources.")
+        print(f"index.html, model.js, standalone.html and the {len(pages)} files of the site match their sources.")
         return 0
 
     for path, want in built:
         if want:
-            path.write_text(want, encoding="utf-8")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.exists() or path.read_text(encoding="utf-8") != want:
+                path.write_text(want, encoding="utf-8")
         elif path.exists():
             path.unlink()                      # no banner, no ads.txt
     model = json.loads(MODEL.read_text(encoding="utf-8"))
     print(f"index.html      {size(hosted):>8}   + model.js {size(script)}  (the site)")
-    if CALENDAR.exists():
-        cal = json.loads(CALENDAR.read_text(encoding="utf-8")
-                         .split("=", 1)[1].rsplit(";", 1)[0])
-        print(f"                calendar of {len(cal.get('events') or [])} windows, "
+    cal = calendar()
+    if cal:
+        priced = sum(1 for e in cal.get("events") or [] if e.get("fc"))
+        print(f"                calendar of {len(cal.get('events') or [])} windows, {priced} priced, "
               f"generated {cal.get('generated', '?')}")
     else:
         print("                no calendar.js — the what-is-on panel stays hidden")
     print(f"standalone.html {size(alone):>8}   one file, no network, no banner")
+    guides = sum(1 for p in pages if p.startswith(("guides/", "fr/guides/")) and p.count("/") >= 2)
+    print(f"site            {len(pages)} files: {guides} guide pages, the week, method, about, contact, "
+          f"privacy, in English and French" + (f"; sitemap for {base_url(site())}" if "sitemap.xml" in pages else
+                                                "; no address known (site.json 'url' or CNAME), so no sitemap"))
     given = ads()
     print("banner          " + (f"{given['client']} unit {given['slot']}, ads.txt written" if given.get("slot")
                                 else f"{given['client']}: account tags and ads.txt only, no unit yet" if given

@@ -1,0 +1,75 @@
+<!--page
+{"path": "guides/cut-during-a-cup/", "pair": "cut-during-a-cup", "section": "guides", "order": 3,
+ "title": "How the cutoff moves during a Fortnite cup, and how to read the live board",
+ "h1": "How the cutoff moves during a cup",
+ "description": "What share of its final value a Fortnite cup's threshold has reached at each point of the session, why the early board misleads, how the last games land after the close, and how the live forecast weighs the board against history.",
+ "summary": "What the board is worth at each point of the session, and how the live forecast reads it.",
+ "updated": "2026-09-22", "published": "2026-09-22", "data": "model"}
+-->
+<h1>How the cutoff moves during a cup</h1>
+<p class="lede">An hour into a three-hour cup, the leaderboard says the qualifying rank holds some
+number of points – and that number is nowhere near the final cutoff. How far along it is can be
+measured, because every finished leaderboard can be replayed game by game. This guide shows what
+{{boards_open}} replayed open queues say, and how the live forecast uses it.</p>
+
+<h2>The board at each point of the session</h2>
+<p>In an open queue, where every team plays its games at its own pace inside the window, the
+threshold at a given rank climbs almost steadily through the session. Halfway through, it has
+typically reached {{pace_open 0.5}} of its final value. At the moment the window closes it has
+reached {{pace_open 1.0}}: the rest is still being played.</p>
+<!--data:pace_chart-->
+<p>In a single lobby – a final, where the same teams play the same games – the clock that matters is
+the number of games played rather than the minutes: after half the games, a rank sits at
+{{pace_closed 0.5}} of its final score in the typical lobby.</p>
+
+<h2>Why the early board misleads</h2>
+<p>The curve above is an average, and at the start of a session the cups are far apart. One game
+in, some teams have played twice and others not at all; the board is sorted by teams that happened
+to queue first. The table gives the typical spread from one cup to the next at each point: early on,
+a reading can be more than half again above or below what the average curve would predict.</p>
+<!--data:pace_table-->
+<p>That spread is why the live forecast gives the first readings little weight, and why comparing
+your score to the early board is misleading in both directions: a threshold that looks easy after
+forty minutes usually is not, and one that looks out of reach often comes back.</p>
+
+<!--ad-->
+
+<h2>After the window closes</h2>
+<p>An open queue closes on the clock, but a game that started before the close is still played to
+the end, and Battle Royale games last up to half an hour. So the final standings keep moving after
+the window: by the numbers below, the top of the board is complete about twenty minutes after the
+close, and the ranks just below it take the same time to catch up from further back.</p>
+<!--data:tail_table-->
+<p class="muted">Share of the final threshold reached, by minutes after the window closes, measured
+on each game's own end time. The board published by the leaderboard sites can lag a few minutes
+behind that.</p>
+
+<h2>How the live forecast reads the board</h2>
+<p>While a cup runs, the site reads its public standings every few minutes and turns each reading
+into a forecast of the end. A reading at a given rank is divided by the share of the final that
+rank has typically reached at that minute – the curve above, specific to the kind of cup where
+enough of them have been replayed – which gives what the board says the final will be.</p>
+<p>That estimate is then weighed against the forecast made before the cup, each by how precise it
+has proven: early in the session the history counts for more, late in the session the board does.
+Two things keep the answer honest:</p>
+<ul>
+<li><strong>A threshold never falls.</strong> Teams only gain points, so the points the board already
+shows at a rank are a floor under the final cutoff, and the forecast never goes below it.</li>
+<li><strong>The ranges are measured on live answers.</strong> How wide the range around a live
+forecast must be, at each point of the session, is measured on past evenings the feed followed, so a
+range that says nine finals in ten land inside it is the width that did.</li>
+</ul>
+<p>Replayed on a held-out week of September, between a third and two thirds of the session, the
+live forecast was about 3% off the final threshold in median, and closer still in the last hour.</p>
+
+<h2>What to do with it</h2>
+<ol>
+<li><strong>Before the cup:</strong> note the forecast at your cut and its range. That is your target,
+not the first numbers on the board.</li>
+<li><strong>Mid-session:</strong> compare your total with the share of the target you should have by
+now. Halfway through a cup, being at half the target is on pace, not behind.</li>
+<li><strong>Last hour:</strong> the live forecast is at its sharpest. If you are just under the
+line, the board will still rise after the close: plan to finish above the forecast, not above the
+current board.</li>
+</ol>
+<p><a class="cta" href="~/this-week/">See this week's cups</a></p>

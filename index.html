@@ -3,15 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Threshold Ladder</title>
+<title>Threshold Ladder — Fortnite cup cutoffs, forecast before and during every cup</title>
+<meta name="description" content="How many points will it take to qualify? Forecasts of every Fortnite cup&#x27;s point thresholds, at any rank, before the cup and live while it runs, for every region, with a measured range.">
+<link rel="canonical" href="https://fortnitepredcomp.com/">
+<link rel="alternate" hreflang="en" href="https://fortnitepredcomp.com/">
+<link rel="alternate" hreflang="fr" href="https://fortnitepredcomp.com/fr/">
+<link rel="alternate" hreflang="x-default" href="https://fortnitepredcomp.com/">
+<meta property="og:title" content="Threshold Ladder — Fortnite cup cutoffs, forecast before and during every cup">
+<meta property="og:description" content="How many points will it take to qualify? Forecasts of every Fortnite cup&#x27;s point thresholds, at any rank, before the cup and live while it runs, for every region, with a measured range.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fortnitepredcomp.com/">
+<meta property="og:site_name" content="Threshold Ladder">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "Threshold Ladder", "url": "https://fortnitepredcomp.com/", "applicationCategory": "GameApplication", "operatingSystem": "Any", "description": "How many points will it take to qualify? Forecasts of every Fortnite cup's point thresholds, at any rank, before the cup and live while it runs, for every region, with a measured range.", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "inLanguage": ["en", "fr"]}</script>
+<meta name="theme-color" content="#e8a13a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300;0,400;0,600;0,800;1,400&family=Chivo+Mono:wght@300;400;600&display=swap">
 <meta name="google-adsense-account" content="ca-pub-3205233819198856">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3205233819198856" crossorigin="anonymous"></script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23e8a13a'/><path d='M22 72h14V40H22zm20 0h14V26H42zm20 0h14V52H62z' fill='%23161a24'/></svg>">
-<script src="model.js"></script>
-<script src="calendar.js"></script>
 <style>
 /* ------------------------------------------------------------------ *
  * Tokens. Light is the base; the two blocks below restate the same
@@ -77,6 +88,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding: 5px 11px; font-size: 12px; font-weight: 600; letter-spacing: .06em; cursor: pointer; }
 .langs button[aria-pressed="true"] { background: var(--forecast); color: var(--ground); }
 
+/* The site's sections, beside the name: the week, the guides, the method. */
+.top-nav { display: flex; gap: 2px; flex-wrap: wrap; order: 3; flex-basis: 100%; margin: -4px 0 -2px -8px; }
+.top-nav a { color: var(--ink-dim); text-decoration: none; font-size: 13px; font-weight: 600;
+             padding: 4px 8px; border-radius: 5px; }
+.top-nav a:hover { color: var(--ink); background: var(--raise); }
+@media (min-width: 900px) { .top-nav { order: 0; flex-basis: auto; margin: 0; } }
+
 /* ------------------------------------------------------------------ shell */
 main { display: grid; gap: 22px; align-items: start; padding: 22px 24px 60px; max-width: 1260px; margin: 0 auto; }
 
@@ -92,7 +110,15 @@ main { grid-template-columns: minmax(0, 860px); justify-content: center; }
 main[data-view="home"] { grid-template-columns: minmax(0, 700px); }
 main[data-view="home"] > section.form, main[data-view="home"] > section.board { display: none; }
 main[data-view="home"] .cal-list { max-height: 56vh; }
-main[data-view="predict"] > #calendar-wrap, main[data-view="predict"] > #home-extras { display: none; }
+main[data-view="predict"] > #calendar-wrap, main[data-view="predict"] > #home-extras,
+main[data-view="predict"] > #home-intro { display: none; }
+#home-intro h1 { font-size: 22px; line-height: 1.25; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 6px; }
+#home-intro .hint { font-size: 14px; color: var(--ink-dim); }
+#home-about p { font-size: 13.5px; color: var(--ink-dim); margin: 0 0 9px; }
+#home-about .home-links { margin: 12px 0 0; font-size: 13.5px; }
+#home-about .home-links a { color: var(--measured); }
+footer .foot-nav a { margin-right: 2px; }
+.noscript { max-width: 700px; margin: 0 auto 40px; padding: 0 24px; color: var(--ink-dim); }
 main[data-view="predict"] > section.board { order: -1; }
 /* The tabs: a panel belongs to one of them, and the one open is the one shown. */
 main[data-view="predict"] [data-tab] { display: none; }
@@ -353,6 +379,7 @@ footer a { color: var(--ink-dim); }
 <header class="top">
   <div class="mark">THRESHOLD <span>LADDER</span></div>
   <div class="tagline" data-t="tagline">How many points a rank will take, before the results exist.</div>
+  <nav class="top-nav" aria-label="Main"><a href="this-week/" data-href-en="this-week/" data-href-fr="fr/cette-semaine/" data-t="nav.week">This week</a><a href="guides/" data-href-en="guides/" data-href-fr="fr/guides/" data-t="nav.guides">Guides</a><a href="methodology/" data-href-en="methodology/" data-href-fr="fr/methode/" data-t="nav.method">How it works</a><a href="about/" data-href-en="about/" data-href-fr="fr/a-propos/" data-t="nav.about">About</a></nav>
   <div class="langs" role="group">
     <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
     <button type="button" data-set-lang="fr" aria-pressed="false">FR</button>
@@ -360,6 +387,12 @@ footer a { color: var(--ink-dim); }
 </header>
 
 <main>
+<section id="home-intro">
+  <h1 data-t="home.h1">Fortnite cup cutoffs, forecast before and during every cup</h1>
+  <p class="hint" data-t="home.lede">Pick a cup of the week to see how many points each rank will
+    take, the qualifying rank first, with a range measured on past cups - and the live board once
+    it starts.</p>
+</section>
 <section id="calendar-wrap" hidden>
   <div class="panel" id="p-calendar">
     <h2><span data-t="h.calendar">What is on</span></h2>
@@ -388,6 +421,19 @@ footer a { color: var(--ink-dim); }
     <div class="log" id="sessions"></div>
     <p class="hint" data-t="hint.sessions">Kept in this browser. Click one to reopen it; the arrow
       downloads it as a small file.</p>
+  </div>
+  <div class="panel" id="home-about">
+    <h2><span data-t="home.how">How it works</span></h2>
+    <p data-t="home.p1">Before a cup, the forecast starts from the same cup's recent editions in its
+      region, corrected for the field, the entry bar and the season. A cup nobody has played yet is
+      priced by replaying the region's recent leaderboards of the same format under its scoring
+      table.</p>
+    <p data-t="home.p2">While the cup runs, its public standings are read every five minutes and
+      weighed against the history: early readings count for little, and the forecast sharpens as
+      the session goes.</p>
+    <p data-t="home.p3">Every forecast comes with a range measured on past cups, and every change to
+      the model is tested on tournaments it had not seen before it ships.</p>
+    <p class="home-links"><a href="guides/" data-href-en="guides/" data-href-fr="fr/guides/" data-t="home.guides">The guides</a> · <a href="this-week/" data-href-en="this-week/" data-href-fr="fr/cette-semaine/" data-t="home.week">This week's cups</a> · <a href="methodology/" data-href-en="methodology/" data-href-fr="fr/methode/" data-t="home.method">Method and accuracy</a></p>
   </div>
 </section>
 
@@ -597,8 +643,11 @@ footer a { color: var(--ink-dim); }
 </aside>
 </main>
 
-<footer><p id="foot"></p><p id="credit"></p><p id="legal"></p><p id="privacy-link"></p></footer>
+<footer><p id="foot"></p><p class="foot-nav"><a href="about/" data-href-en="about/" data-href-fr="fr/a-propos/" data-t="foot.about">About</a> · <a href="contact/" data-href-en="contact/" data-href-fr="fr/contact/" data-t="foot.contact">Contact</a> · <a href="privacy/" data-href-en="privacy/" data-href-fr="fr/confidentialite/" data-t="foot.privacy">Privacy</a> · <a href="methodology/" data-href-en="methodology/" data-href-fr="fr/methode/" data-t="foot.method">Method and accuracy</a> · <a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener" data-t="foot.source">Source code</a></p><p id="credit">Tournament data from <a href="https://osirion.gg" target="_blank" rel="noopener noreferrer">Osirion</a>'s public Fortnite API.</p><p id="legal">Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. All rights reserved by Epic. This material is not official and is not endorsed by Epic.</p><p id="privacy-link"></p></footer>
+<noscript><p class="noscript">This forecast runs in your browser and needs JavaScript. The <a href="guides/">guides</a> and <a href="this-week/">this week's cups</a> work without it.</p></noscript>
 
+<script src="model.js"></script>
+<script src="calendar.js"></script>
 <script>
 /* ==================================================================
  * The model, exported from the research code that trains it.
@@ -619,6 +668,23 @@ const SITE = {"live": "https://threshold-ladder-live.thresholdladder.workers.dev
  * ================================================================== */
 const FR = {
   "tagline": "Combien de points vaudra un rang, avant que les résultats n'existent.",
+  "home.h1": "Les seuils des cups Fortnite, prévus avant et pendant chaque cup",
+  "home.lede": "Choisissez une cup de la semaine pour voir combien de points demandera chaque rang, "
+    + "le rang qualificatif en premier, avec une fourchette mesurée sur les cups passées - puis le "
+    + "classement en direct dès qu'elle commence.",
+  "home.how": "Comment ça marche",
+  "home.p1": "Avant une cup, la prévision part des éditions récentes de la même cup dans sa région, "
+    + "corrigées du plateau, de la condition d'accès et de la saison. Une cup que personne n'a encore "
+    + "jouée est chiffrée en rejouant les classements récents de la région, au même format, avec son barème.",
+  "home.p2": "Pendant la cup, son classement public est lu toutes les cinq minutes et pesé contre "
+    + "l'historique : les premiers relevés comptent peu, et la prévision se précise au fil de la session.",
+  "home.p3": "Chaque prévision est donnée avec une fourchette mesurée sur les cups passées, et chaque "
+    + "changement du modèle est testé sur des tournois qu'il n'avait pas vus avant d'être mis en ligne.",
+  "home.guides": "Les guides", "home.week": "Les cups de la semaine", "home.method": "Méthode et précision",
+  "nav.week": "Cette semaine", "nav.guides": "Guides", "nav.method": "Méthode", "nav.about": "À propos",
+  "foot.about": "À propos", "foot.contact": "Contact", "foot.privacy": "Confidentialité",
+  "foot.method": "Méthode et précision", "foot.source": "Code source",
+  "cal.fc": "{r} ≈ {p} pts", "cal.win": "victoire",
   "h.tournament": "Le tournoi", "h.scoring": "Le barème",
   "h.live": "Pendant le tournoi", "h.basis": "Sur quoi ça repose",
   "result.read": "résultat final · lu à {t}",
@@ -778,9 +844,9 @@ const FR = {
   "basis.coverage": "Seuils réels dans la fourchette",
   "basis.anchor": "Ancre", "basis.exported": "Modèle exporté le",
   "foot": "Tout se passe dans cette page : rien n'est envoyé nulle part et le fichier fonctionne hors ligne. Les chiffres viennent de tournois réels ; la note de méthodologie dit où le modèle cesse d'être crédible.",
-  "footAds": "Tout ce que la page calcule se passe ici : le tournoi saisi ne quitte jamais le navigateur. La seule requête vers l'extérieur est la bannière publicitaire, servie par Google ; la page de confidentialité dit ce qu'elle fait.",
-  "footLive": "Tout ce que la page calcule se passe ici : le tournoi saisi ne quitte jamais le navigateur. Sa seule requête vers l'extérieur demande le classement en direct de la cup en cours, et ne dit rien de toi ; la page de confidentialité en dit plus.",
-  "footBoth": "Tout ce que la page calcule se passe ici : le tournoi saisi ne quitte jamais le navigateur. Ses seules requêtes vers l'extérieur sont la bannière publicitaire, servie par Google, et le classement en direct ; la page de confidentialité dit ce que fait chacune.",
+  "footWeb": "Tout ce que la page calcule se passe dans ton navigateur : le tournoi saisi ne le quitte jamais. La page demande aussi ailleurs ses polices (Google Fonts){live}{ads} ; la page confidentialité dit ce que fait chaque demande.",
+  "footWeb.live": ", le classement en direct de la cup en cours (le flux du site)",
+  "footWeb.ads": " et la publicité (Google)",
   "privacyLink": "Confidentialité",
   "ad.label": "Publicité",
   "credit": "Données de tournois issues de l'API publique Fortnite d'Osirion.",
@@ -2103,6 +2169,22 @@ function betweenReads(between, rank) {
 /* The cold forecast at a rank, refined by the readings when there are any.
  * Returns {value, rel, weight}, weight being the share of the answer that
  * came from the readings. */
+/* How much of its band the forecast from history is typically off by,
+ * against how much of the pace's width the readings are: the model's `blend`,
+ * measured on the evenings the feed followed (analysis/blend.py). A band is
+ * the width of a bad week and the pace's width the spread of a board at a
+ * given minute; weighed as they stood, the readings of a cup with a steady
+ * history took half the answer by mid-session and dragged it up and down
+ * with every early reading. The history's width is scaled by this ratio
+ * before the two are weighed. A rung the model has not measured, or a model
+ * without the table: 1, the widths as they are. */
+function coldWeightScale(source) {
+  const blend = MODEL.blend || {};
+  const reading = blend.reading ? Number(blend.reading.scale) : 0;
+  const row = (blend.cold || {})[source];
+  if (!(reading > 0) || !row || !(Number(row[0]) > 0)) return 1;
+  return Number(row[0]) / reading;
+}
 function forecastAt(t, rank, live) {
   const cold = predictOne(t, rank);
   if (!cold || !cold.ok) return null;
@@ -2140,14 +2222,23 @@ function forecastAt(t, rank, live) {
     return { value: cold.value, rel: cold.rel, weight: 0 };
   }
   const fromReadings = cold.value * ratio;
-  const wl = 1 / Math.max(relLive, 0.01) ** 2, wc = 1 / Math.max(cold.rel, 0.01) ** 2;
+  // The two widths in the same units before they are weighed: see
+  // coldWeightScale. A closed lobby keeps its widths as they are - the
+  // scales were measured on open queues.
+  const scale = live.kind === "open_by_time" ? coldWeightScale(cold.source) : 1;
+  const wl = 1 / Math.max(relLive, 0.01) ** 2, wc = 1 / Math.max(cold.rel * scale, 0.01) ** 2;
   const blended = (fromReadings * wl + cold.value * wc) / (wl + wc);
+  // The ranges keep the widths as they stand: the multipliers that turn a
+  // width into a range (pace.live_bands) were measured on them, and a
+  // scaled width drawn through them left the ranges holding fewer finals
+  // than they claim.
+  const wcBand = 1 / Math.max(cold.rel, 0.01) ** 2;
   // Weighing the readings against the history can land under the board the
   // readings came from, which no threshold can do. The floor is not a nudge
   // to the answer: it is the part of it that is certain.
   const floor = readFloor(live, rank);
   const value = Math.max(blended, floor);
-  return { value: value, rel: 1 / Math.sqrt(wl + wc), weight: wl / (wl + wc),
+  return { value: value, rel: 1 / Math.sqrt(wl + wcBand), weight: wl / (wl + wc),
            between: between, floor: floor, floored: value > blended,
            // What the ranges of a live answer are measured by: where the
            // evening stands and which rank was asked (see liveBands).
@@ -2231,6 +2322,7 @@ function blankState() {
   blank.event = ""; blank.window = ""; blank.auto = null; blank.autoLog = [];
   blank.entry = "";
   blank.cold = null;
+  blank.calendarKind = null; blank.calendarName = "";
   return blank;
 }
 
@@ -2341,14 +2433,25 @@ function clockGames(s) {
 function gameCount(s) {
   return Number(s.game_cap) || clockGames(s);
 }
+/* A cup opened from the calendar, and not renamed since: the calendar names
+ * it the way the model does - the same rules, the same series ids - so its
+ * own label is the one to read, whether the model knows it or not. Matching
+ * the name to a neighbour is for a name typed by hand: from the calendar it
+ * priced the Solo "Override Series (Zero Build)" off a Trio cup whose name
+ * holds the same three words, 463 points at rank 100 where the boards of its
+ * own format, replayed, say 294. */
+function fromCalendar(s) {
+  return typeof s.calendarKind === "string" && !!s.name && s.name === s.calendarName;
+}
 function asTournament(s) {
-  const loose = matchTournament(s.name, s.region);
-  const matched = s.variant ? { label: s.variant, kind: "picked" } : loose;
+  const own = fromCalendar(s);
+  const matched = s.variant ? { label: s.variant, kind: "picked" }
+                : own ? null : matchTournament(s.name, s.region);
   // The season the cup is played in: the one its event id names, else the
   // model's current one - a cup typed by hand is one of this season.
   const season = seasonOfEvent(s.event);
   return {
-    category: matched ? matched.label : s.name,
+    category: matched ? matched.label : (own && s.calendarKind ? s.calendarKind : s.name),
     name: s.name || "",
     region: s.region, team_mode: s.team_mode, game_mode: s.game_mode,
     max_games: gameCount(s), field_size: s.field_size, scoring: s.scoring,
@@ -2365,6 +2468,8 @@ function asTournament(s) {
  * ================================================================== */
 function readForm() {
   STATE.name = $("f-name").value.trim();
+  // Typed over, the name is somebody's own and the calendar's label goes.
+  if (typeof STATE.calendarKind === "string" && STATE.name !== STATE.calendarName) STATE.calendarKind = null;
   STATE.region = $("f-region").value;
   STATE.team_mode = $("f-team").value;
   STATE.game_mode = $("f-mode").value;
@@ -2553,8 +2658,16 @@ function addReadingRow(rank, points) {
  * Steps 1 and 2 - the settings, and freezing them
  * ================================================================== */
 function drawVariants() {
-  const list = variantsFor(STATE.name);
   const field = $("variant-field");
+  // A cup from the calendar is the cup the calendar names: its label when
+  // the model knows it, none when it does not - never a neighbour's stage.
+  if (fromCalendar(STATE)) {
+    STATE.variant = knownCategory(STATE.calendarKind) ? STATE.calendarKind : null;
+    $("f-variant").innerHTML = "";
+    field.hidden = true;
+    return;
+  }
+  const list = variantsFor(STATE.name);
   if (!list.length) {
     STATE.variant = null;
     $("f-variant").innerHTML = "";
@@ -2715,26 +2828,23 @@ function render() {
   const board = $("verdict");
   drawWhen();
   const feed = !!liveUrl();
-  $("foot").textContent = adsOn() && feed
-    ? T("footBoth", "Everything the page computes happens here: the tournament you type never "
-        + "leaves your browser. Its only requests to anyone else are the advertising banner, served "
-        + "by Google, and the live standings feed; the privacy note says what each does.")
-    : adsOn()
-    ? T("footAds", "Everything the page computes happens here: the tournament you type never "
-        + "leaves your browser. The one request to anyone else is the advertising banner, served "
-        + "by Google; the privacy note says what it does.")
-    : feed
-    ? T("footLive", "Everything the page computes happens here: the tournament you type never "
-        + "leaves your browser. Its one request to anyone else is for the live standings of the cup "
-        + "under way, and it carries nothing about you; the privacy note says more.")
+  // What leaves the page, said plainly: nothing from the file opened on its
+  // own; from the site, the fonts, the live standings where there is a feed,
+  // and Google's advertising script where there is an account.
+  $("foot").textContent = /^https?:$/.test(location.protocol)
+    ? T("footWeb", "Everything the page computes happens in your browser: the tournament you type never "
+        + "leaves it. The page also asks others for its fonts (Google Fonts){live}{ads}; the privacy page "
+        + "says what each request involves.")
+        .replace("{live}", feed ? T("footWeb.live", ", the live standings of the cup under way (the site's own feed)") : "")
+        .replace("{ads}", ADS && ADS.client ? T("footWeb.ads", " and advertising (Google)") : "")
     : T("foot", "Everything happens in this page: nothing is sent anywhere "
         + "and the file works offline. The numbers come from real tournaments; the methodology note "
         + "says where the model stops being believable.");
   // The note lives beside the hosted page; a file opened on its own has no
   // neighbour to point at, and nothing to disclose that the line above does not.
-  $("privacy-link").innerHTML = /^https?:$/.test(location.protocol)
-    ? '<a href="privacy.html' + (LANG === "fr" ? "#fr" : "") + '">' + T("privacyLink", "Privacy") + "</a>"
-    : "";
+  // The privacy note is one of the footer's links (see the build), in the
+  // reader's language; this line stays empty.
+  $("privacy-link").innerHTML = "";
   // Credit, and a link: the tournaments behind every number here were read from
   // Osirion's public API. Saying so is the least a page built on someone else's
   // work owes them, and it tells a reader where to check.
@@ -3490,6 +3600,10 @@ function applyLanguage(code) {
     if (EN[key] === undefined) EN[key] = el.placeholder;
     el.placeholder = T(key);
   });
+  // The site's pages exist in both languages; its links follow the page's.
+  document.querySelectorAll("[data-href-fr]").forEach(a => {
+    a.setAttribute("href", LANG === "fr" ? a.dataset.hrefFr : a.dataset.hrefEn);
+  });
   drawCalendar();
   try { localStorage.setItem("threshold-ladder-lang", LANG); } catch (e) { /* ignore */ }
   settingsChanged();
@@ -3642,7 +3756,8 @@ function drawCalendar() {
       .filter(Boolean).join(" · ")
       + (row.scoring === null || row.scoring === undefined
           ? " · " + T("l.calpartial", "no scoring") : "")
-      + (over ? " · " + T("l.calover", "over") : "");
+      + (over ? " · " + T("l.calover", "over") : "")
+      + calForecast(row);
     button.innerHTML =
       '<span class="cal-when' + (live ? " cal-live" : "") + '">'
       + esc(live ? T("l.callive", "live") : calLabel(row)) + "</span>"
@@ -3662,6 +3777,18 @@ function drawCalendar() {
     ? "Calendar as of {date}. Click a tournament and the forecast opens."
     : "This calendar is from {date} and no longer covers anything upcoming. Type your tournament in by hand below.";
   $("cal-note").textContent = T(key, fallback).replace("{date}", when);
+}
+
+/* The forecast the calendar carries for a row (`fc`, written beside it by
+ * calendar_snapshot.py from the same model): the rank the cup is asked at
+ * first, and the points it should take - the answer the cup's page gives
+ * when clicked, read off without opening it. Empty when the row has none. */
+function calForecast(row) {
+  const fc = row.fc;
+  if (!fc || !Array.isArray(fc.ranks) || !fc.ranks.length) return "";
+  const pick = fc.ranks.find(r => r[0] === fc.cut) || fc.ranks[0];
+  const label = pick[0] === 1 ? T("cal.win", "win") : T("top", "top") + " " + nf().format(pick[0]);
+  return " · " + T("cal.fc", "{r} ≈ {p} pts").replace("{r}", label).replace("{p}", num(pick[1]));
 }
 
 /* One lobby holds this many teams. A final played by qualified teams in a
@@ -3758,17 +3885,10 @@ function closedLobby(row) {
   if (Number(row.field) > 0) {
     return cap && row.field <= cap ? { field: Number(row.field), guessed: false } : null;
   }
-  const asked = { category: row.kind, region: row.region, team_mode: row.team, game_mode: row.mode };
-  let known = categoryRow(asked) || familyRow(asked);
-  if (!known) {
-    // The same cup under a spelling the model knows: the match the forecast
-    // itself will use, so the field and the level come from the same editions.
-    const near = matchTournament(row.name, row.region);
-    if (near) {
-      const named = Object.assign({}, asked, { category: near.label });
-      known = categoryRow(named) || familyRow(named);
-    }
-  }
+  // The row's own label, as the forecast reads it (see fromCalendar), so the
+  // field and the level come from the same editions.
+  const asked = { category: row.kind || row.name, region: row.region, team_mode: row.team, game_mode: row.mode };
+  const known = categoryRow(asked) || familyRow(asked);
   if (known && known.field && cap && known.field <= cap) {
     return { field: Math.round(known.field), guessed: false };
   }
@@ -3887,6 +4007,11 @@ function pickFromCalendar(row) {
   // row says which category this is; the name matching is only for a cup the
   // model has never seen under that name.
   STATE.variant = knownCategory(row.kind) ? row.kind : null;
+  STATE.calendarKind = String(row.kind || "");
+  STATE.calendarName = String(STATE.name || "").trim();
+  // The stages listed for the cup opened before this one: read back by the
+  // form, they handed a Round 1 the Round 2 it had been opened after.
+  $("f-variant").innerHTML = "";
   if (row.region) STATE.region = row.region;
   if (row.team) STATE.team_mode = row.team;
   if (row.mode && row.mode !== "Other") STATE.game_mode = row.mode;
@@ -4525,16 +4650,32 @@ function start() {
     b.onclick = () => applyLanguage(b.dataset.setLang);
   });
 
-  let saved = "en";
-  try { saved = localStorage.getItem("threshold-ladder-lang") || "en"; } catch (e) { /* ignore */ }
+  // The language: one asked in the address (the French pages link here with
+  // ?lang=fr), else the one chosen last time, else the browser's own.
+  let saved = null;
+  try { saved = localStorage.getItem("threshold-ladder-lang"); } catch (e) { /* ignore */ }
+  const asked = (/[?&]lang=(en|fr)\b/.exec(location.search) || [])[1];
+  if (asked) {
+    saved = asked;
+    // Taken once: left in the address, it would outvote the reader's own
+    // switch at the next reload.
+    try { history.replaceState(history.state, "", location.pathname + location.hash); } catch (e) { /* file */ }
+  }
+  if (!saved) saved = /^fr\b/i.test(navigator.language || "") ? "fr" : "en";
   setFrozen(!!STATE.confirmed);
   applyLanguage(saved);
   // A reload lands where the reader was: on the forecast if that is the page
   // they reloaded, on the list otherwise. An evening in progress is kept
   // either way - it is one click away in the list - because coming back to
   // the list and pressing F5 should not reopen the cup they just left.
+  // "#cup=<window>": a link from the site's list of the week, straight to that
+  // cup's forecast. Read before the first screen is drawn, which rewrites the
+  // address; a cup no longer on the calendar leaves the list open.
+  const wanted = (/^#cup=([A-Za-z0-9_\-]+)$/.exec(location.hash) || [])[1];
+  const row = wanted && CAL ? CAL.events.find(e => e.window === wanted) : null;
   const reloaded = location.hash === "#tournament" && !!STATE.name;
   showView(reloaded ? "predict" : "home", false);
+  if (row) pickFromCalendar(row);
   mountAd();
   startLive();
 }

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the forecasts work, and how accurate they are — Threshold Ladder</title>
+<meta name="description" content="Where the data comes from, how a Fortnite cup&#x27;s cutoff is forecast before the cup and during it, how the forecasts are tested on tournaments they have not seen, and where they stop being reliable.">
+<link rel="canonical" href="https://fortnitepredcomp.com/methodology/">
+<link rel="alternate" hreflang="en" href="https://fortnitepredcomp.com/methodology/">
+<link rel="alternate" hreflang="fr" href="https://fortnitepredcomp.com/fr/methode/">
+<link rel="alternate" hreflang="x-default" href="https://fortnitepredcomp.com/methodology/">
+<meta property="og:title" content="How the forecasts work, and how accurate they are">
+<meta property="og:description" content="Where the data comes from, how a Fortnite cup&#x27;s cutoff is forecast before the cup and during it, how the forecasts are tested on tournaments they have not seen, and where they stop being reliable.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fortnitepredcomp.com/methodology/">
+<meta property="og:site_name" content="Threshold Ladder">
+<meta property="og:locale" content="en_GB">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#e8a13a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23e8a13a'/><path d='M22 72h14V40H22zm20 0h14V26H42zm20 0h14V52H62z' fill='%23161a24'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300;0,400;0,600;0,800;1,400&family=Chivo+Mono:wght@300;400;600&display=swap">
+<link rel="stylesheet" href="../site.css">
+<meta name="google-adsense-account" content="ca-pub-3205233819198856">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3205233819198856" crossorigin="anonymous"></script>
+</head>
+<body class="site">
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-top"><a class="mark" href="../">THRESHOLD <span>LADDER</span></a><nav class="site-nav" aria-label="Main"><a href="../">Forecast</a><a href="../this-week/">This week</a><a href="../guides/">Guides</a><a href="../methodology/" aria-current="page">How it works</a><a href="../about/">About</a></nav><a class="lang-switch" href="../fr/methode/" hreflang="fr" lang="fr" title="Français">FR</a></header>
+<main id="content" class="prose">
+<h1>How the forecasts work, and how accurate they are</h1>
+<p class="lede">Threshold Ladder forecasts how many points a given rank will take in a Fortnite
+tournament, before it starts and while it runs. This page explains where the numbers come from, how
+they are made, how they are tested, and where they should not be trusted.</p>
+
+<h2>The data</h2>
+<p>Everything starts from Osirion's public Fortnite API: Epic's tournament calendar, each event's
+scoring rules, and the final leaderboards. A harvester reads them every day; the model is trained on
+94,286 thresholds from 7,632 tournaments (model of 22 September 2026). A threshold is
+the points held by the team at a given rank when the leaderboard is final.</p>
+<p>The leaderboards also record, for each team, its placement and eliminations in every game and
+when each game ended. That makes it possible to rebuild the board at any moment of a past session,
+which is how the live part of the forecast is measured, and to score past games again under another
+table, which is how new cups are priced.</p>
+<p>What the site publishes is derived: forecasts, and statistics such as medians and shares. It does
+not republish leaderboards; the full standings of a cup are one click away on osirion.gg, which the
+forecast links to.</p>
+
+<h2>Before the cup: a cascade of readings</h2>
+<p>The forecast tries the most direct reading first and moves down only when it has to:</p>
+<ol>
+<li><strong>The cup's previous editions.</strong> The same cup, region, format and rank, the last
+times it was played the same way, the latest counting most. Corrected for a field that differs from
+last time, for a change in who may enter, and for a change of season.</li>
+<li><strong>The cup's level times its measured shape</strong>, for ranks its editions did not reach:
+the threshold at rank 20, times what each rank was worth against rank 20 in its editions.</li>
+<li><strong>The ladder</strong>, for ranks no edition measured: what each rank is worth against
+rank 20 across every open queue of the same size and mode (see <a href="../guides/deep-ranks/">deep
+ranks</a>).</li>
+<li><strong>Recent leaderboards replayed under the cup's table</strong>, for a cup with no edition in
+its region (see <a href="../guides/new-cups/">brand-new cups</a>), combined with its editions in other
+regions where it has some.</li>
+<li><strong>The finals of the same format</strong>, for a final played in a single lobby.</li>
+<li><strong>The scoring table alone</strong>, as the last resort: the share of the maximum possible
+score that rank 20 reaches in cups of the same kind.</li>
+</ol>
+<p>Every forecast carries a range. The half-width comes from how much the reading used has moved in
+the past – between two editions of the cup, for the first rung – and how wide the range must be for
+half, or nine in ten, of the final thresholds to fall inside it is measured on tournaments the model
+had not seen.</p>
+
+
+
+<h2>During the cup: the live board</h2>
+<p>While a cup runs, a small service reads its public standings every five minutes. Each reading is
+compared with the share of its final value a threshold has typically reached at that point of the
+session – measured on 3,210 replayed open queues and 639 single lobbies, by
+kind of cup – and weighed against the forecast made before the cup, each according to how precise it
+has proven on past evenings. The points already on the board are a floor: a threshold never falls.
+<a href="../guides/cut-during-a-cup/">How the cutoff moves during a cup</a> goes into detail.</p>
+
+<h2>How accurate it is</h2>
+<p>The test that matters is the one a player lives: forecasting a cup from what had finished before
+it. The newest 600 tournaments – everything since 17 August 2026 – were each forecast only from the
+tournaments that had finished before their day, and compared with their final leaderboards
+(6,100 thresholds):</p>
+<div class="scroll"><table class="data"><thead><tr><th>What is forecast</th><th>Median error</th><th>Inside the quoted range</th></tr></thead><tbody><tr><td>Every threshold of the newest 600 tournaments</td><td>5.2%</td><td>94%</td></tr><tr><td>Cups with a previous edition (where the model and both baselines answer)</td><td>2.8%</td><td>—</td></tr><tr><td>… the same rows, last edition carried forward</td><td>3.1%</td><td>—</td></tr><tr><td>… the same rows, median of the cup's category</td><td>5.6%</td><td>—</td></tr><tr><td>Cups never seen in their region, from the scoring table alone</td><td>10.3%</td><td>—</td></tr><tr><td>Finals played in a single lobby</td><td>13.5%</td><td>—</td></tr></tbody></table></div>
+<p class="muted">Median absolute error, in per cent of the final threshold. "Inside the quoted range":
+the share of final thresholds inside the forecast's main range, which claims 80%; the site's own
+50% and 90% ranges are measured from the same errors. Measured 22 September 2026, and measured again
+every three days as tournaments are added.</p>
+<p>Three honest caveats. The cups the model has seen before are the easy ones, and most of the
+error is concentrated in the others. The top five ranks are the noisiest part of any leaderboard:
+there, carrying last week forward is about as good as the model. And a single evening can always
+land outside the range – one in ten, by construction, lands outside the 90% range.</p>
+
+<h2>Where it stops being reliable</h2>
+<ul>
+<li><strong>The first cups of a new season</strong>, before anything has shown which way the season
+moves thresholds (see <a href="../guides/new-season/">new seasons</a>).</li>
+<li><strong>Formats with no history and nothing to replay</strong>: the very first cups of a new mode,
+Arena-style events with no fixed number of games.</li>
+<li><strong>Very deep ranks in the biggest fields</strong>: the public leaderboards stop at about
+9,950 teams, so ranks near that ceiling rest on fewer leaderboards.</li>
+<li><strong>Anything the rules change on the day</strong> – a session shortened, a scoring table
+corrected after publication. The forecast reads the rules as published.</li>
+</ul>
+
+<h2>The code and the full notes</h2>
+<p>The whole project is open source. The page and its forecasting code are in the
+<a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">threshold-ladder</a>
+repository; the harvester, the model's training and every measurement quoted on this site are in
+<a href="https://github.com/Anonymous4724/fortnite-tracker" rel="noopener">fortnite-tracker</a>, whose
+<a href="https://github.com/Anonymous4724/fortnite-tracker/blob/main/docs/methodology.md" rel="noopener">methodology
+note</a> records each change to the model and what it was measured to do.</p>
+
+<p class="stamp">Updated 22 September 2026</p></main>
+<footer class="site-foot"><p class="foot-nav"><a href="../about/">About</a> · <a href="../contact/">Contact</a> · <a href="../privacy/">Privacy</a> · <a href="../methodology/">Method and accuracy</a> · <a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">Source code</a></p><p>Tournament data from <a href="https://osirion.gg" rel="noopener">Osirion</a>'s public Fortnite API. Forecasts are statistical estimates, not guarantees.</p><p>An independent fan project, not affiliated with Epic Games or Osirion.</p><p lang="en">Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. All rights reserved by Epic. This material is not official and is not endorsed by Epic.</p><p>© 2026 Threshold Ladder</p></footer>
+<script src="../site.js" defer></script>
+</body>
+</html>

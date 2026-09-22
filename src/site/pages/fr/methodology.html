@@ -1,0 +1,100 @@
+<!--page
+{"path": "fr/methode/", "pair": "methodology", "section": "method",
+ "title": "Comment les prévisions sont faites, et leur précision",
+ "description": "D'où viennent les données, comment le seuil d'une cup Fortnite est prévu avant la cup et pendant, comment les prévisions sont testées sur des tournois qu'elles n'ont pas vus, et où elles cessent d'être fiables.",
+ "updated": "2026-09-22", "data": "model"}
+-->
+<h1>Comment les prévisions sont faites, et leur précision</h1>
+<p class="lede">{{site_name}} prévoit combien de points un rang donné demandera dans un tournoi
+Fortnite, avant qu'il commence et pendant qu'il se joue. Cette page explique d'où viennent les
+chiffres, comment ils sont faits, comment ils sont testés, et où il ne faut pas s'y fier.</p>
+
+<h2>Les données</h2>
+<p>Tout part de l'API publique Fortnite d'Osirion : le calendrier des tournois d'Epic, le barème de
+chaque événement et les classements finaux. Un moissonneur les lit chaque jour ; le modèle est
+entraîné sur {{thresholds}} seuils relevés sur {{tournaments}} tournois (modèle du {{model_date}}). Un
+seuil, ce sont les points de l'équipe classée à un rang donné quand le classement est définitif.</p>
+<p>Les classements enregistrent aussi, pour chaque équipe, sa place et ses éliminations dans chaque
+partie et l'heure de fin de chaque partie. On peut donc reconstruire le classement à n'importe quel
+moment d'une session passée – c'est ainsi que la partie en direct de la prévision est mesurée – et
+recompter des parties passées avec un autre barème – c'est ainsi que les cups nouvelles sont
+chiffrées.</p>
+<p>Ce que le site publie est dérivé : des prévisions, et des statistiques comme des médianes et des
+parts. Il ne republie pas les classements ; le classement complet d'une cup est à un clic sur
+osirion.gg, vers lequel la prévision renvoie.</p>
+
+<h2>Avant la cup : une cascade de lectures</h2>
+<p>La prévision essaie d'abord la lecture la plus directe et ne descend que si elle y est
+obligée :</p>
+<ol>
+<li><strong>Les éditions précédentes de la cup.</strong> Même cup, même région, même format, même
+rang, les dernières fois qu'elle a été jouée de la même façon, la dernière comptant le plus. Corrigée
+d'un plateau différent de la dernière fois, d'un changement de condition d'accès, et d'un changement de
+saison.</li>
+<li><strong>Le niveau de la cup fois sa forme mesurée</strong>, pour les rangs que ses éditions n'ont
+pas atteints : le seuil au rang 20, fois ce que chaque rang valait face au rang 20 dans ses
+éditions.</li>
+<li><strong>L'échelle</strong>, pour les rangs qu'aucune édition n'a mesurés : ce que vaut chaque rang
+face au rang 20 sur toutes les files ouvertes de même taille et de même mode (voir
+<a href="~/fr/guides/rangs-profonds/">les rangs profonds</a>).</li>
+<li><strong>Les classements récents rejoués avec le barème de la cup</strong>, pour une cup sans
+édition dans sa région (voir <a href="~/fr/guides/nouvelles-cups/">les cups inédites</a>), combinés à
+ses éditions dans d'autres régions quand elle en a.</li>
+<li><strong>Les finales du même format</strong>, pour une finale jouée en lobby unique.</li>
+<li><strong>Le barème seul</strong>, en dernier recours : la part du score maximum possible
+qu'atteint le rang 20 dans les cups du même genre.</li>
+</ol>
+<p>Chaque prévision a une fourchette. Sa demi-largeur vient de ce qu'a bougé par le passé la lecture
+utilisée – entre deux éditions de la cup, pour le premier échelon – et la largeur nécessaire pour que
+la moitié, ou neuf sur dix, des seuils finaux tombent dedans est mesurée sur des tournois que le
+modèle n'avait pas vus.</p>
+
+<!--ad-->
+
+<h2>Pendant la cup : le classement en direct</h2>
+<p>Pendant une cup, un petit service lit son classement public toutes les cinq minutes. Chaque relevé
+est comparé à la part de sa valeur finale qu'un seuil a en général atteinte à ce moment de la session
+– mesurée sur {{boards_open}} files ouvertes et {{boards_closed}} lobbys uniques rejoués, par genre de
+cup – et pesé contre la prévision faite avant la cup, chacun selon la précision qu'il a montrée sur les
+soirées passées. Les points déjà au classement sont un plancher : un seuil ne baisse jamais.
+<a href="~/fr/guides/le-seuil-pendant-la-cup/">Comment le seuil évolue pendant une cup</a> entre dans
+le détail.</p>
+
+<h2>Quelle précision</h2>
+<p>Le test qui compte est celui que vit un joueur : prévoir une cup à partir de ce qui s'était terminé
+avant elle. Les {{targets}} tournois les plus récents – tout depuis le {{from}} – ont chacun été prévus
+uniquement à partir des tournois terminés avant leur jour, puis comparés à leur classement final
+({{validated}} seuils) :</p>
+<!--data:quality_table-->
+<p class="muted">Erreur absolue médiane, en pour cent du seuil final. « Dans la fourchette annoncée » :
+la part des seuils finaux dans la fourchette principale de la prévision, qui en annonce 80 % ; les
+fourchettes à 50 % et à 90 % du site sont mesurées sur les mêmes erreurs. Mesuré le {{quality_date}},
+et remesuré tous les trois jours au fil des tournois.</p>
+<p>Trois réserves honnêtes. Les cups déjà vues par le modèle sont les plus faciles, et l'essentiel de
+l'erreur se concentre sur les autres. Les cinq premiers rangs sont la partie la plus bruitée de tout
+classement : là, reporter la semaine passée fait à peu près aussi bien que le modèle. Et une soirée
+peut toujours tomber hors de la fourchette – une sur dix, par construction, tombe hors de la
+fourchette à 90 %.</p>
+
+<h2>Où elle cesse d'être fiable</h2>
+<ul>
+<li><strong>Les premières cups d'une nouvelle saison</strong>, avant que quoi que ce soit ait montré
+dans quel sens la saison déplace les seuils (voir <a href="~/fr/guides/nouvelle-saison/">les nouvelles
+saisons</a>).</li>
+<li><strong>Les formats sans historique ni rien à rejouer</strong> : les toutes premières cups d'un
+nouveau mode, les événements de type Arène sans nombre fixe de parties.</li>
+<li><strong>Les rangs très profonds des plus grands plateaux</strong> : les classements publics
+s'arrêtent vers 9 950 équipes, et les rangs proches de ce plafond reposent sur moins de
+classements.</li>
+<li><strong>Tout ce que le règlement change le jour même</strong> – une session raccourcie, un barème
+corrigé après publication. La prévision lit le règlement tel que publié.</li>
+</ul>
+
+<h2>Le code et les notes complètes</h2>
+<p>Tout le projet est open source. La page et son code de prévision sont dans le dépôt
+<a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">threshold-ladder</a> ; le
+moissonneur, l'entraînement du modèle et chaque mesure citée sur ce site sont dans
+<a href="https://github.com/Anonymous4724/fortnite-tracker" rel="noopener">fortnite-tracker</a>, dont la
+<a href="https://github.com/Anonymous4724/fortnite-tracker/blob/main/docs/methodology.md" rel="noopener">note
+de méthodologie</a> (en anglais) consigne chaque changement du modèle et ce qu'il a été mesuré
+apporter.</p>

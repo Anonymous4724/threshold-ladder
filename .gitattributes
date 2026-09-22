@@ -11,3 +11,12 @@ model.js        linguist-generated=true
 model.json      linguist-generated=true
 calendar.js     linguist-generated=true
 ads.txt         linguist-generated=true
+
+# The site's pages, built from src/site/ by build.py.
+**/index.html   linguist-generated=true
+404.html        linguist-generated=true
+privacy.html    linguist-generated=true
+sitemap.xml     linguist-generated=true
+robots.txt      linguist-generated=true
+site.css        linguist-generated=true
+site.js         linguist-generated=true

@@ -1,0 +1,62 @@
+<!--page
+{"path": "fr/guides/regions/", "pair": "regions", "section": "guides", "order": 4,
+ "title": "Seuils des cups Fortnite par région : Europe, Amérique du Nord, Brésil, Asie, Océanie, Moyen-Orient",
+ "h1": "Les régions comparées : de l'Europe à l'Océanie",
+ "description": "Combien d'équipes jouent les cups Fortnite dans chaque région, et combien la même cup coûte en moins au même rang en Amérique du Nord, au Brésil, au Moyen-Orient, en Asie et en Océanie qu'en Europe.",
+ "summary": "La taille des plateaux par région, et ce que coûte la même cup au même rang de l'Europe à l'Océanie.",
+ "updated": "2026-09-22", "published": "2026-09-22", "data": "model"}
+-->
+<h1>Les régions comparées : de l'Europe à l'Océanie</h1>
+<p class="lede">Epic organise la plupart des cups dans sept régions, avec le même règlement et le
+même barème partout. Le nombre de points pour atteindre un rang donné n'est pourtant pas le même, et
+l'écart n'est pas là où on l'attend : il est faible en haut du classement et grand plus bas.</p>
+
+<h2>Combien d'équipes jouent</h2>
+<p>La première différence est la taille du plateau. L'Europe aligne le plus d'équipes dans presque
+tous les formats, l'Amérique du Nord Est suit, et les cinq autres régions font de la moitié au quart
+de l'Europe dans les formats courants. Le tableau donne le plateau typique d'une cup par région et
+par format.</p>
+<!--data:region_fields-->
+<p class="muted">Nombre médian d'équipes au classement final, sur les cups de chaque format. Un « + »
+signale le plafond du classement de l'API publique, qui s'arrête vers 9 950 équipes : le plateau réel
+est au moins aussi grand. NAC est l'Amérique du Nord Est, NAW l'Ouest, ME le Moyen-Orient, OCE
+l'Océanie.</p>
+
+<h2>La même cup, au même rang</h2>
+<p>Pour comparer ce que coûte un rang, le test le plus juste est la même cup, dans la même saison, au
+même rang, dans deux régions. Le graphique place chaque région face à l'Europe au rang 100 : le seuil
+à ce rang, en part du seuil européen.</p>
+<!--data:region_chart {"rank": "100"}-->
+<p>Tout en haut, chaque région est proche de l'Europe – les meilleures équipes marquent partout à peu
+près autant avec le même barème. L'écart se creuse avec la profondeur, parce que le rang 1 000 est
+bien plus loin dans un plateau de 800 équipes que dans un de 3 000 :</p>
+<!--data:region_table-->
+<p class="muted">Rapport médian à l'Europe sur les cups de la saison {{season}} jouées dans les deux
+régions à ce rang. Un tiret : trop peu de cups atteignent ce rang dans la région pour conclure.</p>
+
+<!--ad-->
+
+<h2>Ce que ça change quand on joue</h2>
+<ul>
+<li><strong>N'emprunte pas le seuil d'une autre région.</strong> Un seuil européen appliqué à
+l'Océanie ou à l'Asie surestime le seuil, un peu au rang 100 et beaucoup au rang 1 000. La prévision
+lit toujours d'abord la région de la cup.</li>
+<li><strong>L'Amérique du Nord Est joue comme l'Europe.</strong> Ses plateaux sont les suivants en
+taille, et ses seuils au même rang restent à quelques pour cent de ceux de l'Europe jusqu'aux rangs
+profonds.</li>
+<li><strong>Un seuil fixé en part du plateau voyage mieux.</strong> « Top 25 % » est un rang plus
+profond dans une grande région et moins profond dans une petite, si bien que les points qu'il demande
+devraient moins varier d'une région à l'autre que ceux d'un rang fixe.</li>
+<li><strong>Les résultats des autres régions sont un indice, pas la réponse.</strong> Quand une cup est
+nouvelle dans ta région mais s'est déjà jouée ailleurs, la prévision combine les éditions des
+autres régions, rapportées au plateau, et les classements récents de ta région rejoués avec le
+barème de la cup – jamais le chiffre d'une autre région tel quel.</li>
+</ul>
+
+<h2>D'où viennent les chiffres</h2>
+<p>Le classement final de chaque cup est lu sur l'API publique Fortnite d'Osirion, et le modèle en
+garde les seuils à une série de rangs, rien sur les joueurs. Les rapports ci-dessus comparent, pour
+chaque cup jouée dans les deux régions pendant la saison {{season}}, le point de départ du modèle – les
+éditions récentes jouées de la même façon, la dernière comptant le plus. La
+<a href="~/fr/methode/">page méthode</a> en dit plus.</p>
+<p><a class="cta" href="~/?lang=fr">Ouvrir les prévisions</a></p>

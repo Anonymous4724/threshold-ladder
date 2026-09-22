@@ -1,0 +1,101 @@
+<!--page
+{"path": "fr/guides/points-pour-se-qualifier/", "pair": "points-to-qualify", "section": "guides", "order": 1,
+ "title": "Combien de points faut-il pour se qualifier dans une cup Fortnite ?",
+ "h1": "Combien de points faut-il pour se qualifier dans une cup Fortnite ?",
+ "description": "Ce qui fixe le seuil d'une cup Fortnite, ce que vaut l'édition de la semaine dernière, et les seuils habituels des cups les plus jouées de la saison, mesurés sur des milliers de tournois.",
+ "summary": "Ce qui fixe un seuil, ce que dit l'édition précédente, et les seuils habituels de la saison.",
+ "updated": "2026-09-22", "published": "2026-09-22", "data": "model"}
+-->
+<h1>Combien de points faut-il pour se qualifier dans une cup Fortnite ?</h1>
+<p class="lede">Il n'existe pas de chiffre unique, et quiconque en donne un sans préciser la cup,
+la région et le rang devine. Mais le seuil est loin d'être aléatoire : à un rang donné, celui d'une
+cup ne bouge que de quelques pour cent d'une semaine à l'autre, et ce qui le fait bouger se mesure.
+Ce guide passe en revue ces facteurs, chiffres de {{tournaments}} tournois à l'appui.</p>
+
+<h2>Cinq choses fixent le seuil</h2>
+<p><strong>Le barème.</strong> Chaque cup publie ce que vaut chaque place et ce que rapporte une
+élimination. Une Victory Cup qui paie 60 points la victoire et 2 par élimination et une session FNCS
+qui en paie 65 ne sont pas sur la même échelle : un « bon score » dans l'une ne dit pas grand-chose
+de l'autre. Le <a href="~/fr/guides/bareme/">guide du barème</a> passe en revue les barèmes
+courants.</p>
+<p><strong>Le nombre de parties.</strong> Les points s'additionnent partie après partie : une
+session de dix parties produit mécaniquement des totaux plus élevés qu'une de six. Dans la plupart
+des formats solo, duo et trio, l'équipe classée 20e finit avec entre deux cinquièmes et un peu plus
+de la moitié du maximum qu'une équipe pouvait marquer sur la session – une part bien plus stable que
+les points bruts.</p>
+<p><strong>La taille du plateau.</strong> Le rang 1 000 est le milieu du classement quand 2 000 équipes
+jouent, et tout en bas quand elles sont 1 100. En haut du classement, le nombre d'équipes compte peu
+– doubler l'effectif déplace le seuil au rang 20 d'environ 3,5 % – mais en profondeur il décide
+presque tout. Le <a href="~/fr/guides/rangs-profonds/">guide des rangs profonds</a> montre dans quelle
+mesure.</p>
+<p><strong>Le rang de la qualification.</strong> « Top 100 qualifié » et « top 2 500 qualifié » sont
+deux questions différentes. L'écart entre les deux dépend du plateau et du mode de jeu, pas d'une
+règle fixe.</p>
+<p><strong>La région, le format et la saison.</strong> La même cup coûte moins cher dans les régions
+aux plateaux plus petits, surtout loin dans le classement (voir <a href="~/fr/guides/regions/">les
+régions comparées</a>). Zéro construction, Reload et Battle Royale ont chacun leur échelle. Et une
+nouvelle saison peut monter ou baisser toutes les cups d'un coup – de plus d'un tiers au début d'une
+saison, d'un dixième vers le bas à une autre (voir <a href="~/fr/guides/nouvelle-saison/">ce que change
+une nouvelle saison</a>).</p>
+
+<h2>La semaine dernière, le meilleur repère</h2>
+<p>La plupart des cups reviennent chaque semaine ou tous les quelques jours, avec le même barème,
+dans la même région. Le chiffre le plus utile est donc ce qu'a coûté le même rang lors de l'édition
+précédente. Sur les {{targets}} tournois les plus récents, chacun prévu uniquement à partir de ce qui
+s'était terminé avant son jour :</p>
+<ul>
+<li>reporter le seuil de l'édition précédente tel quel donnait une erreur médiane de {{carry_ape}} ;</li>
+<li>la médiane de toutes les éditions de la catégorie de la cup, {{median_base_ape}} ;</li>
+<li>la prévision publiée ici, qui part de l'édition précédente et la corrige, {{model_ape}}.</li>
+</ul>
+<p>Les corrections portent sur ce que l'édition précédente ne peut pas savoir seule : les éditions
+récentes jouées de la même façon sont moyennées, la dernière pesant le plus, pour qu'une soirée
+exceptionnelle d'une équipe ne fixe pas le chiffre de la semaine suivante ; un plateau plus grand ou
+plus petit que la dernière fois déplace le seuil le long de l'échelle mesurée ; un changement de
+condition d'accès (une cup qui s'ouvre à des rangs inférieurs, par exemple) fait lire la dernière
+édition à la même condition ; et un changement de saison applique le décalage qu'ont montré les
+premières cups de la nouvelle saison.</p>
+<div class="note"><p>Une erreur médiane de {{model_ape}} signifie que, sur un seuil de 300 points, la
+moitié des prévisions tombent à moins de {{ape_points 300}} points environ du seuil final. L'autre
+moitié tombe plus loin, et c'est pour cela que chaque prévision est donnée avec une fourchette.</p></div>
+
+<!--ad-->
+
+<h2>Les cups les plus jouées de la saison en Europe</h2>
+<p>Le tableau ci-dessous donne le point de départ du modèle pour les cups les plus jouées de la saison
+en Europe : le seuil à chaque rang sur les éditions récentes jouées de la même façon, la dernière
+comptant le plus. Ce n'est pas la prévision de la prochaine édition – la prévision ajoute les
+corrections ci-dessus – mais c'est le bon ordre de grandeur à avoir en tête avant de lancer une
+partie.</p>
+<!--data:popular_cups {"region": "EU", "limit": 10}-->
+<p class="muted">Points en fin de session. Un tiret : l'édition n'a pas été lue aussi profond, ou le
+plateau est plus petit que ce rang.</p>
+
+<h2>Lire une prévision</h2>
+<p>Chaque prévision est un nombre et une fourchette. Le nombre est la meilleure estimation du seuil
+final à ce rang. La fourchette est mesurée, pas supposée : sur les cups passées, la part annoncée des
+seuils finaux est tombée dedans. Quand la prévision repose sur les éditions récentes de la cup, la
+fourchette est étroite ; quand la cup est nouvelle, ou que la saison vient de changer, elle s'élargit,
+et il est honnête de lire toute la fourchette plutôt que son milieu.</p>
+<p>Pendant la cup, la prévision évolue : le classement en direct est lu toutes les quelques minutes et
+pesé contre l'historique, et la fourchette se resserre au fil de la session.
+<a href="~/fr/guides/le-seuil-pendant-la-cup/">Comment le seuil évolue pendant une cup</a> explique ce
+que vaut le classement à chaque moment de la soirée.</p>
+
+<h2>Transformer un seuil en plan de jeu</h2>
+<p>Un seuil devient utile une fois divisé par le nombre de parties. Un seuil de 250 points en dix
+parties, c'est 25 points par partie en moyenne ; avec le barème FNCS (32 points pour la 10e place, 22
+pour la 15e, 2 par élimination), cela fait à peu près un top 15 avec deux éliminations, à chaque
+partie – ou quelques très bonnes parties et d'autres plus calmes. Trois réflexes aident :</p>
+<ol>
+<li><strong>Connaître le seuil avant la première partie.</strong> Vérifie dans le règlement combien
+d'équipes passent, et cherche ce rang dans la prévision. La <a href="~/fr/cette-semaine/">liste des cups
+de la semaine</a> donne déjà le rang qualificatif de chacune.</li>
+<li><strong>Ne pas lire le classement du début au pied de la lettre.</strong> Au tiers de la session,
+le seuil à ton rang n'est en général qu'à {{pace_open 0.3}} de sa valeur finale, et les cups
+diffèrent beaucoup à ce moment-là. Compare ton total à la prévision de fin, pas au classement.</li>
+<li><strong>Jouer la dernière heure.</strong> Dans une file ouverte de trois heures, environ un tiers
+du seuil final reste à marquer quand la dernière heure commence, et les dernières parties se terminent
+jusqu'à vingt minutes après la fermeture.</li>
+</ol>
+<p><a class="cta" href="~/?lang=fr">Ouvrir les prévisions</a></p>

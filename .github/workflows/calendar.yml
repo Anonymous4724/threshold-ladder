@@ -5,10 +5,13 @@
 # recovered. Every three hours this reads Osirion's public calendar (no key,
 # eight requests), writes the same derived rows calendar_snapshot.py writes
 # on the machine, keeps the replay tables that machine wrote for the rows
-# still listed (it has the boards, this runner does not), rebuilds the
-# standalone page, and commits. Nothing here needs a secret: the repository's
-# own token pushes to itself. The tracker's code is read from its own public
-# repository, so the two never carry two copies of it.
+# still listed (it has the boards, this runner does not), prices each row
+# with the model in this repository, rebuilds the page, the standalone file
+# and the site's pages (the week's list among them), and commits what
+# changed. Nothing here needs a secret: the repository's own token pushes to
+# itself. The tracker's code is read from its own public repository, into
+# tracker/ - which .gitignore keeps out of the commit - so the two never
+# carry two copies of it.
 name: Refresh the calendar
 
 on:
@@ -35,13 +38,13 @@ jobs:
       # The runner's own Python: both scripts are standard library only.
       - name: Refresh calendar.js
         run: python3 tracker/src/calendar_snapshot.py --out calendar.js --days 7
-      - name: Rebuild the page
+      - name: Rebuild the page and the site
         run: python3 build.py
       - name: Commit what changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add calendar.js index.html standalone.html model.js
+          git add -A
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
           git commit -m "Calendar refresh $(date -u +%Y-%m-%dT%H:%MZ)"
           git pull --rebase

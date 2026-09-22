@@ -11,6 +11,13 @@ avec quelle agressivité, devine. Cette page estime la réponse à partir du bar
 du tournoi, de son effectif, et de ce qu'ont fait les éditions précédentes de
 tournois comparables.
 
+Autour, le site propose [les cups de la semaine](https://fortnitepredcomp.com/fr/cette-semaine/)
+avec la prévision au rang qualificatif de chacune, et des
+[guides](https://fortnitepredcomp.com/fr/guides/) sur ce qui fait un seuil —
+barème, rythme d'une session, régions, rangs profonds, nouvelles saisons, cups
+inédites — chacun appuyé sur les mêmes données que le modèle, en français et en
+anglais.
+
 Aucune installation, aucun compte, aucune clé d'API. Deux façons de l'avoir :
 
 - **le site** — [il s'ouvre ici](https://fortnitepredcomp.com/)
@@ -318,6 +325,12 @@ celui du dessus ne peut pas :
    elle est reprise telle quelle, la fourchette élargie. La dernière édition est
    lue aussi profond qu'elle a été moissonnée, et un rang au-delà vient d'une
    plus ancienne : la page dit quelle édition elle a lue, et de quelle saison.
+   La lecture elle-même est la suite des éditions récentes jouées comme la
+   dernière — même condition d'accès, même saison, mêmes parties, même barème —
+   moyennée en logarithme, la dernière pesant 0,7 et chacune des précédentes 0,7
+   de ce qui reste : la grosse soirée d'une équipe ne fixe plus le chiffre de la
+   semaine suivante, ce qui resserre la queue de l'erreur sans bouger sa
+   médiane.
 2. **Le niveau de la cup multiplié par une forme mesurée** — ce que valait
    chaque rang par rapport au rang 20, sur les éditions de cette cup. Une table,
    pas une courbe.
@@ -340,7 +353,11 @@ celui du dessus ne peut pas :
    moitié de cette lecture et moitié de celle-ci. Le rejeu est écrit à côté du
    calendrier de la semaine par la machine qui détient les classements ; la
    page lit une douzaine de nombres par cup et dit sur combien de classements
-   ils reposent et jusqu'à quelle profondeur.
+   ils reposent et jusqu'à quelle profondeur. Une cup ouverte depuis le
+   calendrier est la cup que le calendrier nomme — son propre libellé, celui du
+   modèle — et jamais une voisine dont le nom partage ses mots : rapprocher les
+   noms a un jour chiffré une cup solo en Zéro construction d'après une cup en
+   trio, 463 points au rang 100 là où le rejeu de son propre format disait 294.
 5. **Les finales du même format, par part du lobby**, pour une finale jouée dans
    un seul lobby dont aucune édition n'a été vue — le cas habituel d'un Round 2
    dont le modèle connaît le Round 1. Les deux échelons qui l'encadrent sont
@@ -361,17 +378,17 @@ d'Osirion — la page affiche exactement sur combien il a été entraîné, et d
 
 Mesuré comme une prévision : chacun des 600 tournois les plus récents prédit à
 partir de tout ce qui s'était terminé avant son jour, sans que rien ne voie le
-futur (7 329 tournois au 8 septembre 2026 ; les chiffres sont remesurés avec
-chaque modèle et voyagent avec lui).
+futur (7 632 tournois au 22 septembre 2026 ; les chiffres sont remesurés tous
+les trois jours et voyagent avec le modèle).
 
 | tranche de rangs | erreur médiane, cup déjà vue |
 |---|---:|
-| top 1 – 5 | 4,2 % |
+| top 1 – 5 | 4,3 % |
 | top 6 – 25 | 2,1 % |
-| top 26 – 100 | 1,8 % |
-| top 101 – 500 | 2,0 % |
-| au-delà de 500 | 3,8 % |
-| **ensemble** | **2,5 %** |
+| top 26 – 100 | 2,2 % |
+| top 101 – 500 | 2,6 % |
+| au-delà de 500 | 5,6 % |
+| **ensemble** | **2,8 %** |
 
 La prédiction est donnée avec deux fourchettes plutôt qu'une, et les deux sont
 mesurées sur ces mêmes tournois tenus à l'écart plutôt que supposées : les
@@ -383,9 +400,10 @@ fourchette large dit de combien on peut se tromper. Les deux sont
 asymétriques, comme les erreurs : un seuil peut doubler, il ne peut pas
 descendre sous zéro.
 
-91 % des seuils réels tombent dans une fourchette qui en annonce 80 %. Lire tel
-quel le résultat de la semaine dernière donne 2,8 % ; c'est la correction
-d'effectif du premier barreau qui met le modèle devant.
+94 % des seuils réels tombent dans une fourchette qui en annonce 80 %. Lire tel
+quel le résultat de la semaine dernière donne 3,1 % sur les mêmes lignes, et
+9,2 % au-delà du rang 500 là où le modèle lit 5,6 % ; les cinq premiers rangs
+sont la seule tranche où il fait aussi bien que le modèle.
 
 Ces chiffres ne sont pas tapés dans la page : ils sont emportés par le fichier
 du modèle depuis la mesure qui les a produits, affichés avec cette date, et
@@ -400,10 +418,13 @@ Deux réserves que la page répète là où elles s'appliquent :
   classement à rejouer lit encore le barème, avec environ 14 % ; une finale à
   lobby unique jamais vue, depuis les finales de son format, avec environ 7 %.
   La page indique dans lequel de ces cas elle se trouve.
-- La courbe de rythme du mode direct est mesurée, mais la règle qui combine
-  relevés et historique n'a pas été validée sur des tournois tenus à l'écart. Le
-  chiffre en direct est une indication avec une fourchette mesurée, pas un
-  résultat.
+- Le raffinement en direct est mesuré sur des soirées tenues à l'écart : entre le
+  tiers et les deux tiers de la session, la réponse était à environ 3 % du final
+  en médiane, et ses fourchettes ont contenu 46 % et 88 % des finaux là où elles
+  en annoncent 50 et 90 %. Le poids des relevés face à l'historique est remesuré
+  tous les trois jours sur les soirées suivies par le flux. Cela reste une
+  prévision avec une fourchette, pas un résultat, tant que le classement n'est
+  pas définitif.
 
 ## Vie privée
 
@@ -412,17 +433,59 @@ d'audience, aucun stockage au-delà d'une soirée en cours et des soirées
 sauvegardées, gardées par le navigateur. La page s'ouvre sur le calendrier de
 la semaine et un formulaire vide.
 
-La page hébergée affiche une bannière publicitaire, servie par Google ; les
-visiteurs européens se voient demander leur consentement d'abord, et la
-bannière n'a d'effet sur rien d'autre dans la page. Quand un tournoi en cours
-est ouvert, elle demande aussi au flux du site le classement actuel de cette
-cup, une requête qui ne contient rien sur toi. La [note de
-confidentialité](privacy.html) dit exactement ce que fait chacune. Le fichier
-autonome ne porte aucune bannière et ne fait aucune requête, à la police
-système près.
+Les pages hébergées peuvent afficher de la publicité servie par Google ; les
+visiteurs européens se voient demander leur choix d'abord, et la publicité n'a
+d'effet sur rien d'autre dans la page. Les pages chargent leur police depuis
+Google Fonts, et quand un tournoi en cours est ouvert, la prévision demande au
+flux du site le classement actuel de cette cup, une requête qui ne contient rien
+sur toi. La [note de confidentialité](https://fortnitepredcomp.com/fr/confidentialite/)
+dit exactement ce que fait chacune. Le fichier autonome ne porte ni publicité ni
+police web, et ne fait aucune requête.
 
 Les données de tournois viennent de l'API publique Fortnite
 d'[Osirion](https://osirion.gg).
+
+## Le construire
+
+`python build.py` écrit tout ce que l'hébergeur sert à partir de ce dossier,
+bibliothèque standard seulement :
+
+| depuis | vers |
+|---|---|
+| `src/app.html` + `model.json` + `calendar.js` | `index.html` + `model.js`, et `standalone.html` |
+| `src/site/pages/en/*.html`, `src/site/pages/fr/*.html` | les guides, la semaine, la méthode, à propos, contact, confidentialité — un dossier par page, `fr/` pour le français |
+| `src/site/site.css`, `src/site/site.js` | les deux mêmes fichiers, partagés par ces pages |
+| tout ce qui précède | `sitemap.xml`, `robots.txt`, `404.html`, `privacy.html` (qui renvoie désormais à `privacy/`) |
+
+Une page de `src/site/pages/` est un fragment HTML derrière un court en-tête
+JSON (son adresse, son titre, sa description, et la page dont elle est la
+traduction). Les chiffres de sa prose ne sont pas tapés : `{{model_ape}}`,
+`{{pace_open 0.5}}` ou `<!--data:region_chart {"rank": "100"}-->` sont lus dans le
+modèle et le calendrier à chaque construction, pour qu'un guide ne cite jamais un
+chiffre que le modèle a révisé depuis. `sitegen.py` dit lesquels existent.
+`python build.py --check` échoue dès qu'un fichier construit est en retard sur
+ses sources.
+
+`site.json` porte les réglages du site, tous facultatifs sauf le flux :
+
+```json
+{"live": "https://…workers.dev", "name": "Threshold Ladder",
+ "url": "https://fortnitepredcomp.com", "contact": "hello@example.com"}
+```
+
+`name` est le nom du site dans chaque titre et chaque en-tête ; `url` son
+adresse pour les liens canoniques et le plan du site (sans elle, le domaine de
+`CNAME`) ; `contact` une adresse à laquelle écrire (sans elle, la page contact
+ne propose que les tickets). Changer de nom ou de domaine, c'est ces deux lignes,
+`CNAME`, le `SITE` du worker dans `worker/wrangler.toml`, et le DNS du domaine ;
+les pages suivent à la construction suivante.
+
+La liste de la semaine lit la prévision de chaque cup dans `calendar.js`, où le
+`calendar_snapshot.py` du tracker l'écrit à partir du même modèle
+(`export_model.calendar_forecast`, vérifié contre cette page ligne à ligne) :
+la liste dit ce que dirait la page sans la faire tourner. Le workflow du dépôt
+reconstruit tout toutes les trois heures avec le calendrier et publie ce qui a
+changé.
 
 ---
 

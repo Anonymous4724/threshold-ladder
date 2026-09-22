@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comment les prévisions sont faites, et leur précision — Threshold Ladder</title>
+<meta name="description" content="D&#x27;où viennent les données, comment le seuil d&#x27;une cup Fortnite est prévu avant la cup et pendant, comment les prévisions sont testées sur des tournois qu&#x27;elles n&#x27;ont pas vus, et où elles cessent d&#x27;être fiables.">
+<link rel="canonical" href="https://fortnitepredcomp.com/fr/methode/">
+<link rel="alternate" hreflang="fr" href="https://fortnitepredcomp.com/fr/methode/">
+<link rel="alternate" hreflang="en" href="https://fortnitepredcomp.com/methodology/">
+<link rel="alternate" hreflang="x-default" href="https://fortnitepredcomp.com/methodology/">
+<meta property="og:title" content="Comment les prévisions sont faites, et leur précision">
+<meta property="og:description" content="D&#x27;où viennent les données, comment le seuil d&#x27;une cup Fortnite est prévu avant la cup et pendant, comment les prévisions sont testées sur des tournois qu&#x27;elles n&#x27;ont pas vus, et où elles cessent d&#x27;être fiables.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fortnitepredcomp.com/fr/methode/">
+<meta property="og:site_name" content="Threshold Ladder">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#e8a13a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23e8a13a'/><path d='M22 72h14V40H22zm20 0h14V26H42zm20 0h14V52H62z' fill='%23161a24'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300;0,400;0,600;0,800;1,400&family=Chivo+Mono:wght@300;400;600&display=swap">
+<link rel="stylesheet" href="../../site.css">
+<meta name="google-adsense-account" content="ca-pub-3205233819198856">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3205233819198856" crossorigin="anonymous"></script>
+</head>
+<body class="site">
+<a class="skip" href="#content">Aller au contenu</a>
+<header class="site-top"><a class="mark" href="../../fr/">THRESHOLD <span>LADDER</span></a><nav class="site-nav" aria-label="Main"><a href="../../?lang=fr">Prévisions</a><a href="../../fr/cette-semaine/">Cette semaine</a><a href="../../fr/guides/">Guides</a><a href="../../fr/methode/" aria-current="page">Méthode</a><a href="../../fr/a-propos/">À propos</a></nav><a class="lang-switch" href="../../methodology/" hreflang="en" lang="en" title="English">EN</a></header>
+<main id="content" class="prose">
+<h1>Comment les prévisions sont faites, et leur précision</h1>
+<p class="lede">Threshold Ladder prévoit combien de points un rang donné demandera dans un tournoi
+Fortnite, avant qu'il commence et pendant qu'il se joue. Cette page explique d'où viennent les
+chiffres, comment ils sont faits, comment ils sont testés, et où il ne faut pas s'y fier.</p>
+
+<h2>Les données</h2>
+<p>Tout part de l'API publique Fortnite d'Osirion : le calendrier des tournois d'Epic, le barème de
+chaque événement et les classements finaux. Un moissonneur les lit chaque jour ; le modèle est
+entraîné sur 94 286 seuils relevés sur 7 632 tournois (modèle du 22 septembre 2026). Un
+seuil, ce sont les points de l'équipe classée à un rang donné quand le classement est définitif.</p>
+<p>Les classements enregistrent aussi, pour chaque équipe, sa place et ses éliminations dans chaque
+partie et l'heure de fin de chaque partie. On peut donc reconstruire le classement à n'importe quel
+moment d'une session passée – c'est ainsi que la partie en direct de la prévision est mesurée – et
+recompter des parties passées avec un autre barème – c'est ainsi que les cups nouvelles sont
+chiffrées.</p>
+<p>Ce que le site publie est dérivé : des prévisions, et des statistiques comme des médianes et des
+parts. Il ne republie pas les classements ; le classement complet d'une cup est à un clic sur
+osirion.gg, vers lequel la prévision renvoie.</p>
+
+<h2>Avant la cup : une cascade de lectures</h2>
+<p>La prévision essaie d'abord la lecture la plus directe et ne descend que si elle y est
+obligée :</p>
+<ol>
+<li><strong>Les éditions précédentes de la cup.</strong> Même cup, même région, même format, même
+rang, les dernières fois qu'elle a été jouée de la même façon, la dernière comptant le plus. Corrigée
+d'un plateau différent de la dernière fois, d'un changement de condition d'accès, et d'un changement de
+saison.</li>
+<li><strong>Le niveau de la cup fois sa forme mesurée</strong>, pour les rangs que ses éditions n'ont
+pas atteints : le seuil au rang 20, fois ce que chaque rang valait face au rang 20 dans ses
+éditions.</li>
+<li><strong>L'échelle</strong>, pour les rangs qu'aucune édition n'a mesurés : ce que vaut chaque rang
+face au rang 20 sur toutes les files ouvertes de même taille et de même mode (voir
+<a href="../../fr/guides/rangs-profonds/">les rangs profonds</a>).</li>
+<li><strong>Les classements récents rejoués avec le barème de la cup</strong>, pour une cup sans
+édition dans sa région (voir <a href="../../fr/guides/nouvelles-cups/">les cups inédites</a>), combinés à
+ses éditions dans d'autres régions quand elle en a.</li>
+<li><strong>Les finales du même format</strong>, pour une finale jouée en lobby unique.</li>
+<li><strong>Le barème seul</strong>, en dernier recours : la part du score maximum possible
+qu'atteint le rang 20 dans les cups du même genre.</li>
+</ol>
+<p>Chaque prévision a une fourchette. Sa demi-largeur vient de ce qu'a bougé par le passé la lecture
+utilisée – entre deux éditions de la cup, pour le premier échelon – et la largeur nécessaire pour que
+la moitié, ou neuf sur dix, des seuils finaux tombent dedans est mesurée sur des tournois que le
+modèle n'avait pas vus.</p>
+
+
+
+<h2>Pendant la cup : le classement en direct</h2>
+<p>Pendant une cup, un petit service lit son classement public toutes les cinq minutes. Chaque relevé
+est comparé à la part de sa valeur finale qu'un seuil a en général atteinte à ce moment de la session
+– mesurée sur 3 210 files ouvertes et 639 lobbys uniques rejoués, par genre de
+cup – et pesé contre la prévision faite avant la cup, chacun selon la précision qu'il a montrée sur les
+soirées passées. Les points déjà au classement sont un plancher : un seuil ne baisse jamais.
+<a href="../../fr/guides/le-seuil-pendant-la-cup/">Comment le seuil évolue pendant une cup</a> entre dans
+le détail.</p>
+
+<h2>Quelle précision</h2>
+<p>Le test qui compte est celui que vit un joueur : prévoir une cup à partir de ce qui s'était terminé
+avant elle. Les 600 tournois les plus récents – tout depuis le 17 août 2026 – ont chacun été prévus
+uniquement à partir des tournois terminés avant leur jour, puis comparés à leur classement final
+(6 100 seuils) :</p>
+<div class="scroll"><table class="data"><thead><tr><th>Ce qui est prévu</th><th>Erreur médiane</th><th>Dans la fourchette annoncée</th></tr></thead><tbody><tr><td>Tous les seuils des 600 tournois les plus récents</td><td>5,2 %</td><td>94 %</td></tr><tr><td>Cups qui ont une édition précédente (là où le modèle et les deux références répondent)</td><td>2,8 %</td><td>—</td></tr><tr><td>… les mêmes lignes, dernière édition reportée</td><td>3,1 %</td><td>—</td></tr><tr><td>… les mêmes lignes, médiane de la catégorie</td><td>5,6 %</td><td>—</td></tr><tr><td>Cups jamais vues dans leur région, depuis le seul barème</td><td>10,3 %</td><td>—</td></tr><tr><td>Finales jouées en lobby unique</td><td>13,5 %</td><td>—</td></tr></tbody></table></div>
+<p class="muted">Erreur absolue médiane, en pour cent du seuil final. « Dans la fourchette annoncée » :
+la part des seuils finaux dans la fourchette principale de la prévision, qui en annonce 80 % ; les
+fourchettes à 50 % et à 90 % du site sont mesurées sur les mêmes erreurs. Mesuré le 22 septembre 2026,
+et remesuré tous les trois jours au fil des tournois.</p>
+<p>Trois réserves honnêtes. Les cups déjà vues par le modèle sont les plus faciles, et l'essentiel de
+l'erreur se concentre sur les autres. Les cinq premiers rangs sont la partie la plus bruitée de tout
+classement : là, reporter la semaine passée fait à peu près aussi bien que le modèle. Et une soirée
+peut toujours tomber hors de la fourchette – une sur dix, par construction, tombe hors de la
+fourchette à 90 %.</p>
+
+<h2>Où elle cesse d'être fiable</h2>
+<ul>
+<li><strong>Les premières cups d'une nouvelle saison</strong>, avant que quoi que ce soit ait montré
+dans quel sens la saison déplace les seuils (voir <a href="../../fr/guides/nouvelle-saison/">les nouvelles
+saisons</a>).</li>
+<li><strong>Les formats sans historique ni rien à rejouer</strong> : les toutes premières cups d'un
+nouveau mode, les événements de type Arène sans nombre fixe de parties.</li>
+<li><strong>Les rangs très profonds des plus grands plateaux</strong> : les classements publics
+s'arrêtent vers 9 950 équipes, et les rangs proches de ce plafond reposent sur moins de
+classements.</li>
+<li><strong>Tout ce que le règlement change le jour même</strong> – une session raccourcie, un barème
+corrigé après publication. La prévision lit le règlement tel que publié.</li>
+</ul>
+
+<h2>Le code et les notes complètes</h2>
+<p>Tout le projet est open source. La page et son code de prévision sont dans le dépôt
+<a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">threshold-ladder</a> ; le
+moissonneur, l'entraînement du modèle et chaque mesure citée sur ce site sont dans
+<a href="https://github.com/Anonymous4724/fortnite-tracker" rel="noopener">fortnite-tracker</a>, dont la
+<a href="https://github.com/Anonymous4724/fortnite-tracker/blob/main/docs/methodology.md" rel="noopener">note
+de méthodologie</a> (en anglais) consigne chaque changement du modèle et ce qu'il a été mesuré
+apporter.</p>
+
+<p class="stamp">Mis à jour le 22 septembre 2026</p></main>
+<footer class="site-foot"><p class="foot-nav"><a href="../../fr/a-propos/">À propos</a> · <a href="../../fr/contact/">Contact</a> · <a href="../../fr/confidentialite/">Confidentialité</a> · <a href="../../fr/methode/">Méthode et précision</a> · <a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">Code source</a></p><p>Données de tournois issues de l'API publique Fortnite d'<a href="https://osirion.gg" rel="noopener">Osirion</a>. Les prévisions sont des estimations statistiques, pas des garanties.</p><p>Un projet de fan indépendant, sans lien avec Epic Games ni Osirion.</p><p lang="en">Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. All rights reserved by Epic. This material is not official and is not endorsed by Epic.</p><p lang="fr">Certains éléments utilisés sont des marques et/ou des œuvres protégées d&#x27;Epic Games, Inc. Tous droits réservés par Epic. Ce contenu n&#x27;est ni officiel ni approuvé par Epic.</p><p>© 2026 Threshold Ladder</p></footer>
+<script src="../../site.js" defer></script>
+</body>
+</html>

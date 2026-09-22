@@ -1,0 +1,86 @@
+<!--page
+{"path": "guides/scoring/", "pair": "scoring", "section": "guides", "order": 2,
+ "title": "Fortnite tournament scoring explained: placement, eliminations and caps",
+ "h1": "Fortnite tournament scoring, explained",
+ "description": "How Fortnite cups turn placements and eliminations into points, the FNCS and Victory Cup tables, elimination and game caps, and what the scoring does to the cutoff.",
+ "summary": "Placement and elimination points, the common tables, caps, and what a table does to the cutoff.",
+ "updated": "2026-09-22", "published": "2026-09-22", "data": "model"}
+-->
+<h1>Fortnite tournament scoring, explained</h1>
+<p class="lede">Every competitive Fortnite session turns each game into points: points for where
+your team finished, points for the eliminations it made, added up over the games you play. The
+table is published in each event's rules, and it decides what a cutoff looks like long before
+anyone queues.</p>
+
+<h2>Two kinds of points</h2>
+<p><strong>Placement points</strong> reward surviving. The winner of a game takes the biggest share,
+and the points fall with each place until they stop – after 25th place in the FNCS table below,
+after 50th in the Solo Victory Cup's. A team eliminated early in a game scores nothing for its
+placement.</p>
+<p><strong>Elimination points</strong> reward fighting: a fixed number per elimination, usually one
+or two, sometimes capped per game. In team modes every elimination the team makes counts for the
+team.</p>
+<p>A team's score in a session is the sum over its games. Where a cup allows a maximum number of
+games in its window, only those games can be played; in some events only the best few count. The
+rules of each event say which.</p>
+
+<h2>The common tables</h2>
+<p>The FNCS Division tables on file share one placement table and differ only in the elimination
+points: two per elimination in Division 1, one in Division 2, none in the Division 3 table. Keeping
+the placement table and removing the eliminations is how an event makes itself about surviving
+rather than fighting.</p>
+<!--data:scoring_table {"name": "FNCS Division 1"}-->
+<p>Victory Cups use a longer table, which pays down to 50th place in solo, and two points per
+elimination. That is the "60 for a win, 2 per kill" table many players know by heart.</p>
+<!--data:scoring_table {"name": "Solo victory cup"}-->
+<p>Reload cups are shorter games in smaller lobbies, and their tables are shorter too: in the Reload
+Duo Victory Cup, the win is worth 60, 15th place still scores 3, and eliminations count 2 each up to
+ten a game.</p>
+
+<!--ad-->
+
+<h2>The most a team can score</h2>
+<p>A useful way to compare tables is the most a team could score in one game: the winner's placement
+points plus a very good game of eliminations. Under the FNCS Division 1 table that is 65 for the win
+plus, say, eight eliminations at two points, 81 in all; under the Solo Victory Cup table, 60 plus 16,
+76. Multiply by the number of games and you have the ceiling of the session.</p>
+<p>Nobody reaches the ceiling, but the cutoff sits at a remarkably steady share of it. This share is
+the forecast's last resort for a cup it has never seen and has no recent leaderboard to replay: the
+rank-20 threshold as a share of the maximum, measured on cups of the same format.</p>
+<!--data:mode_shares-->
+<p class="muted">Rank 20's final score divided by the session's maximum (the winner's placement
+points plus eight eliminations, or the elimination cap, per game, times the games played), the
+median over the cups measured. Squad formats run far higher, most likely because the ceiling counts
+eight eliminations a game whatever the team size, and a squad of four makes more than that.</p>
+
+<h2>Caps: eliminations and games</h2>
+<p>An <strong>elimination cap</strong> limits the points one game can give for eliminations – ten
+per game in the Reload tables above. It takes the extreme games out of the board, which pulls the
+top scores down and should matter little for a cutoff hundreds of places deeper.</p>
+<p>A <strong>game cap</strong> limits how many games count in an open window: a three-hour session
+with a cap of ten games cannot be won by playing fifteen. Where a cup has no cap, the number of games
+you can play depends on how long each lasts – around 30 minutes in Battle Royale and Zero Build,
+under 20 in Reload, about 12 in Blitz – and the forecast counts the games a full window allows.</p>
+
+<h2>What the table does to the cutoff</h2>
+<p>Three things follow from the tables, and they are worth knowing before a session:</p>
+<ul>
+<li><strong>Consistency beats one big game at deep cuts.</strong> Placement points keep coming as
+long as you survive; a cutoff at rank 500 or 1,000 is mostly made of mid-table placements over every
+game. One twelve-elimination game rarely makes up for three early exits.</li>
+<li><strong>Eliminations matter most near the top.</strong> The teams that finish in the top few
+places usually combined wins with many eliminations; under a table with no elimination points
+the top of the board tends to bunch much closer together.</li>
+<li><strong>Compare shares, not raw points.</strong> 250 points is a strong score over six games
+and an ordinary one over twelve. The forecast works from the table and the number of games for that
+reason, and the <a href="~/guides/points-to-qualify/">guide to cutoffs</a> shows what that means in
+practice.</li>
+</ul>
+
+<h2>Entering a table in the forecast</h2>
+<p>For the week's cups the forecast reads the table from the event's published rules by itself.
+For a cup typed by hand, paste the table one line per place, <code>1 = 65</code>, <code>2 = 56</code>,
+and so on (a range such as <code>11-15 = 20</code> works too), then the points per elimination and the
+cap if there is one. The forecast says how many places it recognised, so a table pasted wrongly shows
+at once.</p>
+<p><a class="cta" href="~/">Open the forecast</a></p>

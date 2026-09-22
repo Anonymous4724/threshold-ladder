@@ -1,0 +1,91 @@
+<!--page
+{"path": "methodology/", "pair": "methodology", "section": "method",
+ "title": "How the forecasts work, and how accurate they are",
+ "description": "Where the data comes from, how a Fortnite cup's cutoff is forecast before the cup and during it, how the forecasts are tested on tournaments they have not seen, and where they stop being reliable.",
+ "updated": "2026-09-22", "data": "model"}
+-->
+<h1>How the forecasts work, and how accurate they are</h1>
+<p class="lede">{{site_name}} forecasts how many points a given rank will take in a Fortnite
+tournament, before it starts and while it runs. This page explains where the numbers come from, how
+they are made, how they are tested, and where they should not be trusted.</p>
+
+<h2>The data</h2>
+<p>Everything starts from Osirion's public Fortnite API: Epic's tournament calendar, each event's
+scoring rules, and the final leaderboards. A harvester reads them every day; the model is trained on
+{{thresholds}} thresholds from {{tournaments}} tournaments (model of {{model_date}}). A threshold is
+the points held by the team at a given rank when the leaderboard is final.</p>
+<p>The leaderboards also record, for each team, its placement and eliminations in every game and
+when each game ended. That makes it possible to rebuild the board at any moment of a past session,
+which is how the live part of the forecast is measured, and to score past games again under another
+table, which is how new cups are priced.</p>
+<p>What the site publishes is derived: forecasts, and statistics such as medians and shares. It does
+not republish leaderboards; the full standings of a cup are one click away on osirion.gg, which the
+forecast links to.</p>
+
+<h2>Before the cup: a cascade of readings</h2>
+<p>The forecast tries the most direct reading first and moves down only when it has to:</p>
+<ol>
+<li><strong>The cup's previous editions.</strong> The same cup, region, format and rank, the last
+times it was played the same way, the latest counting most. Corrected for a field that differs from
+last time, for a change in who may enter, and for a change of season.</li>
+<li><strong>The cup's level times its measured shape</strong>, for ranks its editions did not reach:
+the threshold at rank 20, times what each rank was worth against rank 20 in its editions.</li>
+<li><strong>The ladder</strong>, for ranks no edition measured: what each rank is worth against
+rank 20 across every open queue of the same size and mode (see <a href="~/guides/deep-ranks/">deep
+ranks</a>).</li>
+<li><strong>Recent leaderboards replayed under the cup's table</strong>, for a cup with no edition in
+its region (see <a href="~/guides/new-cups/">brand-new cups</a>), combined with its editions in other
+regions where it has some.</li>
+<li><strong>The finals of the same format</strong>, for a final played in a single lobby.</li>
+<li><strong>The scoring table alone</strong>, as the last resort: the share of the maximum possible
+score that rank 20 reaches in cups of the same kind.</li>
+</ol>
+<p>Every forecast carries a range. The half-width comes from how much the reading used has moved in
+the past – between two editions of the cup, for the first rung – and how wide the range must be for
+half, or nine in ten, of the final thresholds to fall inside it is measured on tournaments the model
+had not seen.</p>
+
+<!--ad-->
+
+<h2>During the cup: the live board</h2>
+<p>While a cup runs, a small service reads its public standings every five minutes. Each reading is
+compared with the share of its final value a threshold has typically reached at that point of the
+session – measured on {{boards_open}} replayed open queues and {{boards_closed}} single lobbies, by
+kind of cup – and weighed against the forecast made before the cup, each according to how precise it
+has proven on past evenings. The points already on the board are a floor: a threshold never falls.
+<a href="~/guides/cut-during-a-cup/">How the cutoff moves during a cup</a> goes into detail.</p>
+
+<h2>How accurate it is</h2>
+<p>The test that matters is the one a player lives: forecasting a cup from what had finished before
+it. The newest {{targets}} tournaments – everything since {{from}} – were each forecast only from the
+tournaments that had finished before their day, and compared with their final leaderboards
+({{validated}} thresholds):</p>
+<!--data:quality_table-->
+<p class="muted">Median absolute error, in per cent of the final threshold. "Inside the quoted range":
+the share of final thresholds inside the forecast's main range, which claims 80%; the site's own
+50% and 90% ranges are measured from the same errors. Measured {{quality_date}}, and measured again
+every three days as tournaments are added.</p>
+<p>Three honest caveats. The cups the model has seen before are the easy ones, and most of the
+error is concentrated in the others. The top five ranks are the noisiest part of any leaderboard:
+there, carrying last week forward is about as good as the model. And a single evening can always
+land outside the range – one in ten, by construction, lands outside the 90% range.</p>
+
+<h2>Where it stops being reliable</h2>
+<ul>
+<li><strong>The first cups of a new season</strong>, before anything has shown which way the season
+moves thresholds (see <a href="~/guides/new-season/">new seasons</a>).</li>
+<li><strong>Formats with no history and nothing to replay</strong>: the very first cups of a new mode,
+Arena-style events with no fixed number of games.</li>
+<li><strong>Very deep ranks in the biggest fields</strong>: the public leaderboards stop at about
+9,950 teams, so ranks near that ceiling rest on fewer leaderboards.</li>
+<li><strong>Anything the rules change on the day</strong> – a session shortened, a scoring table
+corrected after publication. The forecast reads the rules as published.</li>
+</ul>
+
+<h2>The code and the full notes</h2>
+<p>The whole project is open source. The page and its forecasting code are in the
+<a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">threshold-ladder</a>
+repository; the harvester, the model's training and every measurement quoted on this site are in
+<a href="https://github.com/Anonymous4724/fortnite-tracker" rel="noopener">fortnite-tracker</a>, whose
+<a href="https://github.com/Anonymous4724/fortnite-tracker/blob/main/docs/methodology.md" rel="noopener">methodology
+note</a> records each change to the model and what it was measured to do.</p>

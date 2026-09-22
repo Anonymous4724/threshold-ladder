@@ -15,3 +15,8 @@ publish.bat
 
 # What the live feed serves; it never lives in the repository.
 live.json
+
+# The tracker's code, checked out beside this one by the calendar workflow
+# (.github/workflows/calendar.yml) to write calendar.js; it is read, never
+# committed here.
+/tracker/

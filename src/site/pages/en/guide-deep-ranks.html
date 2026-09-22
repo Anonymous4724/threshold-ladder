@@ -1,0 +1,63 @@
+<!--page
+{"path": "guides/deep-ranks/", "pair": "deep-ranks", "section": "guides", "order": 5,
+ "title": "Top 100 or top 1,000: how field size changes deep Fortnite cutoffs",
+ "h1": "Top 100 or top 1,000: why deep cutoffs behave differently",
+ "description": "How the points needed fall from rank 1 to rank 2,500 in Fortnite open queues, why the size of the field decides the deep cutoffs, and what that means for percentage cuts.",
+ "summary": "How points fall with rank, and why the field size decides the deep cutoffs.",
+ "updated": "2026-09-22", "published": "2026-09-22", "data": "model"}
+-->
+<h1>Top 100 or top 1,000: why deep cutoffs behave differently</h1>
+<p class="lede">The winner of a cup and the team at rank 20 are usually not far apart in points.
+The team at rank 1,000 can be almost anywhere: close behind in a huge field, at a fraction of the
+top's score in a small one. The shape of the leaderboard – how points fall with rank – is what a
+deep cutoff depends on, and it is set above all by how many teams play.</p>
+
+<h2>The shape of a leaderboard</h2>
+<p>The chart takes rank 20 as the reference and shows what the other ranks are worth against it,
+for Battle Royale open queues of three sizes. Each line is the median over every harvested
+leaderboard of that size.</p>
+<!--data:ladder_chart {"mode": "Battle Royale"}-->
+<p>Three things stand out:</p>
+<ul>
+<li><strong>The top is the same everywhere.</strong> Whatever the field, the winner finishes about a
+quarter above rank 20, and rank 10 a few per cent above it.</li>
+<li><strong>Rank 100 moves a little.</strong> It is worth {{ladder 650 1000 100}} of rank 20 in a
+field of 650 to 1,000 teams and {{ladder 6500 9900 100}} in a field of 6,500 or more.</li>
+<li><strong>Rank 500 and beyond depend on the field.</strong> Rank 500 is worth {{ladder 650 1000 500}}
+of rank 20 in the small field, {{ladder 2000 3000 500}} in a field of 2,000 to 3,000 and
+{{ladder 6500 9900 500}} in the biggest; rank 1,000, {{ladder 2000 3000 1000}} against
+{{ladder 6500 9900 1000}}.</li>
+</ul>
+<p>The reason is simple: what matters is not the rank but how deep into the field it is. Rank 1,000
+of 1,100 teams is the bottom of the board, made of teams that played two or three games; rank 1,000 of
+9,000 is the top ninth, made of teams that played the whole session well.</p>
+
+<!--ad-->
+
+<h2>Why a curve is not enough</h2>
+<p>A natural idea is to fit one smooth curve, points against rank, and read any rank off it. The
+forecast did that at first, with a curve per band of field size, and out of sample it ran 9% low at
+rank 500 and 13% low at rank 1,000: two parameters cannot bend both ends of a ladder at once. It now
+reads the measured ladder – the medians charted above, in eleven bands of field size and per game
+mode – and keeps the curve only where too few leaderboards reach a rank. At the deep ranks the error
+of the shape roughly halved.</p>
+
+<h2>What field size does to a cutoff</h2>
+<ul>
+<li><strong>At the top, almost nothing.</strong> Doubling the number of teams moves the threshold at
+rank 20 by about 3.5%. A bigger field means a few more strong teams, not a different top.</li>
+<li><strong>Deep, almost everything.</strong> The same rank 1,000 can be worth two fifths of rank 20
+or three fifths depending on the field. When the number of teams is known, give it to the forecast:
+it moves the answer along the ladder.</li>
+<li><strong>Percentage cuts follow the field.</strong> "Top 25% qualify" is rank 250 of 1,000 teams
+and rank 2,500 of 10,000. Such a cut is priced at the rank it lands on once the field is known, and
+the forecast says so when it has to assume a field.</li>
+</ul>
+
+<h2>Reading your own position</h2>
+<p>During a cup, the deep end of an open queue also runs on its own clock: the thousandth team of a
+field of two thousand is mostly done by the last fifth of the session, while the thousandth of ten
+thousand keeps pace with the top. The live forecast reads each rank's pace by how deep it is into the
+field for that reason, and <a href="~/guides/cut-during-a-cup/">how the cutoff moves during a
+cup</a> explains the rest.</p>
+<p><a class="cta" href="~/">Open the forecast</a></p>

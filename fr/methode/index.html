@@ -37,7 +37,7 @@ chiffres, comment ils sont faits, comment ils sont testés, et où il ne faut pa
 <h2>Les données</h2>
 <p>Tout part de l'API publique Fortnite d'Osirion : le calendrier des tournois d'Epic, le barème de
 chaque événement et les classements finaux. Un moissonneur les lit chaque jour ; le modèle est
-entraîné sur 94 421 seuils relevés sur 7 643 tournois (modèle du 24 septembre 2026). Un
+entraîné sur 94 669 seuils relevés sur 7 663 tournois (modèle du 25 septembre 2026). Un
 seuil, ce sont les points de l'équipe classée à un rang donné quand le classement est définitif.</p>
 <p>Les classements enregistrent aussi, pour chaque équipe, sa place et ses éliminations dans chaque
 partie et l'heure de fin de chaque partie. On peut donc reconstruire le classement à n'importe quel
@@ -87,13 +87,13 @@ le détail.</p>
 
 <h2>Quelle précision</h2>
 <p>Le test qui compte est celui que vit un joueur : prévoir une cup à partir de ce qui s'était terminé
-avant elle. Les 600 tournois les plus récents – tout depuis le 17 août 2026 – ont chacun été prévus
+avant elle. Les 600 tournois les plus récents – tout depuis le 21 août 2026 – ont chacun été prévus
 uniquement à partir des tournois terminés avant leur jour, puis comparés à leur classement final
-(6 100 seuils) :</p>
-<div class="scroll"><table class="data"><thead><tr><th>Ce qui est prévu</th><th>Erreur médiane</th><th>Dans la fourchette annoncée</th></tr></thead><tbody><tr><td>Tous les seuils des 600 tournois les plus récents</td><td>5,2 %</td><td>94 %</td></tr><tr><td>Cups qui ont une édition précédente (là où le modèle et les deux références répondent)</td><td>2,8 %</td><td>—</td></tr><tr><td>… les mêmes lignes, dernière édition reportée</td><td>3,1 %</td><td>—</td></tr><tr><td>… les mêmes lignes, médiane de la catégorie</td><td>5,6 %</td><td>—</td></tr><tr><td>Cups jamais vues dans leur région, depuis le seul barème</td><td>10,3 %</td><td>—</td></tr><tr><td>Finales jouées en lobby unique</td><td>13,5 %</td><td>—</td></tr></tbody></table></div>
+(6 149 seuils) :</p>
+<div class="scroll"><table class="data"><thead><tr><th>Ce qui est prévu</th><th>Erreur médiane</th><th>Dans la fourchette annoncée</th></tr></thead><tbody><tr><td>Tous les seuils des 600 tournois les plus récents</td><td>5,5 %</td><td>94 %</td></tr><tr><td>Cups qui ont une édition précédente (là où le modèle et les deux références répondent)</td><td>2,8 %</td><td>—</td></tr><tr><td>… les mêmes lignes, dernière édition reportée</td><td>3,0 %</td><td>—</td></tr><tr><td>… les mêmes lignes, médiane de la catégorie</td><td>5,6 %</td><td>—</td></tr><tr><td>Cups jamais vues dans leur région, depuis le seul barème</td><td>11,0 %</td><td>—</td></tr><tr><td>Finales jouées en lobby unique</td><td>15,9 %</td><td>—</td></tr></tbody></table></div>
 <p class="muted">Erreur absolue médiane, en pour cent du seuil final. « Dans la fourchette annoncée » :
 la part des seuils finaux dans la fourchette principale de la prévision, qui en annonce 80 % ; les
-fourchettes à 50 % et à 90 % du site sont mesurées sur les mêmes erreurs. Mesuré le 22 septembre 2026,
+fourchettes à 50 % et à 90 % du site sont mesurées sur les mêmes erreurs. Mesuré le 25 septembre 2026,
 et remesuré tous les trois jours au fil des tournois.</p>
 <p>Trois réserves honnêtes. Les cups déjà vues par le modèle sont les plus faciles, et l'essentiel de
 l'erreur se concentre sur les autres. Les cinq premiers rangs sont la partie la plus bruitée de tout
@@ -124,7 +124,7 @@ moissonneur, l'entraînement du modèle et chaque mesure citée sur ce site sont
 de méthodologie</a> (en anglais) consigne chaque changement du modèle et ce qu'il a été mesuré
 apporter.</p>
 
-<p class="stamp">Mis à jour le 24 septembre 2026</p></main>
+<p class="stamp">Mis à jour le 25 septembre 2026</p></main>
 <footer class="site-foot"><p class="foot-nav"><a href="../../fr/a-propos/">À propos</a> · <a href="../../fr/contact/">Contact</a> · <a href="../../fr/confidentialite/">Confidentialité</a> · <a href="../../fr/methode/">Méthode et précision</a> · <a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">Code source</a></p><p>Données de tournois issues de l'API publique Fortnite d'<a href="https://osirion.gg" rel="noopener">Osirion</a>. Les prévisions sont des estimations statistiques, pas des garanties.</p><p>Un projet de fan indépendant, sans lien avec Epic Games ni Osirion.</p><p lang="en">Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. All rights reserved by Epic. This material is not official and is not endorsed by Epic.</p><p lang="fr">Certains éléments utilisés sont des marques et/ou des œuvres protégées d&#x27;Epic Games, Inc. Tous droits réservés par Epic. Ce contenu n&#x27;est ni officiel ni approuvé par Epic.</p><p>© 2026 Threshold Ladder</p></footer>
 <script src="../../site.js" defer></script>
 </body>

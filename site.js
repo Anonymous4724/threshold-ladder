@@ -16,11 +16,24 @@
       var utc = el.parentNode.querySelector(".utc");
       if (utc) utc.textContent = zone ? zone.split("/").pop().replace(/_/g, " ") : "";
     });
-    // A cup already over stays in the list, greyed, until the next refresh.
+    // The day's cups that are over stay in the list, greyed, with the
+    // forecast they had before they started; the ones over before the
+    // reader's own midnight go, as in the predictor's list - and a day left
+    // with nothing in it goes with them.
     var now = Date.now();
+    var midnight = new Date(); midnight.setHours(0, 0, 0, 0);
     document.querySelectorAll("ul.week li[data-end]").forEach(function (li) {
       var end = Date.parse(li.getAttribute("data-end"));
-      if (!isNaN(end) && end < now) li.classList.add("past");
+      if (isNaN(end)) return;
+      if (end < midnight.getTime()) li.style.display = "none";
+      else if (end < now) li.classList.add("past");
+    });
+    document.querySelectorAll("ul.week").forEach(function (ul) {
+      var shown = [].some.call(ul.children, function (li) { return li.style.display !== "none"; });
+      if (shown) return;
+      ul.style.display = "none";
+      var head = ul.previousElementSibling;
+      if (head && head.classList.contains("day")) head.style.display = "none";
     });
   } catch (e) { /* the UTC times stay */ }
 

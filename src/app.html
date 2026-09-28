@@ -670,6 +670,12 @@ const FR = {
   "foot.about": "À propos", "foot.contact": "Contact", "foot.privacy": "Confidentialité",
   "foot.method": "Méthode et précision", "foot.source": "Code source",
   "cal.fc": "{r} ≈ {p} pts", "cal.win": "victoire",
+  "keptOnly": "Le résultat de cette cup est déjà dans le modèle : une prévision faite maintenant ne ferait que le relire. "
+    + "Celle qu'elle avait avant de commencer a été gardée pour : {ranks}.",
+  "keptNone": "Le résultat de cette cup est déjà dans le modèle : une prévision faite maintenant ne ferait que le relire, "
+    + "et aucune n'a été gardée d'avant son début.",
+  "keptBefore": "C'est la prévision que la cup avait avant de commencer : son résultat est depuis entré dans le modèle, "
+    + "et une prévision refaite maintenant ne ferait que le relire.",
   "h.tournament": "Le tournoi", "h.scoring": "Le barème",
   "h.live": "Pendant le tournoi", "h.basis": "Sur quoi ça repose",
   "result.read": "résultat final · lu à {t}",
@@ -1354,7 +1360,37 @@ function whyNoAnchor(t) {
   if (t.scoring_known === false) return T("unconfirmedScoring", MODEL.messages.unconfirmed_scoring);
   return T("noAnchor", "No usable reference.");
 }
+/* A cup the model has already read the result of - it ran earlier today and
+ * a refresh has since harvested it - cannot be forecast from the model any
+ * more: its own edition is now its "previous edition", and the answer would
+ * be the result read back. What it was forecast at before it started is what
+ * the calendar listed it with (`fc`, frozen once the cup opened), at the
+ * ranks the list shows; any other rank has no honest forecast left. */
+function modelHasRead(t) {
+  const day = String(t.begin || "").slice(0, 10);
+  if (!day || !(Date.parse(t.begin) <= Date.now())) return false;
+  const row = categoryRow(t);
+  return !!row && String(row.latest || "") >= day;
+}
 function predictOne(t, rank) {
+  if (!modelHasRead(t)) return predictModel(t, rank);
+  const ranks = (t.kept || {}).ranks || [];
+  const kept = ranks.find(r => r[0] === rank);
+  if (!kept) {
+    const named = ranks.map(r => r[0] === 1 ? T("cal.win", "win") : T("top", "top") + " " + nf().format(r[0]));
+    return { ok: false, reason: named.length
+      ? T("keptOnly", "This cup's result is already in the model, so a forecast made now would only read it "
+          + "back. The forecast it had before it started was kept for: {ranks}.").replace("{ranks}", named.join(", "))
+      : T("keptNone", "This cup's result is already in the model, so a forecast made now would only read it "
+          + "back, and none was kept from before it started.") };
+  }
+  const v = Number(kept[1]), rel = Number(kept[2]) || 0;
+  const field = Number((t.kept || {}).field) || Math.round(Number(t.field_size) || 0);
+  return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel), rel: rel, n: 0,
+    source: kept[3] || "previous edition", field: field, guessedField: null, shapeSource: "kept",
+    level: v, fieldEffect: 0, keptBefore: true };
+}
+function predictModel(t, rank) {
   let field = Math.max(0, Math.round(Number(t.field_size) || 0));
   let guessed = null, fieldSpread = 0;
   if (!field) {
@@ -2308,6 +2344,7 @@ function blankState() {
   blank.entry = "";
   blank.cold = null;
   blank.calendarKind = null; blank.calendarName = "";
+  blank.calendarFc = null;
   return blank;
 }
 
@@ -2442,6 +2479,10 @@ function asTournament(s) {
     max_games: gameCount(s), field_size: s.field_size, scoring: s.scoring,
     entry: s.entry || "",
     cold: s.cold || null,
+    // When the cup opens, and the forecast the calendar listed it with -
+    // only for the cup as the calendar gave it, not one set up by hand.
+    begin: s.begin || "",
+    kept: own && !s.touched && s.calendarFc && Array.isArray(s.calendarFc.ranks) ? s.calendarFc : null,
     season: season === null ? (MODEL.season === undefined ? null : MODEL.season) : season,
     scoring_known: (s.scoring.placement || []).length > 0,
     matched: matched
@@ -3294,6 +3335,10 @@ function explainBlock(live, cold, answer, rank) {
     }
     lines.push('<span class="hint">' + T("untested", "The pace curve is measured; the way it is "
       + "blended with the history has not yet been validated on held-out tournaments.") + "</span>");
+  } else if (cold.keptBefore) {
+    lines.push("<b>" + T("basedOn", "Estimated from") + " " + sourceLabel(cold.source) + "</b>");
+    lines.push(T("keptBefore", "This is the forecast the cup had before it started: its result has since "
+      + "entered the model, and a forecast made again now would only read it back."));
   } else {
     lines.push("<b>" + T("basedOn", "Estimated from") + " " + sourceLabel(cold.source) + "</b>" +
       (cold.n ? " · " + cold.n + " " + (cold.source === "re-scored boards"
@@ -4023,6 +4068,9 @@ function pickFromCalendar(row) {
   // them beside a cup with no edition in this region: see the model's
   // replay rung. Kept with the cup; the signature says which table it is for.
   STATE.cold = row.cold && typeof row.cold === "object" ? row.cold : null;
+  // What the list showed for the cup, frozen once it started: the answer the
+  // page gives for it once the model has read its result, see predictOne.
+  STATE.calendarFc = row.fc && Array.isArray(row.fc.ranks) ? row.fc : null;
   // Another tournament, another evening: the window's own clock, and no
   // acquisitions carried over from the last one.
   STATE.begin = row.begin || ""; STATE.end = row.end || "";
@@ -4039,6 +4087,12 @@ function pickFromCalendar(row) {
   // The rank people came for: the widest qualification cut, when the cup has one.
   const cut = defaultCut(activeCuts(), fieldNow());
   if (cut) { STATE.rank = cut.rank; $("f-rank").value = cut.rank; }
+  // A cup the model has already read opens on a rank it kept a forecast for.
+  const kept = (STATE.calendarFc || {}).ranks || [];
+  if (kept.length && !kept.some(k => k[0] === Number($("f-rank").value)) && modelHasRead(asTournament(STATE))) {
+    const pick = kept.find(k => k[0] === STATE.calendarFc.cut) || kept[0];
+    STATE.rank = pick[0]; $("f-rank").value = pick[0];
+  }
   // Everything Epic published is now in the form; there is nothing left to
   // confirm by hand, so the answer comes with the click. "Change the settings"
   // is one button away for anyone who knows better.

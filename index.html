@@ -739,6 +739,15 @@ const FR = {
   "l.calpartial": "sans barème",
   "hint.cuts": "Ce que cette cup fait gagner. Clique un palier pour le chiffrer.",
   "cut.qualifies": "qualifie pour", "cut.first": "1re place", "cut.money": "argent",
+  "cut.total": "sur le total des {n} sessions", "cal.total": "total ≈ {p}",
+  "fieldBelowCut": "Cette cup qualifie plus de joueurs que le nombre d'inscrits habituel de ce genre de cup : "
+    + "le nombre d'inscrits n'est donc pas encore connu, et aucune prévision n'est faite. Elle viendra une fois "
+    + "le premier classement de la cup lu.",
+  "total.head": "La qualification se joue sur le total des {n} sessions : environ {v} points ({lo} – {hi}).",
+  "total.body": "Le chiffre ci-dessus est le seuil de cette session au rang {r}. Sur les cups passées jouées en deux "
+    + "sessions, le total à un rang valait environ {k} fois le seuil d'une session{deep}. Par session, cela fait "
+    + "environ {h} points.",
+  "total.deep": " – mesuré jusqu'au rang 500 ; plus profond, ce n'est pas encore mesuré, d'où une fourchette plus large",
   "cut.item": "cosmétique", "cut.share": "top {p} %", "cut.noField": "effectif inconnu",
   "noStage": "sans manche",
   "opt.free": "Fenêtre ouverte - chacun joue à son rythme",
@@ -1412,6 +1421,11 @@ function predictModel(t, rank) {
     const found = guessField(t);
     if (!found) return { ok: false, reason: T("noField", MODEL.messages.no_field) };
     field = found.field; guessed = found.source; fieldSpread = found.spread;
+    // A qualification cut deeper than the field guessed says the guess is
+    // wrong, not where the cut is - see FIELD_BELOW_CUT in export_model.py.
+    if ((Number(t.cutMax) || 0) > field) return { ok: false, reason: T("fieldBelowCut",
+      "This cup sends more players on than the field its kind of cup usually has, so the field is not "
+      + "known yet and no forecast is made. It comes once the cup's first board has been read.") };
   }
   if (rank < 1) return null;
   const straight = directReading(t, rank, field);
@@ -2494,6 +2508,9 @@ function asTournament(s) {
     max_games: gameCount(s), field_size: s.field_size, scoring: s.scoring,
     entry: s.entry || "",
     cold: s.cold || null,
+    // The deepest qualification cut the cup was published with.
+    cutMax: Math.max.apply(null, [0].concat((s.tiers || []).filter(c => c && c[0] === "q")
+      .map(c => Number(c[1]) || 0))),
     // When the cup opens, and the forecast the calendar listed it with -
     // only for the cup as the calendar gave it, not one set up by hand.
     begin: s.begin || "",
@@ -2961,6 +2978,7 @@ function render() {
       T("of", "of") + " " + num(field) + " " + T("teams", "teams") + " · " +
       esc(STATE.name) + " · " + STATE.region +
       (asked ? ' · <span class="cut">' + esc(cutWhat(asked)) + "</span>" : "") + "</p>" +
+    totalNote(asked, answer, rank) +
     explainBlock(live, cold, answer, rank);
 
   drawPointsRank();
@@ -3086,6 +3104,37 @@ if (typeof window !== "undefined") {
 /* The two ranges in words: half the cups land in the near one, nine in ten
  * in the wide one, both measured rather than assumed. A model that has not
  * been validated yet quotes the single band it always did. */
+/* A cut Epic ranks on the total of a round's sessions - the FNCS Solo
+ * qualifiers' Round 1, Day 1 and Day 2 added up - is not a rank of this
+ * session's board, which is what the forecast above is for. On the past cups
+ * played that way whose two boards were read deep enough to add up player by
+ * player - the Solo Series Cup's two events, in Europe and in Oceania - the
+ * total at a rank came to 0.92 to 0.98 of the two sessions' thresholds at
+ * that rank added together, from rank 10 to rank 500. Deeper than that it
+ * has not been measured, and the range says so: 0.85 to 1. */
+const TOTAL_SHARE = 0.95, TOTAL_MEASURED_TO = 500;
+function sessionTotal(cut, value, rank) {
+  const n = cut ? Number(cut[3]) || 0 : 0;
+  if (n < 2 || !(value > 0)) return null;
+  const deep = rank > TOTAL_MEASURED_TO;
+  return { n: n, value: TOTAL_SHARE * n * value, deep: deep,
+           lowShare: deep ? 0.85 : 0.92, highShare: deep ? 1 : 0.98 };
+}
+function totalNote(cut, answer, rank) {
+  const total = sessionTotal(cut, answer.value, rank);
+  if (!total) return "";
+  const band = bandsOf(answer.value, answer.rel, answer.floor, answer.live).wide;
+  return '<div class="note total"><b>' + T("total.head", "The cut is on the total of the {n} sessions: "
+      + "about {v} points ({lo} – {hi}).").replace("{n}", total.n).replace("{v}", num(total.value))
+      .replace("{lo}", num(total.lowShare * total.n * band[0])).replace("{hi}", num(total.highShare * total.n * band[1]))
+    + "</b> " + T("total.body", "The number above is this session's threshold at rank {r}. On past cups played "
+      + "over two sessions, the total at a rank came to about {k} times one session's threshold{deep}. Per "
+      + "session, that is about {h} points.").replace("{r}", nf().format(rank))
+      .replace("{k}", nf().format(TOTAL_SHARE * total.n)).replace("{h}", num(total.value / total.n))
+      .replace("{deep}", total.deep ? T("total.deep", " - measured to rank 500; deeper ranks have not been "
+        + "measured yet, hence the wider range") : "")
+    + "</div>";
+}
 function rangeText(answer) {
   const band = bandsOf(answer.value, answer.rel, answer.floor, answer.live);
   const span = pair => num(pair[0]) + " – " + num(pair[1]);
@@ -3833,7 +3882,10 @@ function calForecast(row) {
   if (!fc || !Array.isArray(fc.ranks) || !fc.ranks.length) return "";
   const pick = fc.ranks.find(r => r[0] === fc.cut) || fc.ranks[0];
   const label = pick[0] === 1 ? T("cal.win", "win") : T("top", "top") + " " + nf().format(pick[0]);
-  return " · " + T("cal.fc", "{r} ≈ {p} pts").replace("{r}", label).replace("{p}", num(pick[1]));
+  const cut = (row.tiers || []).find(c => c[0] === "q" && Number(c[1]) === pick[0] && Number(c[3]) > 1);
+  const total = sessionTotal(cut, pick[1], pick[0]);
+  return " · " + T("cal.fc", "{r} ≈ {p} pts").replace("{r}", label).replace("{p}", num(pick[1]))
+    + (total ? " · " + T("cal.total", "total ≈ {p}").replace("{p}", num(total.value)) : "");
 }
 
 /* One lobby holds this many teams. A final played by qualified teams in a
@@ -3968,7 +4020,10 @@ function fieldNow() {
   // way predictOne guesses it. A percentile cut is only a rank once this is known.
   const typed = Math.round(Number(STATE.field_size) || 0);
   if (typed > 0) return typed;
-  const found = guessField(asTournament(STATE));
+  const t = asTournament(STATE);
+  const found = guessField(t);
+  // A guess smaller than a cut the cup qualifies on is no field at all.
+  if (found && t.cutMax > found.field) return 0;
   return found ? Math.round(found.field) : 0;
 }
 
@@ -3981,7 +4036,8 @@ function cutRank(cut, field) {
 }
 
 function cutWhat(cut) {
-  if (cut[0] === "q" || cut[0] === "p") return T("cut.qualifies", "qualifies for") + " " + (cut[2] || "");
+  if (cut[0] === "q" || cut[0] === "p") return T("cut.qualifies", "qualifies for") + " " + (cut[2] || "")
+    + (Number(cut[3]) > 1 ? " · " + T("cut.total", "on the total of the {n} sessions").replace("{n}", cut[3]) : "");
   if (cut[0] === "c") {
     const money = typeof cut[2] === "number" ? "$" + nf().format(cut[2]) : String(cut[2] || "");
     return (cutRank(cut, 0) === 1 ? T("cut.first", "1st place") : T("cut.money", "money"))

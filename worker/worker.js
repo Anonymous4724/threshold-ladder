@@ -36,7 +36,10 @@ const AGENT = "threshold-ladder-live/1.0 (+https://github.com/Anonymous4724/thre
 const PAGE_SIZE = 100;                 // entries per leaderboard page
 const RANKS = [1, 3, 5, 10, 20, 25, 50, 100];
 const DEEP = [250, 500, 1000, 2500];   // the ladder's deeper rungs, read when a page is to spare
-const MAX_CUT = 5000;                  // deeper cuts are not fetched: too many pages
+// A cut's page is one request, however deep: the FNCS Solo qualifiers send
+// 8,000 players on in Europe, and a cut not read is a forecast left to guess.
+// The API pages a board down to rank 10,000 and no further.
+const MAX_CUT = 10000;
 const MAX_PAGES = 3;                   // pages read per window beyond the first
 // The API pages a board this deep at most. A board on its last page is ten
 // thousand rosters or more, and how many more the API does not say.

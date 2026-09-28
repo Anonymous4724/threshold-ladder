@@ -102,6 +102,11 @@ def esc(text) -> str:
     return html.escape(str(text), quote=True)
 
 
+# The total of a round played over several sessions, per session and at a
+# given rank, against one session's threshold there: the page's TOTAL_SHARE,
+# measured on the Solo Series Cup's two events (see sessionTotal in the page).
+TOTAL_SHARE = 0.95
+
 def fmt_num(x: float, lang: str, digits: int = 0) -> str:
     """A number the way each language writes it: 1,234.5 or 1 234,5."""
     if x is None or (isinstance(x, float) and not math.isfinite(x)):
@@ -668,6 +673,16 @@ class Data:
                         rng = f' <small>{fmt_num(lo, lang)}–{fmt_num(hi, lang)}</small>'
                     cut = (' <em class="cut">' + {"en": "qualifies", "fr": "qualifie"}[lang] + "</em>") \
                         if rank == fc.get("cut") and qualifies else ""
+                    # A cut ranked on the total of the round's sessions: the
+                    # number is this session's, and the total is said beside it
+                    # - TOTAL_SHARE in the page, measured there.
+                    sessions = next((int(t[3]) for t in row.get("tiers") or []
+                                     if t[0] == "q" and len(t) > 3 and t[1] == rank), 0)
+                    if cut and sessions > 1:
+                        total = fmt_num(TOTAL_SHARE * sessions * value, lang)
+                        cut = (f' <em class="cut">' + {"en": f"qualifies on the {sessions}-day total ≈ {total}",
+                                                       "fr": f"qualifie sur le total des {sessions} jours ≈ {total}"}[lang]
+                               + "</em>")
                     cells.append(f'<span class="fc"><b>{label}</b> <strong>{fmt_num(value, lang)}</strong>{rng}{cut}</span>')
                 sources = []
                 for r in fc.get("ranks") or []:

@@ -740,9 +740,16 @@ const FR = {
   "hint.cuts": "Ce que cette cup fait gagner. Clique un palier pour le chiffrer.",
   "cut.qualifies": "qualifie pour", "cut.first": "1re place", "cut.money": "argent",
   "cut.total": "sur le total des {n} sessions", "cal.total": "total ≈ {p}",
+  "solo.head": "Pas de prévision avant la cup : c'est la lecture du classement lui-même au rang {r}, prolongée "
+    + "jusqu'à la fin selon le rythme mesuré.",
+  "solo.body": "À ce moment de la session, un seuil a en général atteint {p} % de sa valeur finale. Rejouée sur "
+    + "les soirées passées, une prévision faite des seules lectures se trompait d'environ {e} % en médiane à ce "
+    + "moment{deep}.",
+  "solo.deep": " – mesuré sur les rangs que le flux lit, rarement au-delà de 2 500 ; aussi profond, ce n'est pas mesuré",
   "fieldBelowCut": "Cette cup qualifie plus de joueurs que le nombre d'inscrits habituel de ce genre de cup : "
-    + "le nombre d'inscrits n'est donc pas encore connu, et aucune prévision n'est faite. Elle viendra une fois "
-    + "le premier classement de la cup lu.",
+    + "le nombre d'inscrits n'est donc pas encore connu, et aucune prévision n'est faite avant le début. Pendant "
+    + "la cup, la lecture du classement à ce rang, prolongée jusqu'à la fin selon le rythme mesuré, sert de "
+    + "prévision.",
   "total.head": "La qualification se joue sur le total des {n} sessions : environ {v} points ({lo} – {hi}).",
   "total.body": "Le chiffre ci-dessus est le seuil de cette session au rang {r}. Sur les cups passées jouées en deux "
     + "sessions, le total à un rang valait environ {k} fois le seuil d'une session{deep}. Par session, cela fait "
@@ -1423,9 +1430,10 @@ function predictModel(t, rank) {
     field = found.field; guessed = found.source; fieldSpread = found.spread;
     // A qualification cut deeper than the field guessed says the guess is
     // wrong, not where the cut is - see FIELD_BELOW_CUT in export_model.py.
-    if ((Number(t.cutMax) || 0) > field) return { ok: false, reason: T("fieldBelowCut",
+    if ((Number(t.cutMax) || 0) > field) return { ok: false, noPrior: true, reason: T("fieldBelowCut",
       "This cup sends more players on than the field its kind of cup usually has, so the field is not "
-      + "known yet and no forecast is made. It comes once the cup's first board has been read.") };
+      + "known yet and no forecast is made before it starts. Once it runs, the board's own reading at "
+      + "this rank, carried to the end on the measured pace, is the forecast.") };
   }
   if (rank < 1) return null;
   const straight = directReading(t, rank, field);
@@ -2100,6 +2108,9 @@ function refine(t, log) {
   const best = standing(entries, Date.parse(entry.seen || entry.at || 0));
 
   const ratios = [], byRank = {}, points = {}, norm = {}, relOf = {}, whenOf = {};
+  // Ranks with no forecast before the cup to weigh the reading against (see
+  // FIELD_BELOW_CUT): the reading carried to the end on the pace curve.
+  const solo = {};
   // Every rank the board was read at, whether or not the model prices it:
   // the last places of a lobby are refused a forecast, but once the board is
   // final their reading is a result like any other.
@@ -2109,6 +2120,14 @@ function refine(t, log) {
     if (!(r.share >= READ_MIN_SHARE)) return;
     seen[rank] = r.points; seenWhen[rank] = r.when;
     const cold = predictOne(t, rank);
+    if (cold && !cold.ok && cold.noPrior && r.share >= PACE_MIN_SHARE) {
+      const own = expectedAt(r.share, r.after || 0, rank);
+      solo[rank] = r.points / own;
+      points[rank] = r.points; whenOf[rank] = r.when;
+      norm[rank] = expectedAt(share, after, rank) / own;
+      relOf[rank] = relAt(r.share, r.after || 0, rank);
+      return;
+    }
     if (!(cold && cold.ok && cold.value > 0)) return;
     const exp = expectedAt(r.share, r.after || 0, rank);
     const ratio = r.points / (cold.value * exp);
@@ -2119,8 +2138,8 @@ function refine(t, log) {
     norm[rank] = expectedAt(share, after, rank) / exp;
     relOf[rank] = relAt(r.share, r.after || 0, rank);
   });
-  if (!ratios.length) return null;
-  const sorted = ratios.slice().sort((a, b) => a - b);
+  if (!ratios.length && !Object.keys(solo).length) return null;
+  const sorted = ratios.length ? ratios.slice().sort((a, b) => a - b) : [1];
   const mid = Math.floor(sorted.length / 2);
   const ratio = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   // Readings that disagree about the pace widen the band: median absolute deviation.
@@ -2161,7 +2180,7 @@ function refine(t, log) {
            carry: carried === undefined ? 0 : carried,
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
            game: clock.game, played: clock.game, games: games, byRank: byRank, kind: kind,
-           points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at,
+           points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at, solo: solo,
            seen: seen, seenWhen: seenWhen, settled: settled, final: !!clock.final,
            after: after, held: stood, landing: landing,
            expectedFor: rank => expectedAt(share, after, rank),
@@ -2237,6 +2256,19 @@ function coldWeightScale(source) {
 }
 function forecastAt(t, rank, live) {
   const cold = predictOne(t, rank);
+  if (cold && !cold.ok && cold.noPrior && live && (live.solo || {})[rank] > 0) {
+    // Nothing to weigh the reading against: it is the answer, on the pace's
+    // measured width at the minute it was read, and never below the board.
+    if (live.settled && live.points[rank] > 0) {
+      return { value: live.points[rank], rel: 0, weight: 1, result: true,
+               when: (live.when || {})[rank] || live.at };
+    }
+    const floor = readFloor(live, rank);
+    const value = Math.max(live.solo[rank], floor);
+    return { value: value, rel: live.relOf[rank], weight: 1, floor: floor, floored: value > live.solo[rank],
+             readingsOnly: true,
+             live: { share: live.share, after: live.after || 0, settled: !!live.settled, rank: rank } };
+  }
   if (!cold || !cold.ok) return null;
   if (!live) return { value: cold.value, rel: cold.rel, weight: 0 };
   const own = live.byRank[rank];
@@ -2930,7 +2962,11 @@ function render() {
   const t = asTournament(STATE);
   const live = refine(t, liveLog(STATE));
   const rank = STATE.asked;
-  const cold = predictOne(t, rank);
+  let cold = predictOne(t, rank);
+  if (cold && !cold.ok && cold.noPrior && live && (live.solo || {})[rank] > 0) {
+    cold = { ok: true, value: live.solo[rank], rel: live.relOf[rank], source: "readings", n: 0,
+             field: Math.max(Number(live.field) || 0, rank), readingsOnly: true };
+  }
   if (!cold || !cold.ok) {
     drawCuts(fieldNow(), rank);
     // A rank the model will not forecast can still have been read off the
@@ -3113,6 +3149,11 @@ if (typeof window !== "undefined") {
  * that rank added together, from rank 10 to rank 500. Deeper than that it
  * has not been measured, and the range says so: 0.85 to 1. */
 const TOTAL_SHARE = 0.95, TOTAL_MEASURED_TO = 500;
+/* The readings alone, carried to the end on the pace curve, against the
+ * final: median error by share of the session elapsed, replayed through the
+ * page on the evenings of 14 to 20 September (22,135 answers, ranks read by
+ * the feed). [share below which, median error %]. */
+const READINGS_ONLY_APE = [[0.35, 9.5], [0.5, 5.9], [0.65, 4.8], [0.8, 3.8], [0.9, 3.2], [1.01, 2.9]];
 function sessionTotal(cut, value, rank) {
   const n = cut ? Number(cut[3]) || 0 : 0;
   if (n < 2 || !(value > 0)) return null;
@@ -3215,7 +3256,7 @@ function drawChart(t, cold) {
   out += '<text class="axis" x="' + (W - R) + '" y="' + (H - 2) + '" text-anchor="end">' +
     esc(sealed ? T("chart.games", "games") : T("chart.minutes", "min")) + "</text>";
   // The forecast before the cup: a hairline to measure the rest against.
-  if (cold && cold.ok && cold.value <= yMax) {
+  if (cold && cold.ok && !cold.readingsOnly && cold.value <= yMax) {
     out += '<line class="ref" x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(cold.value).toFixed(1) + '" y2="' + sy(cold.value).toFixed(1) + '"/>';
     out += '<text class="label" x="' + (L + 4) + '" y="' + (sy(cold.value) - 4).toFixed(1) + '">'
       + esc(narrow ? num(cold.value) : T("chart.before", "before the cup") + " · " + num(cold.value)) + "</text>";
@@ -3326,6 +3367,18 @@ function explainBlock(live, cold, answer, rank) {
         + " Before the cup the model said {v}.")
         .replace("{t}", hhmm(answer.when)).replace("{v}", num(cold.value) + " " + T("points", "points")));
     return '<div class="note good">' + lines.join("<br>") + "</div>";
+  }
+  if (live && cold.readingsOnly) {
+    const bin = READINGS_ONLY_APE.find(b => live.share < b[0]) || READINGS_ONLY_APE[READINGS_ONLY_APE.length - 1];
+    lines.push("<b>" + T("solo.head", "No forecast before the cup: this is the board's own reading at rank {r}, "
+      + "carried to the end on the measured pace.").replace("{r}", nf().format(rank)) + "</b> "
+      + T("solo.body", "At this point of the session a threshold has typically reached {p} % of its final "
+      + "value. Replayed on past evenings, a forecast made from the readings alone was off by about {e} % in "
+      + "median at this point{deep}.").replace("{p}", Math.round(100 * live.expectedFor(rank)))
+      .replace("{e}", nf().format(bin[1]))
+      .replace("{deep}", rank > 2500 ? T("solo.deep", " - measured on the ranks the feed reads, rarely deeper "
+        + "than 2,500; this deep it has not been measured") : ""));
+    return '<div class="note">' + lines.join("<br>") + "</div>";
   }
   if (live) {
     const pct = x => (x >= 0 ? "+" : "−") + Math.round(100 * Math.abs(x)) + " %";

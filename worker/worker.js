@@ -29,6 +29,18 @@
  * board's page count at the time - a hundred rosters a page - and, where the
  * API pages the board whole, the exact count off its last page: how many
  * have played so far.
+ *
+ * Past ten thousand the API stops paging, but every roster still carries
+ * Epic's percentile: its place in the whole field, the rosters past the last
+ * page included, rounded down to the tenth - 0 in the top 10 %, 0.1 in the
+ * next tenth. Where it steps up from one rank to the next, the field is ten
+ * times that rank over the new tenth, to a few rosters, and the first step
+ * sits at a tenth of the field: inside the ten thousand the API pages, for
+ * any field up to a hundred thousand. So a board at the ceiling is read a
+ * page or two further on each full pass, where the step should be, and the
+ * count is published with `rankedFrom: "percentile"` - or, while the step is
+ * still being looked for, the least the field can be, as "percentile-min"
+ * (see `fieldBounds`).
  */
 
 const API = "https://fnapi.osirion.gg/v1";
@@ -42,8 +54,14 @@ const DEEP = [250, 500, 1000, 2500];   // the ladder's deeper rungs, read when a
 const MAX_CUT = 10000;
 const MAX_PAGES = 3;                   // pages read per window beyond the first
 // The API pages a board this deep at most. A board on its last page is ten
-// thousand rosters or more, and how many more the API does not say.
+// thousand rosters or more, and how many more only the rosters' percentiles
+// say (see `fieldBounds`).
 const PAGES_CAP = 100;
+// Pages read per full pass, beyond the ones read for the cuts, to find where
+// the percentile steps up on a board at the ceiling; and how narrow the field
+// has to be pinned, in rosters, before the search stops.
+const FIELD_EXTRA = 3;
+const FIELD_PIN = 20;
 // One lobby holds this many teams; Reload and Blitz lobbies seat forty players.
 const LOBBY = { Solo: 100, Duo: 50, Trio: 33, Squad: 25 };
 const LOBBY_SMALL = { Solo: 40, Duo: 20, Trio: 13, Squad: 10 };
@@ -186,8 +204,11 @@ async function remember(env, out, now) {
     // read - who has played so far, growing through the session - and it
     // is kept so the research side can measure the pace of a cup's arrival
     // as well as its points.
+    // A count past the ceiling is kept once the percentiles have pinned it;
+    // the least the field can be, while the search goes on, is not a count.
+    const counted = w.ranked && w.rankedFrom !== "percentile-min";
     kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, pages: w.pages || null,
-                         ranked: w.ranked || null, final: w.final,
+                         ranked: counted ? w.ranked : null, rankedFrom: counted ? w.rankedFrom || null : null, final: w.final,
                          partial: w.partial === undefined ? null : w.partial, readings: w.readings });
     if (kept.readings.length > HISTORY_MAX) kept.readings = kept.readings.slice(-HISTORY_MAX);
     added++;
@@ -364,12 +385,22 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
   if (!text) return null;
   let first = readPage(text, 0);
   if (!first || !first.teams) return null;
+  // On a board at the ceiling, every page read says something about the
+  // field through its rosters' percentiles (see fieldBounds).
+  const capped = (first.totalPages || 0) >= PAGES_CAP;
+  const bounds = [], readPages = [0];
+  const noteField = page => {
+    if (!capped || !page) return;
+    const b = fieldBounds(page.pairs, page.tenths);
+    if (b) bounds.push({ low: b.low, high: b.high, stamp: Date.parse(page.updatedAt || "") || 0 });
+  };
+  noteField(first);
   // How many rosters the board ranks: every page but the last holds a
   // hundred, and the last page says the rest - one more request on a full
-  // pass, none on a board that fits on one page, and none on a board that
-  // reaches the API's last page, where the count is "ten thousand or more"
-  // and the field only the site's own match data could say. A quick pass
-  // keeps the previous count while the page count has not moved.
+  // pass, none on a board that fits on one page. A board that reaches the
+  // API's last page has no last page to count: its rosters' percentiles say
+  // the field instead (below). A quick pass keeps the previous count while
+  // the page count has not moved.
   const total = first.totalPages || 0;
   let ranked = null;
   if (total === 1) ranked = first.teams;
@@ -417,8 +448,57 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
     await sleep(GAP_MS);
     const more = await board(row.event, row.window, number);
     const page = more ? readPage(more, number) : null;
-    if (page) takeFrom(page.pairs, page.updatedAt);
+    readPages.push(number);
+    if (page) { takeFrom(page.pairs, page.updatedAt); noteField(page); }
     if (page && number === last) ranked = await countFrom(row, page, number);
+  }
+  let rankedFrom = ranked > 0 ? "last page" : null;
+  let fieldOut = null;
+  if (capped) {
+    // The field only grows, so what the last pass knew of it is the least
+    // it can be now; the pages read this pass bound it from above, and a page
+    // or two more, where the percentile should step up, pin it. The search
+    // goes on from pass to pass: the last pass's bounds, published beside the
+    // count, say where to look first. A quick pass reads the first page
+    // only, whose top hundred say nothing past a thousand, and keeps what the
+    // last one found.
+    const prev = before && Number(before.ranked) > 0 ? Number(before.ranked) : 0;
+    const was = before && Array.isArray(before.field) ? before.field : null;
+    const least = Math.max(was && Number(was[0]) > 0 ? Number(was[0]) : 0,
+                           before && before.rankedFrom === "last page" && prev ? prev - 1 : 0);
+    let field = firstPageOnly ? null : combineField(bounds, least);
+    for (let extra = 0; field && extra < FIELD_EXTRA && field.high - field.low > FIELD_PIN; extra++) {
+      // First where the step was last time, a little further on, since the
+      // field has grown; or, while it is still being narrowed down, halfway
+      // into what the last pass had narrowed it to; then halfway between the
+      // bounds, which a field that grew faster than that has moved.
+      let guess = 0;
+      if (extra === 0 && before && before.rankedFrom === "percentile" && prev) guess = prev * 1.02;
+      else if (extra === 0 && was && Number(was[1]) > 0) guess = (field.low + Math.min(Number(was[1]) * 1.02, field.high)) / 2;
+      const number = fieldPage(field.low, field.high, guess);
+      if (number < 0 || readPages.includes(number)) break;
+      await sleep(GAP_MS);
+      const more = await board(row.event, row.window, number);
+      const page = more ? readPage(more, number) : null;
+      readPages.push(number);
+      if (!page) break;
+      takeFrom(page.pairs, page.updatedAt);
+      noteField(page);
+      field = combineField(bounds, least);
+    }
+    if (firstPageOnly) {
+      if (prev) { ranked = prev; rankedFrom = before.rankedFrom === "percentile" ? "percentile" : "percentile-min"; fieldOut = was; }
+    } else if (field) {
+      fieldOut = [Math.floor(field.low), isFinite(field.high) ? Math.ceil(field.high) : null];
+      if (field.high - field.low <= FIELD_PIN) {
+        ranked = Math.round((field.low + field.high) / 2);
+        rankedFrom = "percentile";
+      } else if (field.low > PAGES_CAP * PAGE_SIZE) {
+        // Not pinned yet: the least the field can be, said as such.
+        ranked = Math.ceil(field.low);
+        rankedFrom = "percentile-min";
+      }
+    }
   }
   readings.sort((a, b) => a[0] - b[0]);
   // Standings never rise with rank on one board. Among the readings of one
@@ -440,8 +520,16 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
     // How many games are finished: the clock of a sealed lobby. In an open
     // queue, the most the leaders have completed.
     games: first.games, teams: first.teams, pages: first.totalPages || null,
-    // The rosters the board ranks, exactly, where the API pages it whole.
+    // The rosters the board ranks: exactly off the last page where the API
+    // pages the board whole ("last page"); past the ceiling, from the
+    // rosters' percentiles, to a few rosters once the step is found
+    // ("percentile"), and the least it can be while it is looked for
+    // ("percentile-min").
     ranked: ranked,
+    rankedFrom: ranked > 0 ? rankedFrom : null,
+    // On a board at the ceiling, what the percentiles bound the field to on
+    // this pass, [more than, at most] - where the next pass looks first.
+    field: fieldOut,
     // In a sealed lobby: whether a game is under way, the standings above
     // being those at the end of the last finished one. Null where that
     // reading is not made.
@@ -481,6 +569,61 @@ async function countFrom(row, page, number) {
   return number * PAGE_SIZE + page.teams;
 }
 
+/* What one page's percentiles say about the field: more than `low` rosters,
+ * and at most `high`. Epic's percentile is a roster's place in the whole
+ * field rounded down to the tenth, so tenth d at rank r means
+ * d <= 10 r / N < d + 1; a step up inside the page pins the field to within
+ * ten rosters over the tenth. Checked on boards the API pages whole: the
+ * Oceania FNCS Solo qualifier of 28 September stepped to 0.2 at rank 905 for
+ * its 4,525 players, and the Oceania Solo Series Cup's steps at ranks 547,
+ * 1,094 and 1,640 all gave 5,466, a board of 55 pages. Null when the page
+ * carries no percentile. */
+function fieldBounds(pairs, tenths) {
+  let low = 0, high = Infinity, rows = 0;
+  for (let i = 0; i < (pairs || []).length; i++) {
+    const d = tenths ? tenths[i] : undefined, rank = pairs[i][0];
+    if (d === undefined || !isFinite(d) || d < 0 || d > 9 || !(rank >= 1)) continue;
+    rows++;
+    low = Math.max(low, 10 * rank / (d + 1));
+    if (d > 0) high = Math.min(high, 10 * rank / d);
+  }
+  return rows ? { low: low, high: high } : null;
+}
+
+/* The pages' bounds together, and the least the field can be. Pages of one
+ * pass can be copies of different ages, and the field grows between them:
+ * where they disagree, the freshest copy alone. What the last pass knew is
+ * the least the field can be now - unless this pass's copies are older. */
+function combineField(bounds, least) {
+  if (!bounds.length) return least > 0 ? { low: least, high: Infinity } : null;
+  let low = 0, high = Infinity;
+  for (const b of bounds) { low = Math.max(low, b.low); high = Math.min(high, b.high); }
+  if (low >= high) {
+    const fresh = bounds.slice().sort((a, b) => b.stamp - a.stamp)[0];
+    low = fresh.low; high = fresh.high;
+  }
+  if (least > low && least < high) low = least;
+  return { low: low, high: high };
+}
+
+/* The page worth reading to find the step: the first tenth whose step can
+ * sit inside the ten thousand ranks the API pages, and the page holding the
+ * rank it is expected at - near `guess` when there is one, halfway between
+ * the bounds otherwise. -1 when no step can be inside, a field of more than
+ * a hundred thousand. */
+function fieldPage(low, high, guess) {
+  const last = PAGES_CAP * PAGE_SIZE;
+  let k = 1;
+  while (k <= 9 && Math.floor(k * low / 10) + 1 > last) k++;
+  if (k > 9) return -1;
+  const from = Math.floor(k * low / 10) + 1;
+  const to = isFinite(high) ? Math.min(Math.ceil(k * high / 10), last) : last;
+  if (to < from) return -1;
+  let rank = guess > low && (!isFinite(high) || guess <= high) ? Math.ceil(k * guess / 10) : Math.round((from + to) / 2);
+  rank = Math.min(Math.max(rank, from), to);
+  return Math.floor((rank - 1) / PAGE_SIZE);
+}
+
 async function board(eventId, windowId, page) {
   const url = API + "/tournaments/leaderboard?" + new URLSearchParams({
     leaderboardEventId: eventId, leaderboardEventWindowId: windowId, page: String(page) });
@@ -515,11 +658,20 @@ function readPage(text, page) {
 }
 
 function scan(text, page) {
-  const re = /"(rank|pointsEarned)"\s*:\s*(-?\d+(?:\.\d+)?)/g;
-  const pairs = [];
+  const re = /"(rank|pointsEarned|percentile)"\s*:\s*(-?\d+(?:\.\d+)?|null)/g;
+  const pairs = [], tenths = [];
   let order = null, rank = null, points = null, m;
   while ((m = re.exec(text))) {
     const key = m[1];
+    // Epic's percentile comes after the rank in every roster: it belongs to
+    // the pair just completed, and a roster without one simply has none.
+    if (key === "percentile") {
+      if (rank === null && points === null && pairs.length && tenths[pairs.length - 1] === undefined && m[2] !== "null") {
+        tenths[pairs.length - 1] = Math.round(Number(m[2]) * 10);
+      }
+      continue;
+    }
+    if (m[2] === "null") return null;
     if (rank === null && points === null) {
       if (order === null) order = key;
       else if (key !== order) return null;              // a roster missing one of the two
@@ -550,7 +702,7 @@ function scan(text, page) {
   if (rosters && rosters !== pairs.length) return null;
   const total = text.match(/"totalPages"\s*:\s*(\d+)/);
   const updated = text.match(/"updatedAt"\s*:\s*"([^"]+)"/);
-  return { pairs: pairs, teams: pairs.length, games: games,
+  return { pairs: pairs, teams: pairs.length, games: games, tenths: tenths,
            totalPages: total ? Number(total[1]) : 0, updatedAt: updated ? updated[1] : null, fast: true };
 }
 
@@ -567,6 +719,8 @@ function parsePage(text) {
   return {
     pairs: entries.map(e => [Number(e.rank), Number(e.pointsEarned)]),
     teams: entries.length,
+    tenths: entries.map(e => (e.percentile === null || e.percentile === undefined || !isFinite(Number(e.percentile)))
+      ? undefined : Math.round(Number(e.percentile) * 10)),
     games: Math.max(0, ...entries.slice(0, 10).map(e => (e.sessionHistory || []).length)),
     totalPages: Number(inner.totalPages) || 0,
     updatedAt: inner.updatedAt || null,
@@ -577,4 +731,5 @@ function parsePage(text) {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export { run, watched, endgame, widestCut, cutRanks, pagesToRead, readWindow, readPage, settle, sealed, loadCalendar };
+export { run, watched, endgame, widestCut, cutRanks, pagesToRead, readWindow, readPage, settle, sealed, loadCalendar,
+         fieldBounds, combineField, fieldPage };

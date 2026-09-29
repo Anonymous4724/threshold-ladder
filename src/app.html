@@ -763,6 +763,8 @@ const FR = {
   "status.rankedTeams": "{about}{n} équipes au classement",
   "status.rankedCapPlayers": "{n} joueurs ou plus au classement — le classement s'arrête là",
   "status.rankedCapTeams": "{n} équipes ou plus au classement — le classement s'arrête là",
+  "status.rankedMinPlayers": "{n} joueurs ou plus, d'après les centiles d'Epic",
+  "status.rankedMinTeams": "{n} équipes ou plus, d'après les centiles d'Epic",
   "status.cold": "Prédiction d'avant tournoi",
 "status.final": "Classement final · inchangé depuis {t}",
   "l.calover": "terminée",
@@ -4410,7 +4412,12 @@ function entryFrom(found) {
                   // take the last page - and the exact count where the feed
                   // read that page too (see rankedSoFar).
                   pages: Number(found.pages) > 0 ? Number(found.pages) : 0,
-                  ranked: Number(found.ranked) > 0 ? Number(found.ranked) : 0 };
+                  ranked: Number(found.ranked) > 0 ? Number(found.ranked) : 0,
+                  // Where that count comes from: the board's last page (exact),
+                  // or, past the API's ten thousand, the rosters' percentiles -
+                  // to a few rosters, or only the least it can be (see
+                  // rankedCapped).
+                  rankedFrom: String(found.rankedFrom || "") };
   entry.share = entry.final ? 1 : liveShare(STATE, entry);
   return entry;
 }
@@ -4547,16 +4554,19 @@ function rankedSoFar(entry) {
   return pages > 0 ? (pages - 1) * 100 + 50 : 0;
 }
 function rankedExactly(entry) {
-  return (Number((entry || {}).ranked) || 0) > 0;
+  return (Number((entry || {}).ranked) || 0) > 0 && !/^percentile/.test(String((entry || {}).rankedFrom || ""));
 }
 /* The API pages a board a hundred pages deep at most, so a board that reaches
  * that page says "ten thousand or more", not a count - the same reading the
- * model makes of a harvested field at its ceiling. Osirion's own site counts
- * the players from the games it parses and can say fifteen thousand where
- * the leaderboard stops at ten. */
+ * model makes of a harvested field at its ceiling. Every roster still carries
+ * Epic's percentile, its place in the whole field rounded down to the tenth,
+ * and where it steps up the feed reads the field off it to a few rosters
+ * (`rankedFrom: "percentile"`): the board is then counted, not capped. Until
+ * the feed has found the step, it says the least the field can be
+ * ("percentile-min"), and the board is still read as capped. */
 const PAGES_CAP = 100;
 function rankedCapped(entry) {
-  return (Number((entry || {}).pages) || 0) >= PAGES_CAP;
+  return (Number((entry || {}).pages) || 0) >= PAGES_CAP && String((entry || {}).rankedFrom || "") !== "percentile";
 }
 
 function drawStatus() {
@@ -4632,7 +4642,12 @@ function drawStatus() {
   const ranked = auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0)) ? rankedSoFar(auto) : 0;
   if (ranked > 0) {
     const solo = String(STATE.team_mode) === "Solo";
-    text += " · " + (rankedCapped(auto)
+    const least = String(auto.rankedFrom || "") === "percentile-min" && Number(auto.ranked) > PAGES_CAP * 100;
+    text += " · " + (least
+      ? (solo ? T("status.rankedMinPlayers", "{n} players or more, by Epic's percentiles")
+              : T("status.rankedMinTeams", "{n} teams or more, by Epic's percentiles"))
+          .replace("{n}", nf().format(Number(auto.ranked)))
+      : rankedCapped(auto)
       ? (solo ? T("status.rankedCapPlayers", "{n} players or more on the board — the leaderboard stops there")
               : T("status.rankedCapTeams", "{n} teams or more on the board — the leaderboard stops there"))
           .replace("{n}", nf().format(PAGES_CAP * 100))

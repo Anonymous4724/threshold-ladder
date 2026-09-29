@@ -128,10 +128,15 @@ number under the progress bar — which the feed reads with every standing.
 On a full pass the feed also reads the board's last page, so the count is
 exact — 6,743 players, not about 6,750 — and the line says so by dropping
 the "≈". The API pages a board a hundred pages deep at most, so past ten
-thousand the line says "10,000 or more": the leaderboard stops there, where
-Osirion's own site, which counts players from the games it parses, can say
-fifteen thousand. At that ceiling the count only bounds how deep a rank sits,
-so no rank is read as the casual half there; and in an FNCS qualifier, whose
+thousand the leaderboard stops. Every roster on it still carries Epic's
+percentile, its place in the whole field rounded down to the tenth, and the
+first step, from 0 to 0.1, sits at a tenth of the field — inside the ten
+thousand ranks the API pages, for any field up to a hundred thousand. So the
+feed reads a page or two further on each pass, where the step should be, and
+the line gives the field to a few players ("≈ 57,465", Europe on the first
+day of the FNCS Solo qualifiers), or the least it can be while the search
+goes on ("55,000 or more"). Until the step is found the count only bounds how
+deep a rank sits, so no rank is read as the casual half there; and in an FNCS qualifier, whose
 deep end plays for the cut, a rank keeps the pace of an ordinary cup's top
 fifth and is read that way — both measured on the first day of the FNCS Solo
 qualifiers, where the forecast at Europe's 8,000th had run 9 % under its

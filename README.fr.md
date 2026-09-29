@@ -133,11 +133,17 @@ chiffre sous la barre de progression — que le flux lit avec chaque relevé.
 À chaque passage complet le flux lit aussi la dernière page du classement,
 donc le compte est exact — 6 743 joueurs, pas « environ 6 750 » — et la ligne
 le dit en laissant tomber le « ≈ ». L'API pagine un classement sur cent pages
-au plus, donc au-delà de dix mille la ligne dit « 10 000 ou plus » : le
-classement s'arrête là, quand le site d'Osirion, qui compte les joueurs à
-partir des parties qu'il analyse, peut en afficher quinze mille. À ce plafond,
-le compte ne dit plus qu'une borne de la profondeur d'un rang, donc aucun rang
-n'y est lu comme la moitié grand public ; et dans une qualification FNCS, dont
+au plus, donc au-delà de dix mille le classement s'arrête. Chaque joueur y
+porte pourtant le centile d'Epic, sa place dans tout le peloton arrondie au
+dixième inférieur, et le premier palier, de 0 à 0,1, tombe au dixième du
+peloton — dans les dix mille rangs que l'API pagine, pour tout peloton
+jusqu'à cent mille. Le flux lit donc une ou deux pages de plus à chaque
+passage, là où le palier doit se trouver, et la ligne donne le peloton à
+quelques joueurs près (« ≈ 57 465 », l'Europe le premier jour des
+qualifications FNCS Solo), ou le minimum possible tant que la recherche
+continue (« 55 000 ou plus »). Tant que le palier n'est pas trouvé, le compte
+ne dit qu'une borne de la profondeur d'un rang, donc aucun rang n'y est lu
+comme la moitié grand public ; et dans une qualification FNCS, dont
 le fond joue pour la qualification, un rang tient le rythme du premier
 cinquième d'une cup ordinaire et il est lu ainsi — deux corrections mesurées
 le premier jour des qualifications FNCS Solo, où la

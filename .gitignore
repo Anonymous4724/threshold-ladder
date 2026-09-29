@@ -20,3 +20,14 @@ live.json
 # (.github/workflows/calendar.yml) to write calendar.js; it is read, never
 # committed here.
 /tracker/
+
+# Credentials, databases and local state stay on this machine, whatever
+# lands in this folder: publishing adds everything else it finds here.
+*key*.txt
+*cle_*.txt
+.env
+.dev.vars
+.wrangler/
+*.db
+*.sqlite*
+data/

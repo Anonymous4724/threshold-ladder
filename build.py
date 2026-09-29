@@ -225,10 +225,23 @@ def head_meta(own: dict, base: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def noscript(page: str, absolute: str | None) -> str:
+    """The note shown without JavaScript links two of the site's pages, and
+    follows the same rule as the links chrome() writes."""
+    if absolute == "":
+        return page
+    base = absolute.rstrip("/") + "/" if absolute else ""
+    def link(a):
+        return f'<a href="{base}{a.group(1)}">{a.group(2)}</a>' if base else a.group(2)
+    return re.sub(r"<noscript>.*?</noscript>",
+                  lambda block: re.sub(r'<a href="([^":#]*)">(.*?)</a>', link, block.group(0)), page, flags=re.S)
+
+
 def chrome(page: str, own: dict, absolute: str) -> str:
     """The header's links, the front page's links and the footer's, pointing
     at the site's pages - relative on the site, absolute in the standalone
     file (which has no neighbours), absent there when the address is unknown."""
+    page = noscript(page, absolute)
     if absolute is None:
         return page.replace("<!--__NAV__-->", "").replace("<!--__HOMELINKS__-->", "") \
                    .replace("<!--__FOOTLINKS__-->", "")

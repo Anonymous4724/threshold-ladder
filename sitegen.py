@@ -51,7 +51,7 @@ EPIC = ("Portions of the materials used are trademarks and/or copyrighted works 
 UI = {
     "en": {
         "nav.tool": "Forecast", "nav.week": "This week", "nav.guides": "Guides",
-        "nav.method": "How it works", "nav.about": "About",
+        "nav.method": "How it works", "nav.about": "About", "nav.label": "Main",
         "skip": "Skip to content", "other": "Français", "other.short": "FR",
         "updated": "Updated {d}", "home": "Home", "guides": "Guides",
         "foot.about": "About", "foot.contact": "Contact", "foot.privacy": "Privacy",
@@ -69,7 +69,7 @@ UI = {
     },
     "fr": {
         "nav.tool": "Prévisions", "nav.week": "Cette semaine", "nav.guides": "Guides",
-        "nav.method": "Méthode", "nav.about": "À propos",
+        "nav.method": "Méthode", "nav.about": "À propos", "nav.label": "Menu principal",
         "skip": "Aller au contenu", "other": "English", "other.short": "EN",
         "updated": "Mis à jour le {d}", "home": "Accueil", "guides": "Guides",
         "foot.about": "À propos", "foot.contact": "Contact", "foot.privacy": "Confidentialité",
@@ -124,7 +124,10 @@ def fmt_pct(share: float, lang: str, digits: int = 0, signed: bool = False) -> s
     value = 100 * share
     text = fmt_num(abs(value) if signed else value, lang, digits)
     if signed:
-        text = ("+" if value > 0 else "−" if value < 0 else "±") + text
+        # The sign of the figure shown, not of the unrounded one: -0.3 reads
+        # "±0", beside the other zeros, not "−0".
+        shown = round(value, digits)
+        text = ("+" if shown > 0 else "−" if shown < 0 else "±") + text
     return text + (" %" if lang == "fr" else "%")
 
 
@@ -424,16 +427,16 @@ class Data:
     def season_table(self, lang: str, arg: dict) -> str:
         shifts = (self.model.get("season_shifts") or {}).get("boundaries") or []
         starts = {int(n): d for n, d in self.model.get("seasons") or []}
-        head = {"en": ("New season", "Began", "Ranks 1–100", "101–500", "Deeper", "Cup pairs compared"),
-                "fr": ("Nouvelle saison", "Début", "Rangs 1 à 100", "101 à 500", "Au-delà", "Paires de cups comparées")}[lang]
+        head = {"en": ("New season", "Began", "Ranks 1–100", "101–500", "Deeper", "Readings compared"),
+                "fr": ("Nouvelle saison", "Début", "Rangs 1 à 100", "101 à 500", "Au-delà", "Relevés comparés")}[lang]
         rows = []
         for since, until, cells in shifts:
             def cell(band):
                 c = cells.get(band)
                 return fmt_pct(math.exp(float(c[0])) - 1, lang, 0, signed=True) if c else "—"
-            pairs = sum(int((cells.get(b) or [0, 0, 0])[2]) for b in ("100", "500", "0"))
+            readings = sum(int((cells.get(b) or [0, 0, 0])[2]) for b in ("100", "500", "0"))
             rows.append(f"<tr><td>{esc(until)}</td><td>{esc(fmt_date(starts.get(int(until), ''), lang))}</td>"
-                        f"<td>{cell('100')}</td><td>{cell('500')}</td><td>{cell('0')}</td><td>{fmt_num(pairs, lang)}</td></tr>")
+                        f"<td>{cell('100')}</td><td>{cell('500')}</td><td>{cell('0')}</td><td>{fmt_num(readings, lang)}</td></tr>")
         return (f'<div class="scroll"><table class="data"><thead><tr>' + "".join(f"<th>{h}</th>" for h in head)
                 + f'</tr></thead><tbody>{"".join(reversed(rows))}</tbody></table></div>')
 
@@ -528,7 +531,7 @@ class Data:
             return ""
         rows = preset.get("placement") or []
         cells = []
-        for lo, hi, pts in rows[:25]:
+        for lo, hi, pts in rows:
             place = f"{lo}" if lo == hi else f"{lo}–{hi}"
             cells.append(f"<tr><td>{place}</td><td>{fmt_num(float(pts), lang)}</td></tr>")
         head = {"en": ("Placement", "Points"), "fr": ("Place", "Points")}[lang]
@@ -796,7 +799,7 @@ class Site:
         for key, label in items:
             current = ' aria-current="page"' if key == section else ""
             links.append(f'<a href="{rel_link(here, r[key])}"{current}>{esc(label)}</a>')
-        return '<nav class="site-nav" aria-label="Main">' + "".join(links) + "</nav>"
+        return f'<nav class="site-nav" aria-label="{esc(u["nav.label"])}">' + "".join(links) + "</nav>"
 
     def footer(self, lang: str, here: str) -> str:
         u, r = UI[lang], ROOTS[lang]
@@ -805,7 +808,10 @@ class Site:
                  (r["privacy"], u["foot.privacy"]), (r["method"], u["foot.method"])]
         nav = " · ".join(f'<a href="{rel_link(here, p)}">{esc(t)}</a>' for p, t in links)
         nav += f' · <a href="{REPO}" rel="noopener">{esc(u["foot.source"])}</a>'
-        year = datetime.now(timezone.utc).year
+        # The year of the data the page is built from, not of the clock, so
+        # that the same sources build the same page on any day (--check).
+        stamp = str(self.data.calendar.get("generated") or self.model.get("generated") or "")
+        year = int(stamp[:4]) if stamp[:4].isdigit() else datetime.now(timezone.utc).year
         fr = f'<p lang="fr">{esc(u["foot.epic.fr"])}</p>' if u["foot.epic.fr"] else ""
         return (f'<footer class="site-foot"><p class="foot-nav">{nav}</p>'
                 f'<p>{u["foot.credit"].format(osirion=osirion)}</p>'
@@ -964,7 +970,10 @@ class Site:
         lang, m = page.lang, page.meta
         u = UI[lang]
         other = self.counterpart(page)
-        other_path = other.path if other else ROOTS["fr" if lang == "en" else "en"]["home"]
+        # No counterpart: the other language's home. The English one is the
+        # predictor, told which language to open in - it would otherwise
+        # reopen in the one saved last, French after any French link.
+        other_path = other.path if other else ("?lang=en" if lang == "fr" else ROOTS["fr"]["home"])
         other_lang = "fr" if lang == "en" else "en"
         switch = (f'<a class="lang-switch" href="{rel_link(page.path, other_path)}" hreflang="{other_lang}" '
                   f'lang="{other_lang}" title="{esc(u["other"])}">{esc(u["other.short"])}</a>')

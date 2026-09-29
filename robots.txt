@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-Disallow: /standalone.html
 Sitemap: https://fortnitepredcomp.com/sitemap.xml

@@ -765,6 +765,14 @@ class Site:
         self.by_pair: dict = {}
         for p in self.pages:
             self.by_pair.setdefault(p.pair, {})[p.lang] = p
+        # The dates the sitemap gives now: a data refresh that leaves a page's
+        # text as it was keeps its date (see updated()).
+        try:
+            text = (HERE / "sitemap.xml").read_text(encoding="utf-8")
+            self.lastmod = {html.unescape(loc): d for loc, d in
+                            re.findall(r"<loc>([^<]*)</loc><lastmod>([^<]*)</lastmod>", text)}
+        except OSError:
+            self.lastmod = {}
 
     # -- pieces
     def mark(self) -> str:
@@ -933,13 +941,24 @@ class Site:
         return None
 
     def updated(self, page: Page) -> str:
-        """When the page last changed: its own date, or the data's when newer."""
-        dates = [str(page.meta.get("updated") or "")]
+        """When the page last changed: its own date, or the data's when newer
+        - unless the new data leaves the page saying what the built page
+        already says, in which case the date it was given then stands."""
+        own = str(page.meta.get("updated") or "")
+        data = ""
         if page.meta.get("data") == "model":
-            dates.append(str(self.model.get("generated") or ""))
+            data = str(self.model.get("generated") or "")
         if page.meta.get("data") == "calendar":
-            dates.append(str(self.data.calendar.get("generated") or "")[:10])
-        return max(d for d in dates if d) if any(dates) else ""
+            data = str(self.data.calendar.get("generated") or "")[:10]
+        kept = self.lastmod.get(self.url(page.path), "")
+        if data > own and kept:
+            try:
+                built = (HERE / page.path / "index.html").read_text(encoding="utf-8")
+            except OSError:
+                built = ""
+            if self.fill(page) in built:
+                data = kept
+        return max(own, data)
 
     def render(self, page: Page) -> str:
         lang, m = page.lang, page.meta
@@ -1006,7 +1025,9 @@ class Site:
                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + body + "</urlset>\n")
 
     def robots(self) -> str:
-        lines = ["User-agent: *", "Allow: /", "Disallow: /standalone.html"]
+        # standalone.html stays out of the index by its own noindex, which a
+        # crawler only reads if robots.txt lets it fetch the file.
+        lines = ["User-agent: *", "Allow: /"]
         if self.base:
             lines.append(f"Sitemap: {self.base}sitemap.xml")
         return "\n".join(lines) + "\n"

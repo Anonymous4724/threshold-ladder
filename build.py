@@ -211,6 +211,11 @@ def head_meta(own: dict, base: str) -> str:
                   f'<meta property="og:url" content="{root}">',
                   f'<meta property="og:site_name" content="{esc(name)}">',
                   '<meta name="twitter:card" content="summary">',
+                  # The site's name, where Google reads it: on the home page
+                  # of the domain, not on /fr/, which is a subdirectory.
+                  '<script type="application/ld+json">' + json.dumps({
+                      "@context": "https://schema.org", "@type": "WebSite", "name": name, "url": root},
+                      ensure_ascii=False) + "</script>",
                   '<script type="application/ld+json">' + json.dumps({
                       "@context": "https://schema.org", "@type": "WebApplication", "name": name, "url": root,
                       "applicationCategory": "GameApplication", "operatingSystem": "Any",
@@ -236,6 +241,10 @@ def chrome(page: str, own: dict, absolute: str) -> str:
                                 ((href("this-week/", "fr/cette-semaine/")), "home.week", "This week's cups"),
                                 ((href("methodology/", "fr/methode/")), "home.method", "Method and accuracy")):
         links.append(f'<a href="{en}" data-href-en="{en}" data-href-fr="{fr}" data-t="{key}">{text}</a>')
+    # The French home, which the head names as this page's French version,
+    # reached by a link: the FR button only relabels this page. Named in
+    # French whatever the page's language, as the site pages' switch is.
+    links.append(f'<a href="{base}fr/" hreflang="fr" lang="fr">{sitegen.esc(sitegen.UI["en"]["other"])}</a>')
     home = '<p class="home-links">' + " · ".join(links) + "</p>"
     return page.replace("<!--__NAV__-->", parts["nav"]).replace("<!--__HOMELINKS__-->", home) \
                .replace("<!--__FOOTLINKS__-->", parts["foot"])

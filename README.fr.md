@@ -135,7 +135,14 @@ donc le compte est exact — 6 743 joueurs, pas « environ 6 750 » — et la li
 le dit en laissant tomber le « ≈ ». L'API pagine un classement sur cent pages
 au plus, donc au-delà de dix mille la ligne dit « 10 000 ou plus » : le
 classement s'arrête là, quand le site d'Osirion, qui compte les joueurs à
-partir des parties qu'il analyse, peut en afficher quinze mille.
+partir des parties qu'il analyse, peut en afficher quinze mille. À ce plafond,
+le compte ne dit plus qu'une borne de la profondeur d'un rang, donc aucun rang
+n'y est lu comme la moitié grand public ; et dans une qualification FNCS, dont
+le fond joue pour la qualification, un rang tient le rythme du premier
+cinquième d'une cup ordinaire et il est lu ainsi — deux corrections mesurées
+le premier jour des qualifications FNCS Solo, où la
+prévision au 8 000e rang en Europe avait tourné 9 % sous sa valeur finale en
+milieu de session.
 Rejouée sur 110 soirées avec seulement ce qui était connu chaque matin,
 l'erreur médiane passe de 5,0 à 4,2 % entre trois et cinq dixièmes de la
 session, de 4,7 à 3,6 % entre cinq et sept, de 2,1 à 1,4 % dans les dix minutes

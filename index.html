@@ -746,6 +746,8 @@ const FR = {
     + "les soirées passées, une prévision faite des seules lectures se trompait d'environ {e} % en médiane à ce "
     + "moment{deep}.",
   "solo.deep": " – mesuré sur les rangs que le flux lit, rarement au-delà de 2 500 ; aussi profond, ce n'est pas mesuré",
+  "solo.deepFncs": " – le premier jour des qualifications FNCS Solo, lue jusqu'au 8 000e rang, elle se trompait "
+    + "d'environ 2 % en moyenne à partir de 40 % de la session",
   "fieldBelowCut": "Cette cup qualifie plus de joueurs que le nombre d'inscrits habituel de ce genre de cup : "
     + "le nombre d'inscrits n'est donc pas encore connu, et aucune prévision n'est faite avant le début. Pendant "
     + "la cup, la lecture du classement à ce rang, prolongée jusqu'à la fin selon le rythme mesuré, sert de "
@@ -844,6 +846,7 @@ const FR = {
   "liveOwnPace": "le rythme des {n} dernières éditions de cette cup, rejouées partie par partie",
   "liveOwnPaceFeed": "le rythme des {n} dernières éditions de cette cup, telles que le flux les a lues",
   "liveDepth": "La courbe de rythme est celle du haut du tableau ; sur les soirées suivies par le flux, ce rang en est à {d} à ce stade de la session, et la prévision est corrigée d'autant.",
+  "liveDepthFncs": "Dans une qualification FNCS, le bas du classement joue pour la qualification : le premier jour des qualifications FNCS Solo, il a tenu le rythme du premier dixième au premier cinquième du peloton d'une cup ordinaire, et il est lu ainsi.",
   "liveAssumed": "supposé linéaire — le rythme n'a pas encore été mesuré",
   "liveBlend": "Relevés et historique sont combinés selon leur précision : ici les relevés pèsent {w} % de la réponse.",
   "liveCarried": "Ce rang n'a pas été relevé ; {c} % de ce que disent les relevés lui est reporté — mesuré, et dans une file ouverte tout le classement bouge ensemble.",
@@ -1873,6 +1876,39 @@ function depthAt(pace, q, share) {
   if (share >= DEPTH_FROM) return d;
   return 1 + (d - 1) * Math.max(0, (share - (DEPTH_FROM - 0.1)) / 0.1);
 }
+/* Two cases the feed's evenings did not cover, both met on the first day of
+ * the FNCS Solo qualifiers (28 September, seven regions, the boards read deep:
+ * at the cut in five regions, the 2,000th to the 8,000th, and at the 1,000th
+ * in Oceania and Asia).
+ *
+ * A board at the API's ceiling reads 9,950 for any field of ten thousand or
+ * more, so rank / 9,950 is the most a rank's depth can be, not its depth. The
+ * last band of the table is the casual half of a field, where the ratio runs
+ * to a fifth, and only a board that shows its whole field can say a rank is
+ * in it: at the ceiling the depth is read no deeper than the band before.
+ * Europe's 8,000th read as 0.8 of a field of 9,950 and ran 9 % under its
+ * final with the casual half's ratio; it kept within 5 % of the top's pace.
+ *
+ * An FNCS qualifier's deep end plays for the cut. At those ranks the share
+ * of the final against the top 25's went from 0.97 at 40 % of the session to
+ * 1.04 at the close - the course of the table's 0.1-0.2 band, the top tenth
+ * to fifth of an ordinary cup's field, to within 0.025 at every tenth - where
+ * the band their depth gave, 0.2-0.5, runs to 1.10. So a rank of an FNCS
+ * qualifier is read no deeper than that band. Carried to the end on the
+ * qualifier's own curve (each region against the other six's top 25), the
+ * readings ran 4.3 % under their final on average from 40 % of the session on
+ * with the table, 0.4 % under with the band (1.8 % off on average); on the
+ * family's curve, which runs behind a qualifier's top mid-session, 2.6 % under
+ * with the table and 1.4 % over with the band. */
+const DEPTH_CEILING_Q = 0.49;
+const DEPTH_FNCS_Q = 0.19;
+/* An FNCS qualifier - "FNCS Solos Qualifiers" and its later rounds - and not
+ * the skin, icon and practice cups that carry FNCS in their name: those are
+ * open cups like any other, their deep end casual, and the table stands. */
+function fncsQualifier(t) {
+  const name = ((t.name || "") + " " + (t.category || "")).toLowerCase();
+  return name.indexOf("fncs") !== -1 && name.indexOf("qualifier") !== -1;
+}
 
 function paceAt(table, share) {
   // Linear interpolation between the measured steps - tenths for the pooled
@@ -2019,6 +2055,19 @@ function refine(t, log) {
   const typed = Math.max(0, Math.round(Number(t.field_size) || 0));
   const counted = kind === "open_by_time" && share >= FAMILY_FROM ? rankedSoFar(entry) : 0;
   const field = typed || counted || ((kind === "open_by_time" && guessField(t)) || {}).field || 0;
+  // The depth of a rank, read against that field (see depthAt), with the two
+  // corrections measured on the FNCS Solo qualifiers (DEPTH_CEILING_Q,
+  // DEPTH_FNCS_Q): a count at the ceiling only bounds the depth, and an FNCS
+  // qualifier's deep end keeps the pace of an ordinary cup's top fifth.
+  const ceiling = !typed && counted > 0 && rankedCapped(entry);
+  const fncs = fncsQualifier(t);
+  const depthFor = (rank, s) => {
+    if (!(kind === "open_by_time" && rank >= 1 && field > 0)) return 1;
+    let q = rank / field;
+    if (ceiling) q = Math.min(q, DEPTH_CEILING_Q);
+    if (fncs) q = Math.min(q, DEPTH_FNCS_Q);
+    return depthAt(pace, q, s);
+  };
   const pooledCurve = (pace.curve || {})[kind];
   const curve = (family && family.curve) || pooledCurve;
   // The spread stays the pooled one: a family's or a cup's own is measured on
@@ -2042,7 +2091,14 @@ function refine(t, log) {
   const tailFor = rank => (family && family.tail) || (rank >= 1 ? bandTable((pace.tail || {}).by_rank, rank) : null) || tail;
   const spreadFor = rank => (rank >= 1 ? bandTable((pace.tail_dispersion || {}).by_rank, rank) : null) || tailSpread;
   const expectedAt = (s, after, rank) => {
-    if (after > 0) { const t = tailAt(tailFor(rank), after); if (t !== null) return Math.max(t, 0.05); }
+    // In an FNCS qualifier the deep end carries the lead it had at the buzzer
+    // into the games still landing, until its board is whole: without it the
+    // answer jumped when the window closed, and ran 2 to 3 % high for the next
+    // ten minutes at the cut on the seven evenings; with it, under 2 % low.
+    if (after > 0) {
+      const t = tailAt(tailFor(rank), after);
+      if (t !== null) return Math.max(fncs ? Math.min(1, t * depthFor(rank, 1)) : t, 0.05);
+    }
     if (byGames && byGames[String(gameOf(s))] !== undefined) return Math.max(byGames[String(gameOf(s))], 0.05);
     let m = paceAt(curve, s); if (m === null) return s;
     // A family's curve is read from FAMILY_FROM on and ramps in over the
@@ -2054,8 +2110,7 @@ function refine(t, log) {
     }
     // The curve is the top of the board's; a rank deeper into the field
     // runs on its own pace (see depthAt), in an open queue only.
-    const depth = kind === "open_by_time" && rank >= 1 && field > 0 ? depthAt(pace, rank / field, s) : 1;
-    return Math.max(m * depth, 0.05);
+    return Math.max(m * depthFor(rank, s), 0.05);
   };
   const feedTail = (pace.tail_feed || {})[kind] || null;
   // Set by relAt when the width came from the feed's own evenings rather than
@@ -2188,7 +2243,8 @@ function refine(t, log) {
            widthFrom: fromFeed ? "feed" : "boards",
            widthRows: fromFeed ? ((feedTail.settling_rows || 0) + (feedTail.held_rows || 0)) : 0,
            family: family, field: field,
-           depthOf: rank => (kind === "open_by_time" && rank >= 1 && field > 0 && after <= 0 ? depthAt(pace, rank / field, share) : 1) };
+           depthOf: rank => (after <= 0 ? depthFor(rank, share) : 1),
+           depthFncs: fncs && kind === "open_by_time" };
 }
 
 /* The least the final threshold at this rank can be: what the board already
@@ -2444,10 +2500,20 @@ function clocked(s, e) {
     ? Math.max(Number(e.elapsed) || 0, Math.round((held - begin) / 60000))
     : (Number(e.elapsed) || 0);
   const stood = { game: e.game, elapsed: gone };
-  const share = e.final && !owes ? 1 : liveShare(s, stood);
+  // The feed calls a window final once its clock has run out, but the board
+  // it hands back can be a copy from before the buzzer: Osirion's pages lag
+  // by minutes. In an open queue a board, or a page, stamped before the close
+  // is clocked on its own minute. Read as the buzzer's, the last reading of
+  // the evening priced a board three minutes short of the close as a closed
+  // one, and the answer at the cut dipped 4 % in Europe's FNCS qualifier (28
+  // September) until the first board past the close.
+  const endAt = Date.parse(s.end || "");
+  const early = t => !sealed && isFinite(endAt) && isFinite(t) && t < endAt;
+  const share = e.final && !owes && !early(held) ? 1 : liveShare(s, stood);
   const after = liveAfter(s, stood);
   const readings = (e.readings || []).map(r => {
-    const own = r.at && r.at !== e.at && !sealed && !e.final ? Date.parse(r.at) : NaN;
+    const stamp = r.at && r.at !== e.at && !sealed ? Date.parse(r.at) : NaN;
+    const own = isFinite(stamp) && (!e.final || early(stamp)) ? stamp : NaN;
     if (!isFinite(own) || !isFinite(begin)) return Object.assign({}, r, { at: r.at || e.at, elapsed: e.elapsed, share: share, after: after });
     const elapsed = Math.max(0, Math.round((own - begin) / 60000));
     const mine = { game: e.game, elapsed: elapsed };
@@ -3376,8 +3442,11 @@ function explainBlock(live, cold, answer, rank) {
       + "value. Replayed on past evenings, a forecast made from the readings alone was off by about {e} % in "
       + "median at this point{deep}.").replace("{p}", Math.round(100 * live.expectedFor(rank)))
       .replace("{e}", nf().format(bin[1]))
-      .replace("{deep}", rank > 2500 ? T("solo.deep", " - measured on the ranks the feed reads, rarely deeper "
-        + "than 2,500; this deep it has not been measured") : ""));
+      .replace("{deep}", rank > 2500 ? (live.depthFncs
+        ? T("solo.deepFncs", " - on the first day of the FNCS Solo qualifiers, read down to the 8,000th, "
+          + "it was off by about 2 % on average from 40 % of the session on")
+        : T("solo.deep", " - measured on the ranks the feed reads, rarely deeper "
+          + "than 2,500; this deep it has not been measured")) : ""));
     return '<div class="note">' + lines.join("<br>") + "</div>";
   }
   if (live) {
@@ -3416,7 +3485,10 @@ function explainBlock(live, cold, answer, rank) {
       // feed's own evenings say by how much at this point of the session.
       lines.push(T("liveDepth", "The pace curve is the top of the board's; on the evenings the feed "
         + "followed, this rank runs {d} of it at this point of the session, and the forecast is "
-        + "scaled accordingly.").replace("{d}", (depth >= 1 ? "+" : "−") + Math.round(100 * Math.abs(depth - 1)) + " %"));
+        + "scaled accordingly.").replace("{d}", (depth >= 1 ? "+" : "−") + Math.round(100 * Math.abs(depth - 1)) + " %")
+        + (live.depthFncs ? " " + T("liveDepthFncs", "In an FNCS qualifier the deep end plays for the cut: "
+          + "on the first day of the FNCS Solo qualifiers it kept the pace of the top tenth to fifth of an "
+          + "ordinary cup's field, and it is read that way.") : ""));
     }
     if (live.landing) {
       lines.push(T("liveLanding", "The window has closed and the last games are still landing: this "

@@ -130,7 +130,12 @@ exact — 6,743 players, not about 6,750 — and the line says so by dropping
 the "≈". The API pages a board a hundred pages deep at most, so past ten
 thousand the line says "10,000 or more": the leaderboard stops there, where
 Osirion's own site, which counts players from the games it parses, can say
-fifteen thousand.
+fifteen thousand. At that ceiling the count only bounds how deep a rank sits,
+so no rank is read as the casual half there; and in an FNCS qualifier, whose
+deep end plays for the cut, a rank keeps the pace of an ordinary cup's top
+fifth and is read that way — both measured on the first day of the FNCS Solo
+qualifiers, where the forecast at Europe's 8,000th had run 9 % under its
+final mid-session.
 Replayed over 110 evenings with only what was known each morning, the median
 error falls from 5.0 to 4.2 % at three to five tenths of the session, from 4.7
 to 3.6 % at five to seven, from 2.1 to 1.4 % in the ten minutes after the

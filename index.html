@@ -812,7 +812,7 @@ const FR = {
   "missing": "À compléter avant de confirmer :",
   "m.name": "le nom du tournoi", "m.games": "la durée ou le nombre de parties",
   "m.scoring": "les points de placement",
-  "points": "points", "top": "top", "of": "sur", "teams": "équipes",
+  "points": "points", "top": "top", "of": "sur", "teams": "équipes", "players": "joueurs",
   "games": "parties",
   "tiers": "paliers", "ranksRecognised": "rangs reconnus",
   "noTiers": "Aucun palier reconnu - une ligne par rang, par exemple « 1 = 60 ».",
@@ -2245,6 +2245,11 @@ function refine(t, log) {
            widthFrom: fromFeed ? "feed" : "boards",
            widthRows: fromFeed ? ((feedTail.settling_rows || 0) + (feedTail.held_rows || 0)) : 0,
            family: family, field: field,
+           // Where that field came from, for the line that quotes it: typed or
+           // in the calendar; the board's own count - exact, to a few players,
+           // or only the least it can be past the API's ten thousand; guessed.
+           fieldFrom: typed ? "typed" : counted ? (rankedCapped(entry) ? "least" : rankedExactly(entry) ? "exact" : "about")
+                                          : "guessed",
            depthOf: rank => (after <= 0 ? depthFor(rank, share) : 1),
            depthFncs: fncs && kind === "open_by_time" };
 }
@@ -3079,7 +3084,7 @@ function render() {
         : '<span class="range">' + rangeText(answer) + "</span>") +
     "</div>" +
     '<p class="subject"><b>' + T("top", "top") + " " + nf().format(rank) + "</b> " +
-      T("of", "of") + " " + num(field) + " " + T("teams", "teams") + " · " +
+      T("of", "of") + " " + fieldQuoted(cold, live) + " · " +
       esc(STATE.name) + " · " + STATE.region +
       (asked ? ' · <span class="cut">' + esc(cutWhat(asked)) + "</span>" : "") + "</p>" +
     totalNote(asked, answer, rank) +
@@ -4140,6 +4145,22 @@ function closedLobby(row) {
 function activeCuts() {
   if (!Array.isArray(STATE.tiers) || !STATE.tiers.length) return [];
   return STATE.tiersFor === (STATE.name || "") + "|" + (STATE.region || "") ? STATE.tiers : [];
+}
+
+/* The field the verdict quotes: the one the live answer works from once the
+ * readings carry the board's count - who has played, from a third of the
+ * session on - else the one the forecast before the cup assumed, and each
+ * marked for what it is: "≈" for a guess or a count to a few players, "+"
+ * for the least a board past the API's ten thousand can be. The NAC's FNCS
+ * Solo qualifier of 28 September was quoted "of 7,850 teams", the guess,
+ * for a field Osirion counted at 21,663. */
+function fieldQuoted(cold, live) {
+  const counted = live && Number(live.field) > 0 && live.fieldFrom && live.fieldFrom !== "guessed";
+  const n = Math.round(counted ? Number(live.field) : Number(cold.field) || 0);
+  const how = counted ? live.fieldFrom : (Math.round(Number(STATE.field_size) || 0) > 0 ? "typed" : "guessed");
+  const solo = String(STATE.team_mode) === "Solo";
+  return (how === "guessed" || how === "about" ? "≈ " : "") + nf().format(n) + (how === "least" ? "+" : "") +
+    " " + (solo ? T("players", "players") : T("teams", "teams"));
 }
 
 function fieldNow() {

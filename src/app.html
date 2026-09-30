@@ -572,7 +572,7 @@ footer a { color: var(--ink-dim); }
     <div class="chart-grid">
       <div class="chart-read" id="chart-read"></div>
       <div class="chart-wrap" id="chart-wrap">
-        <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="readings and forecast over the session"></svg>
+        <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="readings and forecast over the session" data-t-label="chart.label"></svg>
       </div>
     </div>
     <div class="legend" id="chart-legend"></div>
@@ -667,6 +667,8 @@ const FR = {
     + "changement du modèle est testé sur des tournois qu'il n'avait pas vus avant d'être mis en ligne.",
   "home.guides": "Les guides", "home.week": "Les cups de la semaine", "home.method": "Méthode et précision",
   "nav.week": "Cette semaine", "nav.guides": "Guides", "nav.method": "Méthode", "nav.about": "À propos",
+  "nav.label": "Menu principal", "chart.label": "relevés et prédiction au fil de la session",
+  "aria.remove": "supprimer", "aria.download": "télécharger",
   "foot.about": "À propos", "foot.contact": "Contact", "foot.privacy": "Confidentialité",
   "foot.method": "Méthode et précision", "foot.source": "Code source",
   "cal.fc": "{r} ≈ {p} pts", "cal.win": "victoire",
@@ -871,6 +873,9 @@ const FR = {
   "lastPlaces": "Le top {rank} sur {field} fait partie des dernières places d'un lobby fermé : des équipes parties après une ou deux parties, pas un seuil que l'on joue. Le modèle ne le prédit pas ; le classement de l'édition précédente est la seule lecture."
 };
 let LANG = "en";
+// The language picked with the page's own FR/EN buttons, and only that: a
+// ?lang= link opens the page in its language for that visit, and is not kept.
+const LANG_KEY = "threshold-ladder-lang-picked";
 const EN = {};
 function T(key, fallback) {
   if (LANG === "fr" && FR[key] !== undefined) return FR[key];
@@ -2444,6 +2449,9 @@ const LADDER_RANKS = [1, 3, 5, 10, 20, 25, 50, 100, 250, 500, 1000, 2500];
 const $ = id => document.getElementById(id);
 const nf = () => new Intl.NumberFormat(LANG === "fr" ? "fr-FR" : "en-GB");
 const num = v => (v === null || v === undefined || !isFinite(v)) ? "—" : nf().format(Math.round(v));
+// A fixed number of decimals, written the reader's way: 3.5 in English, 3,5 in French.
+const dec = (v, digits) => new Intl.NumberFormat(LANG === "fr" ? "fr-FR" : "en-GB",
+  { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
 const esc = t => String(t).replace(/[&<>"]/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -2746,7 +2754,7 @@ function drawLog() {
       ? T("l.gameShort", "game") + " " + entry.game
       : (entry.elapsed || 0) + " min";
     const at = entry.at ? clock(entry.at) : "";
-    const what = entry.readings.map(r => T("top", "top") + " " + r.rank + " " + num(r.points)).join(" · ");
+    const what = entry.readings.map(r => T("top", "top") + " " + nf().format(r.rank) + " " + num(r.points)).join(" · ");
     const said = entry.said ? num(entry.said.value) : "";
     const tag = entry.auto ? ' <small class="auto-tag">' + esc(T("l.auto", "auto")) + "</small>" : "";
     return '<div class="log-row"><span class="when' + (entry.share >= 1 ? " final" : "") + '">' +
@@ -2754,7 +2762,7 @@ function drawLog() {
       '</span><span class="what">' + esc(what) + '</span>' +
       '<span class="said">' + esc(said) + '</span>' +
       (entry.auto ? "<span></span>"
-        : '<button type="button" data-game="' + entry.game + '" aria-label="remove">&times;</button>') +
+        : '<button type="button" data-game="' + entry.game + '" aria-label="' + esc(T("aria.remove", "remove")) + '">&times;</button>') +
       "</div>";
   }).join("");
   $("log").querySelectorAll("button[data-game]").forEach(b => {
@@ -2779,9 +2787,7 @@ function fillForm() {
     const closed = STATE.format === "sealed" && STATE.field_size > 0
                    && STATE.field_size <= lobbyCap(STATE.team_mode, STATE.game_mode);
     lobby.hidden = !closed;
-    if (closed) lobby.textContent = STATE.field_guessed
-      ? T("hint.closedguess", "Closed lobby, probably: a final the model has never seen. The field is one lobby's worth; correct it if you know better.")
-      : T("hint.closed", "Closed lobby: a final played by the qualified teams in a single lobby. The field is what previous editions ranked.");
+    if (closed) lobby.textContent = lobbyHint();
   }
   $("f-placement").value = scoringToText(STATE.scoring);
   $("f-kill").value = (STATE.scoring.kill === null || STATE.scoring.kill === undefined)
@@ -2790,6 +2796,12 @@ function fillForm() {
   $("f-rank").value = STATE.rank || 500;
   drawReadings();
   fillLive();
+}
+/* The closed-lobby note under the field, in the page's language. */
+function lobbyHint() {
+  return STATE.field_guessed
+    ? T("hint.closedguess", "Closed lobby, probably: a final the model has never seen. The field is one lobby's worth; correct it if you know better.")
+    : T("hint.closed", "Closed lobby: a final played by the qualified teams in a single lobby. The field is what previous editions ranked.");
 }
 function drawReadings() {
   $("readings").innerHTML = "";
@@ -2955,7 +2967,7 @@ function setFrozen(frozen) {
     const s = STATE.scoring;
     $("frozen-scoring").innerHTML =
       "<dt>" + T("tiers", "tiers") + "</dt><dd>" + (s.placement || []).length + "</dd>" +
-      "<dt>" + T("l.kill", "Per elimination") + "</dt><dd>" + (s.kill || 0) +
+      "<dt>" + T("l.kill", "Per elimination") + "</dt><dd>" + nf().format(s.kill || 0) +
       (s.kill_cap ? " (" + s.kill_cap + ")" : "") + "</dd>" +
       "<dt>" + T("matched", "Matched") + "</dt><dd>" +
       (t.matched ? esc(t.matched.label) : "—") + "</dd>";
@@ -3105,8 +3117,10 @@ function render() {
   const wanted = LADDER_RANKS.concat([rank]).concat(cutRanks).concat(Object.keys(seen).map(Number));
   const ranks = wanted.filter((r, i) => wanted.indexOf(r) === i && r >= 1 && r <= Math.max(field, 1))
                       .sort((a, b) => a - b);
-  const rows = ranks.map(r => {
-    const p = at(r);
+  // A rung the model does not price - past a closed lobby's last places, or
+  // off the few ranks a cup already read kept its forecast for - is left off:
+  // drawn at nought, the walk below would lift it to the rung beneath it.
+  const rows = ranks.map(r => ({ r: r, p: forecastAt(t, r, live) })).filter(x => x.p).map(({ r, p }) => {
     return { rank: r, value: p.value, rel: p.rel, seen: seen[r] !== undefined, near: !!p.between,
              cut: cutAt(r, field) };
   });
@@ -3295,7 +3309,7 @@ function drawChart(t, cold) {
   });
   const hidden = new Set(STATE.hideSeries || []);
   const series = ranks.map((rank, i) => ({
-    key: "r" + rank, label: T("top", "top") + " " + rank, hue: 1 + i, kind: "reading",
+    key: "r" + rank, label: T("top", "top") + " " + nf().format(rank), hue: 1 + i, kind: "reading",
     points: replay.map(p => p.known[rank] ? { x: xOf(p.e), y: p.known[rank].points } : null).filter(Boolean)
   }));
   // The forecast is recomputed rather than read back from what was said at
@@ -3307,7 +3321,7 @@ function drawChart(t, cold) {
     const band = bandsOf(f.value, f.rel, f.floor, f.live);
     return { x: xOf(p.e), y: f.value, lo: band.wide[0], hi: band.wide[1], near: band.near };
   }).filter(Boolean);
-  if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", asked),
+  if (said.length) series.unshift({ key: "f", label: T("chart.forecast", "forecast top {r}").replace("{r}", nf().format(asked)),
                                     short: T("chart.forecastShort", "forecast"), hue: 0, kind: "forecast", points: said });
   series.forEach(s => { s.off = hidden.has(s.key); });
   const shown = series.filter(s => !s.off && s.points.length);
@@ -3492,7 +3506,7 @@ function explainBlock(live, cold, answer, rank) {
             .replace("{n}", nf().format(live.family.boards)) +
           ", ±" + Math.round(100 * live.rel) + " %)."
         : live.measured
-        ? " (" + T("liveMeasured", "measured on {n} boards replayed game by game").replace("{n}", n) +
+        ? " (" + T("liveMeasured", "measured on {n} boards replayed game by game").replace("{n}", nf().format(n)) +
           ", ±" + Math.round(100 * live.rel) + " %)."
         : " (" + T("liveAssumed", "assumed linear — the pace has not been measured yet") + ")."));
     const depth = live.depthOf ? live.depthOf(rank) : 1;
@@ -3570,7 +3584,7 @@ function explainBlock(live, cold, answer, rank) {
       if (cold.fieldEffect && Math.abs(cold.fieldEffect) >= 0.05) {
         lines.push(T("fieldMoved", "The field entered ({f} teams) is not the edition's: read along the curve, "
           + "that moves the threshold by {p} %.").replace("{f}", num(cold.field))
-          .replace("{p}", (cold.fieldEffect > 0 ? "+" : "−") + Math.abs(cold.fieldEffect).toFixed(1)));
+          .replace("{p}", (cold.fieldEffect > 0 ? "+" : "−") + dec(Math.abs(cold.fieldEffect), 1)));
       }
       // Which edition the rank was read off, when it is not the latest: the
       // latest edition is read as deep as it was harvested, and a rank past
@@ -3591,7 +3605,7 @@ function explainBlock(live, cold, answer, rank) {
             + "one at these ranks ({n} readings), and the value is moved by that; the band is widened by "
             + "what that move leaves unexplained.")
             .replace("{from}", cold.seasonFrom).replace("{to}", cold.seasonTo)
-            .replace("{p}", (cold.seasonEffect >= 0 ? "+" : "−") + Math.abs(cold.seasonEffect).toFixed(1))
+            .replace("{p}", (cold.seasonEffect >= 0 ? "+" : "−") + dec(Math.abs(cold.seasonEffect), 1))
             .replace("{n}", nf().format(cold.seasonPairs)));
         } else {
           lines.push(T("seasonNew", "That edition is from season {from}; this cup is in season {to}, and no "
@@ -3624,8 +3638,8 @@ function explainBlock(live, cold, answer, rank) {
     if (cold.guessedField) {
       lines.push(T("assumedField", "Assumed field") + ": " + num(cold.field) + " " +
         T("teams", "teams") + " — " + T("fieldEffect", "a 30 % error moves the threshold by") + " " +
-        (cold.fieldEffect < 0.1 ? T("under", "under") + " 0.1 %."
-                                : cold.fieldEffect.toFixed(1) + " %."));
+        (cold.fieldEffect < 0.1 ? T("under", "under") + " " + dec(0.1, 1) + " %."
+                                : dec(cold.fieldEffect, 1) + " %."));
     }
   }
   return '<div class="note' + (live ? " cool" : "") + '">' + lines.join("<br>") + "</div>";
@@ -3640,8 +3654,8 @@ function basisRows() {
     : new Intl.NumberFormat(LANG === "fr" ? "fr-FR" : "en-GB",
         { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(x)) + " %";
   return [
-    [T("basis.trained", "Trained on"), (s.tournaments || 0) + " " +
-      T("basis.tournaments", "tournaments") + ", " + (s.thresholds || 0) + " " +
+    [T("basis.trained", "Trained on"), nf().format(s.tournaments || 0) + " " +
+      T("basis.tournaments", "tournaments") + ", " + nf().format(s.thresholds || 0) + " " +
       T("basis.thresholds", "thresholds")],
     [T("basis.measured", "Measured on"), q
       ? (q.split === "rolling"
@@ -3661,7 +3675,7 @@ function basisRows() {
         : "—"],
     [T("basis.lobby", "Median error, single-lobby final never run before"),
       q && q.lobby_median_ape !== null && q.lobby_median_ape !== undefined
-        ? pct(q.lobby_median_ape, 0) + (q.lobby_rows ? " (" + q.lobby_rows + " "
+        ? pct(q.lobby_median_ape, 0) + (q.lobby_rows ? " (" + nf().format(q.lobby_rows) + " "
             + T("basis.thresholds", "thresholds") + ")" : "")
         : "—"],
     [T("basis.coverage", "Real thresholds inside the band"),
@@ -3770,8 +3784,8 @@ function drawSessions() {
         "<small>" + esc(when + " · " + (s.tournament.region || "") + " · " +
           (s.log || []).length + " " + T("l.acquisitions", "acquisitions") +
           (done ? " · " + T("l.finished", "finished") : "")) + "</small></span>" +
-      '<button type="button" data-get="' + i + '" aria-label="download">&darr;</button>' +
-      '<button type="button" data-drop="' + i + '" aria-label="remove">&times;</button></div>';
+      '<button type="button" data-get="' + i + '" aria-label="' + esc(T("aria.download", "download")) + '">&darr;</button>' +
+      '<button type="button" data-drop="' + i + '" aria-label="' + esc(T("aria.remove", "remove")) + '">&times;</button></div>';
   }).join("");
   const list_ = list;
   $("sessions").querySelectorAll("button[data-get]").forEach(b => {
@@ -3835,14 +3849,27 @@ function applyLanguage(code) {
     if (EN[key] === undefined) EN[key] = el.placeholder;
     el.placeholder = T(key);
   });
+  document.querySelectorAll("[data-t-label]").forEach(el => {
+    const key = el.dataset.tLabel;
+    if (EN[key] === undefined) EN[key] = el.getAttribute("aria-label") || "";
+    el.setAttribute("aria-label", T(key));
+  });
+  // The tab's title: on the site, the name and the heading above (build.py's
+  // TITLE_EN), which is translated with it; the standalone file's is the name.
+  if (EN["doc.title"] === undefined) EN["doc.title"] = document.title;
+  document.title = EN["doc.title"].replace(EN["home.h1"], T("home.h1"));
   // The site's pages exist in both languages; its links follow the page's.
   document.querySelectorAll("[data-href-fr]").forEach(a => {
     a.setAttribute("href", LANG === "fr" ? a.dataset.hrefFr : a.dataset.hrefEn);
   });
   drawCalendar();
-  try { localStorage.setItem("threshold-ladder-lang", LANG); } catch (e) { /* ignore */ }
+  drawSessions();
+  // The closed-lobby note keeps its place and changes its words.
+  if (!$("lobby-hint").hidden) $("lobby-hint").textContent = lobbyHint();
   settingsChanged();
-  if (STATE.confirmed) setFrozen(true);
+  // Frozen or not: either way it redraws the live panel, which the reader
+  // sees before the settings are confirmed too.
+  setFrozen(!!STATE.confirmed);
   liveChanged();
   render();
 }
@@ -4315,6 +4342,16 @@ function pickFromCalendar(row) {
   // The rank people came for: the widest qualification cut, when the cup has one.
   const cut = defaultCut(activeCuts(), fieldNow());
   if (cut) { STATE.rank = cut.rank; $("f-rank").value = cut.rank; }
+  else {
+    // No cut - a final played for the win, a round that qualifies no one: the
+    // rank the list priced it at (calForecast), else the first one the list's
+    // writer prices (calendar_forecast in the tracker's export). Never the rank
+    // the previous cup left, which a small lobby may not even have.
+    const fc = STATE.calendarFc, field = fieldNow();
+    const listed = fc && fc.ranks.length ? (fc.ranks.find(k => k[0] === fc.cut) || fc.ranks[0])[0] : 0;
+    const first = listed || (closed || (field > 0 && field <= 100) ? 1 : 100);
+    STATE.rank = first; $("f-rank").value = first;
+  }
   // A cup the model has already read opens on a rank it kept a forecast for.
   const kept = (STATE.calendarFc || {}).ranks || [];
   if (kept.length && !kept.some(k => k[0] === Number($("f-rank").value)) && modelHasRead(asTournament(STATE))) {
@@ -4366,6 +4403,12 @@ function goHome() {
   else showView("home", false);
 }
 window.addEventListener("popstate", () => {
+  // An entry from before a pick with the buttons can still carry the ?lang=
+  // the page was opened with: the pick outvotes it here too.
+  const asked = (/[?&]lang=(en|fr)\b/.exec(location.search) || [])[1];
+  if (asked && asked !== LANG) {
+    try { history.replaceState(history.state, "", location.pathname + location.hash); } catch (e) { /* file */ }
+  }
   const view = location.hash === "#tournament" ? "predict" : "home";
   if (view === "home" && PUSHED > 0) PUSHED--;
   else if (view === "predict") PUSHED++;
@@ -4618,18 +4661,23 @@ function drawStatus() {
   const line = $("status-line");
   const clock = hhmm;
   const auto = STATE.auto, manual = (STATE.log || []).length ? STATE.log[STATE.log.length - 1] : null;
+  // The feed's reading as last read, and the log's line for it, which the
+  // answer goes by: the same standing read again folds into one line, which
+  // knows since when it has stood and whether it was read final.
+  const read = auto ? auto.seen || auto.updated : "";
+  const logged = auto ? (STATE.autoLog || []).find(e => (e.seen || e.at) === read) || auto : null;
   let text;
-  if (auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0))) {
+  if (auto && (!manual || Date.parse(read) >= Date.parse(manual.at || 0))) {
     // The feed reads on the five-minute marks, and the reading lands a couple
     // of minutes after the one it was taken on. Outside a cup's endgame only
     // every other pass fetches, so the next reading is up to ten minutes off.
     const every = inEndgame() ? 300e3 : 600e3;
-    const next = new Date(Math.floor(Date.parse(auto.updated) / every) * every + every + 2 * 60e3);
+    const next = new Date(Math.floor(Date.parse(read) / every) * every + every + 2 * 60e3);
     const sealed = String(STATE.format) === "sealed";
     // The window is over and, for a lobby, its games are in. That is not yet
     // the final board in an open queue: the games that started on the hour
     // are still landing.
-    const over = !!auto.final && !(sealed && Number(auto.game) > 0 && Number(auto.game) < gameCount(STATE));
+    const over = !!logged.final && !(sealed && Number(auto.game) > 0 && Number(auto.game) < gameCount(STATE));
     const ends = Date.parse(STATE.end || "");
     const settleBy = isFinite(ends) ? ends + SETTLED_AFTER * 60e3 : 0;
     // The standing has to have been read twice unchanged, and - in an open
@@ -4638,30 +4686,30 @@ function drawStatus() {
     // ingested yet, not the cup being over. The clock that matters is the
     // reading's own, never the wall clock: a reading taken three minutes
     // after the hour does not become the final board by our waiting.
-    const held = boardHeld(auto) / 60e3;
+    const held = boardHeld(logged) / 60e3;
     const still = held >= HELD_MS / 60e3;
-    const firstAfter = isFinite(ends) ? (Date.parse(auto.at) - ends) / 60e3 : -1;
+    const firstAfter = isFinite(ends) ? (Date.parse(logged.at) - ends) / 60e3 : -1;
     if (over && still && (sealed || firstAfter >= SETTLED_AFTER)) {
-      text = T("status.final", "Final standings · unchanged since {t}").replace("{t}", clock(auto.at));
+      text = T("status.final", "Final standings · unchanged since {t}").replace("{t}", clock(logged.at));
     } else if (over && Date.now() >= settleBy + SETTLED_AFTER * 60e3) {
       text = T("status.stale", "Standings read at {t}, before the last games had landed · "
-        + "the feed has not looked since").replace("{t}", clock(auto.updated));
+        + "the feed has not looked since").replace("{t}", clock(read));
     } else if (over) {
       // Between the two: the clock has run out, the board has not settled.
       // The minute it should be in by is only worth saying while it is ahead.
       text = (Date.now() < settleBy
         ? T("status.settling", "Standings read at {t} · the last games are still landing, final around {n}")
         : T("status.settlingLate", "Standings read at {t} · the last games are still landing"))
-        .replace("{t}", clock(auto.updated)).replace("{n}", clock(new Date(settleBy).toISOString()));
+        .replace("{t}", clock(read)).replace("{n}", clock(new Date(settleBy).toISOString()));
     } else if (auto.partial && String(STATE.format) === "sealed") {
       // A game under way: the board is half updated, and the forecast waits
       // for the standing at the end of it rather than reading the half.
       text = T("status.partial", "Game {p} under way · standings as they stood after game {g}, read at {t} · next reading around {n}")
         .replace("{p}", auto.game + 1).replace("{g}", auto.game)
-        .replace("{t}", clock(auto.updated)).replace("{n}", clock(next.toISOString()));
+        .replace("{t}", clock(read)).replace("{n}", clock(next.toISOString()));
     } else {
       text = T("status.auto", "Standings read at {t} · next reading around {n}")
-        .replace("{t}", clock(auto.updated)).replace("{n}", clock(next.toISOString()));
+        .replace("{t}", clock(read)).replace("{n}", clock(next.toISOString()));
     }
   } else if (manual) {
     text = T("status.manual", "Last reading typed at {t}").replace("{t}", clock(manual.at));
@@ -4684,7 +4732,7 @@ function drawStatus() {
   }
   // Who has played so far, when the reading said: a count worth seeing on
   // its own, and the number the depth of a rank is measured against.
-  const ranked = auto && (!manual || Date.parse(auto.at) >= Date.parse(manual.at || 0)) ? rankedSoFar(auto) : 0;
+  const ranked = auto && (!manual || Date.parse(read) >= Date.parse(manual.at || 0)) ? rankedSoFar(auto) : 0;
   if (ranked > 0) {
     const solo = String(STATE.team_mode) === "Solo";
     const least = String(auto.rankedFrom || "") === "percentile-min" && Number(auto.ranked) > PAGES_CAP * 100;
@@ -4927,20 +4975,27 @@ function start() {
   $("back").onclick = () => { drawCalendar(); drawSessions(); goHome(); };
   document.querySelectorAll("#tabs [data-go]").forEach(b => { b.onclick = () => showTab(b.dataset.go); });
   document.querySelectorAll("[data-set-lang]").forEach(b => {
-    b.onclick = () => applyLanguage(b.dataset.setLang);
+    b.onclick = () => {
+      applyLanguage(b.dataset.setLang);
+      try { localStorage.setItem(LANG_KEY, LANG); } catch (e) { /* ignore */ }
+      // The reader's pick outvotes a ?lang= in the address from now on,
+      // at the next reload too.
+      if (/[?&]lang=/.test(location.search)) {
+        try { history.replaceState(history.state, "", location.pathname + location.hash); } catch (e) { /* file */ }
+      }
+    };
   });
 
   // The language: one asked in the address (the French pages link here with
-  // ?lang=fr), else the one chosen last time, else the browser's own.
+  // ?lang=fr), else the one last picked with the buttons, else the browser's
+  // own. An address's is for that visit and is not remembered; it stays in the
+  // address, so a reload keeps it, until the buttons pick another.
   let saved = null;
-  try { saved = localStorage.getItem("threshold-ladder-lang"); } catch (e) { /* ignore */ }
+  try { saved = localStorage.getItem(LANG_KEY); } catch (e) { /* ignore */ }
+  // The key this one replaces held whatever language a visit opened in.
+  try { localStorage.removeItem("threshold-ladder-lang"); } catch (e) { /* ignore */ }
   const asked = (/[?&]lang=(en|fr)\b/.exec(location.search) || [])[1];
-  if (asked) {
-    saved = asked;
-    // Taken once: left in the address, it would outvote the reader's own
-    // switch at the next reload.
-    try { history.replaceState(history.state, "", location.pathname + location.hash); } catch (e) { /* file */ }
-  }
+  if (asked) saved = asked;
   if (!saved) saved = /^fr\b/i.test(navigator.language || "") ? "fr" : "en";
   setFrozen(!!STATE.confirmed);
   applyLanguage(saved);

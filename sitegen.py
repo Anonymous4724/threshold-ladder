@@ -972,7 +972,7 @@ class Site:
         other = self.counterpart(page)
         # No counterpart: the other language's home. The English one is the
         # predictor, told which language to open in - it would otherwise
-        # reopen in the one saved last, French after any French link.
+        # open in the one last picked on it, or the browser's own.
         other_path = other.path if other else ("?lang=en" if lang == "fr" else ROOTS["fr"]["home"])
         other_lang = "fr" if lang == "en" else "en"
         switch = (f'<a class="lang-switch" href="{rel_link(page.path, other_path)}" hreflang="{other_lang}" '
@@ -1069,7 +1069,7 @@ def tool_chrome(settings: dict, lang: str = "en", absolute: str = "") -> dict[st
         path = ROOTS[l][key]
         return (base + path) if base else (path or "./")
     nav_items = [("week", "nav.week"), ("guides", "nav.guides"), ("method", "nav.method"), ("about", "nav.about")]
-    nav = '<nav class="top-nav" aria-label="Main">' + "".join(
+    nav = f'<nav class="top-nav" aria-label="{esc(UI["en"]["nav.label"])}" data-t-label="nav.label">' + "".join(
         f'<a href="{href(k)}" data-href-en="{href(k)}" data-href-fr="{href(k, "fr")}" data-t="{t}">{esc(UI["en"][t])}</a>'
         for k, t in nav_items) + "</nav>"
     links = [("about", "foot.about"), ("contact", "foot.contact"), ("privacy", "foot.privacy"), ("method", "foot.method")]

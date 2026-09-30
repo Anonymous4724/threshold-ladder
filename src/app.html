@@ -786,6 +786,7 @@ const FR = {
   "entryBar": "Accès : {bar}, comme pour l'édition lue.",
   "formatOther": "Cette cup n'a encore jamais été jouée en {mine} : lue sur sa dernière édition en {theirs}, un autre classement, donc la fourchette est élargie de moitié.",
   "fieldMoved": "L'effectif saisi ({f} équipes) n'est pas celui de l'édition : lu le long de la courbe, ça déplace le seuil de {p} %.",
+  "laterDay": "Jour suivant d'un round joué sur plusieurs jours, lu sur la veille : moins de joueurs reviennent. Les jours suivants déjà mesurés sont revenus à {p} % de leur veille à ces rangs ({n} relevés), et la valeur est déplacée d'autant ; la fourchette est élargie de ce que ce déplacement laisse inexpliqué.",
   "editionRead": "Lu sur l'édition du {date} : la dernière en date ({latest}) n'a pas été relevée à ce rang.",
   "seasonMoved": "Cette édition date de la saison {from} ; cette cup se joue en saison {to}. Les cups déjà jouées cette saison sont revenues à {p} % de leur dernière édition de la saison précédente à ces rangs ({n} relevés), et la valeur est déplacée d'autant ; la fourchette est élargie de ce que ce déplacement laisse inexpliqué.",
   "seasonNew": "Cette édition date de la saison {from} ; cette cup se joue en saison {to}, et aucune cup de cette saison n'a encore été mesurée à ces rangs : la valeur est reprise telle quelle, la fourchette élargie de ce qu'un changement de saison a déjà déplacé les cups par le passé.",
@@ -1151,8 +1152,10 @@ function seasonMove(since, until, rank) {
  * Nothing modelled, because measured, which beats modelling it: a strong
  * evening lifts every rank together, and a reading taken whole keeps that
  * where a level times a ratio loses it. `field` is the field the forecast
- * settled on, typed or guessed: what decides whether the cup is one lobby. */
-function directReading(t, rank, field) {
+ * settled on, typed or guessed: what decides whether the cup is one lobby.
+ * `later`, for a later day of a round with no field typed, is the move the
+ * later days measured so far made at this band of rank: see predictModel. */
+function directReading(t, rank, field, later) {
   const row = categoryRow(t);
   const table = (row || {}).direct || {};
   const usable = e => !!e && !!e[0];
@@ -1210,6 +1213,10 @@ function directReading(t, rank, field) {
       value *= Math.exp(move);
       rel = Math.sqrt(rel * rel + Math.pow(rule.rel * move, 2));
       effect = 100 * (Math.exp(move) - 1);
+    } else if (later) {
+      value *= Math.exp(Number(later[0]));
+      rel = Math.sqrt(rel * rel + Math.pow(Number(later[1]), 2));
+      effect = 100 * (Math.exp(Number(later[0])) - 1);
     }
     // Read across a turn of season: moved, and the band widened.
     const moved = seasonMove(since, until, rank);
@@ -1433,7 +1440,13 @@ function predictModel(t, rank) {
       + "this rank, carried to the end on the measured pace, is the forecast.") };
   }
   if (rank < 1) return null;
-  const straight = directReading(t, rank, field);
+  // A later day of a round played over several days reads the day before as
+  // its previous edition, and draws fewer players: with no field typed, the
+  // reading is moved by what the later days measured so far did at this band
+  // of rank, band widened by their spread (the model's `later_day`, see
+  // later_day_shifts in export_model.py). A typed field moves it instead.
+  const later = guessed && t.laterDay ? ((MODEL.later_day || {}).bands || {})[seasonBand(rank)] || null : null;
+  const straight = directReading(t, rank, field, later);
   if (straight) {
     const v = straight.value, rel = straight.rel, season = straight.season || {};
     return { ok: true, value: v, low: Math.max(0, v * (1 - rel)), high: v * (1 + rel),
@@ -1442,7 +1455,9 @@ function predictModel(t, rank) {
       // The edition the rank was read off, and what carrying it across a
       // turn of season did to it.
       edition: season.date || "", seasonEffect: Math.round((season.effect || 0) * 10) / 10,
-      seasonPairs: season.pairs || 0, seasonFrom: season.since, seasonTo: season.until };
+      seasonPairs: season.pairs || 0, seasonFrom: season.since, seasonTo: season.until,
+      // The readings the later-day move rests on, 0 when none was made.
+      laterDay: later ? Number(later[2]) || 0 : 0 };
   }
   // The last places of a single lobby are not a ladder: teams that left
   // after a game or two. The previous edition's own reading, above, is the
@@ -2618,6 +2633,9 @@ function asTournament(s) {
   // The season the cup is played in: the one its event id names, else the
   // model's current one - a cup typed by hand is one of this season.
   const season = seasonOfEvent(s.event);
+  // The day of a round played over several days, as the window's id numbers
+  // it ("...Qual1Round1Day2_EU"): only for the cup as the calendar gave it.
+  const day = own ? /Day(\d+)/.exec(String(s.window || "")) : null;
   return {
     category: matched ? matched.label : (own && s.calendarKind ? s.calendarKind : s.name),
     name: s.name || "",
@@ -2634,6 +2652,7 @@ function asTournament(s) {
     kept: own && !s.touched && s.calendarFc && Array.isArray(s.calendarFc.ranks) ? s.calendarFc : null,
     season: season === null ? (MODEL.season === undefined ? null : MODEL.season) : season,
     scoring_known: (s.scoring.placement || []).length > 0,
+    laterDay: !!day && parseInt(day[1], 10) >= 2,
     matched: matched
   };
 }
@@ -3581,7 +3600,14 @@ function explainBlock(live, cold, answer, rank) {
       } else if (bar) {
         lines.push(T("entryBar", "Entry: {bar}, as for the edition read.").replace("{bar}", bar));
       }
-      if (cold.fieldEffect && Math.abs(cold.fieldEffect) >= 0.05) {
+      if (cold.laterDay) {
+        lines.push(T("laterDay", "A later day of a round played over several days, read off the day before: "
+          + "fewer players come back. The later days measured so far came back {p} % against the day before at "
+          + "these ranks ({n} readings), and the value is moved by that; the band is widened by what that move "
+          + "leaves unexplained.")
+          .replace("{p}", (cold.fieldEffect >= 0 ? "+" : "−") + dec(Math.abs(cold.fieldEffect), 1))
+          .replace("{n}", nf().format(cold.laterDay)));
+      } else if (cold.fieldEffect && Math.abs(cold.fieldEffect) >= 0.05) {
         lines.push(T("fieldMoved", "The field entered ({f} teams) is not the edition's: read along the curve, "
           + "that moves the threshold by {p} %.").replace("{f}", num(cold.field))
           .replace("{p}", (cold.fieldEffect > 0 ? "+" : "−") + dec(Math.abs(cold.fieldEffect), 1)));

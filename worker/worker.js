@@ -187,8 +187,14 @@ function endgame(row, now) {
 async function remember(env, out, now) {
   const day = new Date(now).toISOString().slice(0, 10);
   const key = "history-" + day;
+  // A day that cannot be read is not an empty one: written over, it would
+  // lose every reading it holds - and once the free plan's KV has served its
+  // reads for the day, every read fails until midnight UTC. It is left alone
+  // this run; only a value that does not parse is started again.
+  let stored;
+  try { stored = await env.LIVE.get(key); } catch (err) { return 0; }
   let doc;
-  try { doc = JSON.parse((await env.LIVE.get(key)) || "null"); } catch (err) { doc = null; }
+  try { doc = JSON.parse(stored || "null"); } catch (err) { doc = null; }
   if (!doc || typeof doc !== "object" || !doc.windows) doc = { day: day, windows: {} };
   let added = 0;
   for (const w of out) {
@@ -207,6 +213,10 @@ async function remember(env, out, now) {
     // A count past the ceiling is kept once the percentiles have pinned it;
     // the least the field can be, while the search goes on, is not a count.
     const counted = w.ranked && w.rankedFrom !== "percentile-min";
+    // The calendar knows when a window ends, and it can move: the day's
+    // record follows it, since the research side reads the close to tell a
+    // settled board from one still running.
+    for (const k of ["name", "begin", "end"]) if (w[k]) kept[k] = w[k];
     kept.readings.push({ updated: w.updated, games: w.games, teams: w.teams, pages: w.pages || null,
                          ranked: counted ? w.ranked : null, rankedFrom: counted ? w.rankedFrom || null : null, final: w.final,
                          partial: w.partial === undefined ? null : w.partial, readings: w.readings });
@@ -250,8 +260,13 @@ async function loadCalendar(env) {
   return { events: [] };
 }
 
+/* The last run's document. Anything else under its key - `null`, a hand
+ * edit - is no previous reading: taken for one, it would fail every run that
+ * has a cup to read, and none of them would write over it. */
 async function readPrevious(env) {
-  try { return JSON.parse((await env.LIVE.get(KEY)) || "{}"); } catch (err) { return {}; }
+  let doc;
+  try { doc = JSON.parse((await env.LIVE.get(KEY)) || "{}"); } catch (err) { return {}; }
+  return doc && Array.isArray(doc.windows) ? doc : {};
 }
 
 /* A window whose standings could not be read keeps its last reading, so a
@@ -564,8 +579,10 @@ async function countFrom(row, page, number) {
     page = more ? readPage(more, number) : null;
   }
   // Still full with more behind it: the board outran the reading; no count
-  // is better than a wrong one, and the page count still says "about".
-  if (!page || (page.teams >= PAGE_SIZE && page.totalPages > number + 1)) return null;
+  // is better than a wrong one, and the page count still says "about". An
+  // empty page is a copy older than the page count that sent the reading
+  // there: no count either.
+  if (!page || !page.teams || (page.teams >= PAGE_SIZE && page.totalPages > number + 1)) return null;
   return number * PAGE_SIZE + page.teams;
 }
 
@@ -631,13 +648,17 @@ async function board(eventId, windowId, page) {
   for (let attempt = 0; attempt < 3; attempt++) {
     // Straight from the API, never from a copy this side kept: a board is
     // worth reading only as it is now. Older runtimes reject the option and
-    // are asked again without it.
+    // are asked again without it. A request that fails either way, or whose
+    // body is cut off on the way, is a page not read, as a 4xx is: the pages
+    // already in hand are still worth publishing.
     let res;
     try { res = await fetch(url, { headers: headers, cache: "no-store" }); }
-    catch (err) { res = await fetch(url, { headers: headers }); }
+    catch (err) {
+      try { res = await fetch(url, { headers: headers }); } catch (again) { return null; }
+    }
     if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     if (!res.ok) return null;
-    return res.text();
+    try { return await res.text(); } catch (err) { return null; }
   }
   return null;
 }
@@ -658,6 +679,11 @@ function readPage(text, page) {
 }
 
 function scan(text, page) {
+  // A body cut short reads as a shorter page - fewer rosters, a count too
+  // low taken for an exact one - so the fast path takes a whole document
+  // only, one that ends where its outermost object closes; JSON.parse
+  // judges the rest.
+  if (!text.trimEnd().endsWith("}")) return null;
   const re = /"(rank|pointsEarned|percentile)"\s*:\s*(-?\d+(?:\.\d+)?|null)/g;
   const pairs = [], tenths = [];
   let order = null, rank = null, points = null, m;

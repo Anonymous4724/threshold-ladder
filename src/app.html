@@ -994,7 +994,9 @@ function guessField(t) {
   for (const pair of tries) {
     const row = pair[1];
     if (row && (row.field_n || 0) >= 1 && row.field) {
-      return { field: Math.round(row.field), source: pair[0], spread: row.field_spread || 0.2 };
+      // A spread of 0 is measured - every edition drew the same field - not missing.
+      const spread = row.field_spread === undefined || row.field_spread === null ? 0.2 : row.field_spread;
+      return { field: Math.round(row.field), source: pair[0], spread: spread };
     }
   }
   return null;
@@ -1791,8 +1793,9 @@ function familyPace(pace, t) {
         || Number(row[7]) !== games)) return false;
     const fromFeed = row[5] === "feed";
     if (!fromFeed && row[4] && isFinite(begins)) {
+      // In whole days from the edition's date to the cup's, as the analysis counts.
       const latest = Date.parse(String(row[4]) + "T00:00Z");
-      if (isFinite(latest) && (begins - latest) / 86400e3 > CAT_MAX_DAYS) return false;
+      if (isFinite(latest) && Math.floor((begins - latest) / 86400e3) > CAT_MAX_DAYS) return false;
     }
     return true;
   }) : null;
@@ -2040,13 +2043,17 @@ function refine(t, log) {
   // more, and so does every harvested field the depth was measured on: the
   // depth of a rank is measured against the same ceiling it is read against.
   const typed = Math.max(0, Math.round(Number(t.field_size) || 0));
-  const counted = kind === "open_by_time" && share >= FAMILY_FROM ? rankedSoFar(entry) : 0;
+  // The count comes with the feed's readings; one typed by hand carries none
+  // and does not un-count the board.
+  const board = entries.reduce((newest, e) => (rankedSoFar(e) > 0
+    && (!newest || Date.parse(e.at || 0) >= Date.parse(newest.at || 0))) ? e : newest, null);
+  const counted = kind === "open_by_time" && share >= FAMILY_FROM && board ? rankedSoFar(board) : 0;
   const field = typed || counted || ((kind === "open_by_time" && guessField(t)) || {}).field || 0;
   // The depth of a rank, read against that field (see depthAt), with the two
   // corrections measured on the FNCS Solo qualifiers (DEPTH_CEILING_Q,
   // DEPTH_FNCS_Q): a count at the ceiling only bounds the depth, and an FNCS
   // qualifier's deep end keeps the pace of an ordinary cup's top fifth.
-  const ceiling = !typed && counted > 0 && rankedCapped(entry);
+  const ceiling = !typed && counted > 0 && rankedCapped(board);
   const fncs = fncsQualifier(t);
   const depthFor = (rank, s) => {
     if (!(kind === "open_by_time" && rank >= 1 && field > 0)) return 1;
@@ -2150,6 +2157,9 @@ function refine(t, log) {
   const best = standing(entries, Date.parse(entry.seen || entry.at || 0));
 
   const ratios = [], byRank = {}, points = {}, norm = {}, relOf = {}, whenOf = {};
+  // The minute each rank's reading stands at: its width is that minute's, and
+  // so are the measured multipliers that turn the width into ranges.
+  const clockOf = {};
   // Ranks with no forecast before the cup to weigh the reading against (see
   // FIELD_BELOW_CUT): the reading carried to the end on the pace curve.
   const solo = {};
@@ -2168,6 +2178,7 @@ function refine(t, log) {
       points[rank] = r.points; whenOf[rank] = r.when;
       norm[rank] = expectedAt(share, after, rank) / own;
       relOf[rank] = relAt(r.share, r.after || 0, rank);
+      clockOf[rank] = { share: r.share, after: r.after || 0 };
       return;
     }
     if (!(cold && cold.ok && cold.value > 0)) return;
@@ -2179,6 +2190,7 @@ function refine(t, log) {
     // that lets readings taken at different minutes be compared.
     norm[rank] = expectedAt(share, after, rank) / exp;
     relOf[rank] = relAt(r.share, r.after || 0, rank);
+    clockOf[rank] = { share: r.share, after: r.after || 0 };
   });
   if (!ratios.length && !Object.keys(solo).length) return null;
   const sorted = ratios.length ? ratios.slice().sort((a, b) => a - b) : [1];
@@ -2222,7 +2234,7 @@ function refine(t, log) {
            carry: carried === undefined ? 0 : carried,
            share: share, expected: expected, measured: measured !== null, n: ratios.length,
            game: clock.game, played: clock.game, games: games, byRank: byRank, kind: kind,
-           points: points, read: read, norm: norm, relOf: relOf, when: whenOf, at: entry.at, solo: solo,
+           points: points, read: read, norm: norm, relOf: relOf, clockOf: clockOf, when: whenOf, at: entry.at, solo: solo,
            seen: seen, seenWhen: seenWhen, settled: settled, final: !!clock.final,
            after: after, held: stood, landing: landing,
            expectedFor: rank => expectedAt(share, after, rank),
@@ -2233,7 +2245,7 @@ function refine(t, log) {
            // Where that field came from, for the line that quotes it: typed or
            // in the calendar; the board's own count - exact, to a few players,
            // or only the least it can be past the API's ten thousand; guessed.
-           fieldFrom: typed ? "typed" : counted ? (rankedCapped(entry) ? "least" : rankedExactly(entry) ? "exact" : "about")
+           fieldFrom: typed ? "typed" : counted ? (rankedCapped(board) ? "least" : rankedExactly(board) ? "exact" : "about")
                                           : "guessed",
            depthOf: rank => (after <= 0 ? depthFor(rank, share) : 1),
            depthFncs: fncs && kind === "open_by_time" };
@@ -2313,9 +2325,10 @@ function forecastAt(t, rank, live) {
     }
     const floor = readFloor(live, rank);
     const value = Math.max(live.solo[rank], floor);
+    const at = (live.clockOf || {})[rank] || live;
     return { value: value, rel: live.relOf[rank], weight: 1, floor: floor, floored: value > live.solo[rank],
              readingsOnly: true,
-             live: { share: live.share, after: live.after || 0, settled: !!live.settled, rank: rank } };
+             live: { share: at.share, after: at.after || 0, settled: !!live.settled, rank: rank } };
   }
   if (!cold || !cold.ok) return null;
   if (!live) return { value: cold.value, rel: cold.rel, weight: 0 };
@@ -2345,7 +2358,11 @@ function forecastAt(t, rank, live) {
     // Read elsewhere: carry the measured share of it, in log space, so a carry
     // of zero leaves the cold forecast exactly where it was.
     ratio = Math.pow(live.ratio, live.carry);
-    relLive = live.relFor ? Math.sqrt(live.relFor(rank) ** 2 + (live.rel - live.relOwn) ** 2) : live.rel;
+    // The rank's own pace width, and the readings' disagreement: live.rel is
+    // the two in quadrature with the board's pace width, relOwn.
+    // Never below zero: past the close a rank's width can be nought, and one
+    // reading leaves no disagreement - rounding must not make that a NaN.
+    relLive = live.relFor ? Math.sqrt(Math.max(0, live.relFor(rank) ** 2 + live.rel ** 2 - live.relOwn ** 2)) : live.rel;
   } else {
     // A reading at another rank is not evidence about this one. Blending it in
     // anyway would move the number AND narrow the band, on nothing.
@@ -2368,11 +2385,13 @@ function forecastAt(t, rank, live) {
   // to the answer: it is the part of it that is certain.
   const floor = readFloor(live, rank);
   const value = Math.max(blended, floor);
+  const at = (own !== undefined && (live.clockOf || {})[rank]) || live;
   return { value: value, rel: 1 / Math.sqrt(wl + wcBand), weight: wl / (wl + wc),
            between: between, floor: floor, floored: value > blended,
            // What the ranges of a live answer are measured by: where the
-           // evening stands and which rank was asked (see liveBands).
-           live: { share: live.share, after: live.after || 0, settled: !!live.settled, rank: rank } };
+           // evening stands and which rank was asked (see liveBands) - for a
+           // rank read itself, the minute of its reading, as they were measured.
+           live: { share: at.share, after: at.after || 0, settled: !!live.settled, rank: rank } };
 }
 
 /* ==================================================================
@@ -3164,7 +3183,11 @@ function bandsOf(value, rel, floor, live) {
  * key them: by share of the window before the close, by minutes after. */
 function liveBin(live) {
   if (!live) return null;
-  if (live.after > 0) return live.after < 10 ? "+0-10" : (live.after < 20 ? "+10-20" : null);
+  // Past the close the table's two bins were measured on boards still
+  // moving: replayed on an FNCS evening, ten to twenty minutes after the
+  // close they left the final above the wide range at the cut two times in
+  // five. The cold multipliers stand there until the tail is measured again.
+  if (live.after > 0) return null;
   const s = Number(live.share) || 0;
   if (s < 0.1) return null;
   if (s < 0.3) return "0.1-0.3";
@@ -3177,9 +3200,10 @@ function liveBin(live) {
 function liveBands(live) {
   // Measured on open queues; a closed lobby keeps the cold multipliers.
   if (!live || !(live.rank >= 1) || live.settled || String(STATE.format) === "sealed") return null;
-  const row = bandTable(((MODEL.pace || {}).live_bands) || [], live.rank);
+  // bandTable hands back the band's own table, keyed by bin.
+  const table = bandTable(((MODEL.pace || {}).live_bands) || [], live.rank);
   const bin = liveBin(live);
-  return row && bin && row[2] && row[2][bin] ? row[2][bin] : null;
+  return table && bin && table[bin] ? table[bin] : null;
 }
 
 /* Where the reader last put the crosshair, so a redraw every ten minutes does

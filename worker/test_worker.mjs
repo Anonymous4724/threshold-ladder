@@ -27,18 +27,24 @@ rmSync(tmp, { recursive: true, force: true });
 let NOW = 0;
 Date.now = () => NOW;
 let slept = [];
-globalThis.setTimeout = (fn, ms, ...args) => { slept.push(ms || 0); return setImmediate(fn, ...args); };
+// A pause takes no time, and moves the clock on by what it would have taken.
+globalThis.setTimeout = (fn, ms, ...args) => { slept.push(ms || 0); NOW += ms || 0; return setImmediate(fn, ...args); };
 
 function namespace(init = {}) {
   const store = new Map(Object.entries(init));
   return {
     store,
+    gets: [], puts: [],
     failGet: () => false,
+    // What a read hands back: the namespace's own value unless a test says a
+    // location is still serving an older copy.
+    served: (key, value) => value,
     async get(key) {
+      this.gets.push(key);
       if (this.failGet(key)) throw new Error("KV GET failed: 429 Too Many Requests");
-      return store.has(key) ? store.get(key) : null;
+      return this.served(key, store.has(key) ? store.get(key) : null);
     },
-    async put(key, value) { store.set(key, value); },
+    async put(key, value) { this.puts.push(key); store.set(key, value); },
   };
 }
 
@@ -275,8 +281,10 @@ section("The 100-page ceiling");
   const big = openBoard({ n: 34567 });
   const row = cup({ tiers: [["q", 8000, "Round 2", 2]] });
   const store = namespace();
+  // The same field ten minutes on, on a copy the API has renewed since.
+  const later = openBoard({ n: 34567, updatedAt: "2026-09-28T10:08:12.345Z" });
   const a = await pass({ events: [row], boards: { ev1: big }, store });
-  const b = await pass({ events: [row], boards: { ev1: big }, store, at: "2026-09-28T10:10:00Z" });
+  const b = await pass({ events: [row], boards: { ev1: later }, store, at: "2026-09-28T10:10:00Z" });
   const pages = a.asked.concat(b.asked).map(q => q.page);
   check("board past the ceiling: never asked past page 99", Math.max(...pages) <= 99, pages);
   check("board past the ceiling: at most 7 pages a pass", a.asked.length <= 7 && b.asked.length <= 7, [a.asked.length, b.asked.length]);
@@ -284,9 +292,19 @@ section("The 100-page ceiling");
         a.one.rankedFrom === "percentile-min" && a.one.ranked <= 34567 && b.one.rankedFrom === "percentile" && Math.abs(b.one.ranked - 34567) <= 20,
         [[a.one.ranked, a.one.rankedFrom, a.one.field], [b.one.ranked, b.one.rankedFrom, b.one.field]]);
   check("board past the ceiling: the cut at rank 8,000 is read", pointsAt(b.one, 8000) > 0, b.one.readings);
-  const q = await pass({ events: [row], boards: { ev1: big }, store, at: "2026-09-28T10:45:00Z", quick: true });
-  check("quick pass past the ceiling: the first page only, the count kept",
-        q.asked.length === 1 && q.one.ranked === b.one.ranked && q.one.rankedFrom === "percentile", [q.asked.length, q.one.ranked, q.one.rankedFrom]);
+  const q = await pass({ events: [row], boards: { ev1: later }, store, at: "2026-09-28T10:45:00Z", quick: true });
+  check("light pass past the ceiling: the first page and the cut's, no search, the count kept",
+        q.asked.map(x => x.page).join() === "0,79" && pointsAt(q.one, 8000) > 0
+        && q.one.ranked === b.one.ranked && q.one.rankedFrom === "percentile",
+        [q.asked.map(x => x.page), q.one.ranked, q.one.rankedFrom, q.one.readings]);
+  check("light pass on the board the full pass read: the same entry, nothing filed twice",
+        JSON.stringify(q.one) === JSON.stringify(b.one) && day(store).windows["ev1|win1"].readings.length === 2,
+        [q.one.readings, day(store).windows["ev1|win1"].readings.length]);
+  const moved = openBoard({ n: 34567, updatedAt: "2026-09-28T10:49:12.345Z" });
+  const q2 = await pass({ events: [row], boards: { ev1: moved }, store, at: "2026-09-28T10:50:00Z", quick: true });
+  check("light pass on a renewed board: the first page and the cut, the deeper rungs left to the full pass",
+        q2.one.updated === "2026-09-28T10:49:12.345Z" && pointsAt(q2.one, 100) > 0 && pointsAt(q2.one, 8000) > 0 && pointsAt(q2.one, 500) === null
+        && day(store).windows["ev1|win1"].readings.length === 3, [q2.one.updated, q2.one.readings]);
   const counted = day(store).windows["ev1|win1"].readings.map(r => r.ranked);
   check("history: the least the field can be is not filed as a count", counted[0] === null && counted[1] === b.one.ranked, counted);
 }
@@ -436,9 +454,356 @@ section("A cup the calendar does not list");
   check("second round of a Victory Cup: left out, as on the site", s.asked.length === 0 && s.result.watched === 0, s.asked.length);
 }
 
+/* ---- one firing: the full pass, then a look a minute ---------------------- */
+
+section("One firing of the cron");
+
+/* A board Osirion renews as time goes by: every page stamped on the minute
+ * `every` minutes back at the most, so a look a minute later finds the same
+ * copy until it turns over. */
+function movingBoard({ n = 5466, every = 1 } = {}) {
+  const made = new Map();
+  return {
+    text(page) {
+      const stamp = new Date(Math.floor(NOW / (every * 60e3)) * every * 60e3).toISOString();
+      if (!made.has(stamp)) made.set(stamp, openBoard({ n, updatedAt: stamp }));
+      return made.get(stamp).text(page);
+    },
+  };
+}
+
+async function firing({ events, boards = {}, store = namespace(), mark = "2026-09-28T10:00:00Z", startsLate = 0, intercept = null, scheduled = false }) {
+  const calendarText = "window.CALENDAR = " + JSON.stringify({ generated: "2026-09-28T06:00Z", days: 7, scorings: [], events }) + ";\n";
+  const asked = [], calendarAsked = [];
+  globalThis.fetch = async url => {
+    url = String(url);
+    if (url.endsWith("calendar.js")) { calendarAsked.push(NOW); return reply(200, calendarText); }
+    const q = new URL(url).searchParams;
+    const ask = { event: q.get("leaderboardEventId"), window: q.get("leaderboardEventWindowId"), page: Number(q.get("page")), at: NOW };
+    asked.push(ask);
+    if (intercept) { const r = await intercept(ask); if (r) return r; }
+    const b = boards[ask.event];
+    if (!b) return reply(404, '{"success":false}');
+    return reply(200, typeof b === "string" ? b : b.text(ask.page));
+  };
+  const at = Date.parse(mark);
+  NOW = at + startsLate;
+  slept = [];
+  let results = null, error = null;
+  try {
+    if (scheduled) {
+      const waited = [];
+      await W.default.scheduled({ scheduledTime: at }, { LIVE: store }, { waitUntil: p => waited.push(p) });
+      results = await waited[0];
+    } else results = await W.cycle({ LIVE: store }, at);
+  } catch (err) { error = String(err); }
+  // The passes, told apart by the minute their requests were made in.
+  const minutes = [...new Set(asked.map(q => Math.round((q.at - at) / 60e3)))];
+  const pagesAt = minute => asked.filter(q => Math.round((q.at - at) / 60e3) === minute).map(q => q.page);
+  let live = null;
+  try { live = JSON.parse(store.store.get("live")); } catch (err) { live = null; }
+  return { results, error, asked, minutes, pagesAt, calendarAsked, store, live, ended: NOW - at };
+}
+const kept = (store, id = "ev1|win1") => ((((day(store) || {}).windows || {})[id] || {}).readings || []);
+
+{
+  // 10:00, a cup that closes at 11:00: an hour from its endgame.
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() } });
+  check("away from the endgame: one full pass, and the firing is over within the minute",
+        !f.error && f.results.length === 1 && f.results[0].quick === false && f.pagesAt(0).join() === "0,9,2,4,54" && f.ended < 60e3,
+        { error: f.error, results: f.results, pages: f.asked.map(q => q.page), ended: f.ended });
+}
+{
+  // The firing on a five-minute mark that used to be a quick one.
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, mark: "2026-09-28T10:05:00Z", scheduled: true });
+  check("the scheduled handler on a :05 mark: a full pass, awaited",
+        !f.error && Array.isArray(f.results) && f.results.length === 1 && f.pagesAt(0).join() === "0,9,2,4,54" && kept(f.store).length === 1,
+        { error: f.error, results: f.results, pages: f.asked.map(q => q.page) });
+}
+{
+  // 10:45: fifteen minutes from the close. The board turns over every minute.
+  const store = namespace();
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, store, mark: "2026-09-28T10:45:00Z" });
+  check("in the endgame: the full pass, then a light one on each of the three minutes after",
+        !f.error && f.results.length === 4 && f.minutes.join() === "0,1,2,3" && f.pagesAt(0).join() === "0,9,2,4,54"
+        && [1, 2, 3].every(m => f.pagesAt(m).join() === "0,9"),
+        { error: f.error, results: f.results, minutes: f.minutes, pages: [0, 1, 2, 3].map(m => f.pagesAt(m)) });
+  check("in the endgame: every look that found a new board is filed, the cut with it",
+        kept(store).length === 4 && kept(store).every(r => r.readings.some(x => x[0] === 1000)),
+        kept(store).map(r => [r.updated, r.readings.length]));
+  check("in the endgame: the firing's last write is more than a minute before the next one is due", f.ended < 235e3, f.ended);
+  check("one firing reads the calendar once, and the day's history once",
+        f.calendarAsked.length === 1 && store.gets.filter(k => k.startsWith("history-")).length === 1 && store.gets.filter(k => k === "live").length === 1,
+        { calendar: f.calendarAsked.length, gets: store.gets });
+}
+{
+  // A copy renewed every five minutes: the looks in between find the board
+  // they already had.
+  const store = namespace();
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard({ every: 5 }) }, store, mark: "2026-09-28T10:45:00Z" });
+  check("a board that has not turned over: looked at, nothing published or filed again",
+        !f.error && f.results.length === 4 && f.results.slice(1).every(r => r.unchanged === true)
+        && store.puts.filter(k => k === "live").length === 1 && kept(store).length === 1,
+        { results: f.results, puts: store.puts, history: kept(store).length });
+}
+{
+  // The first page unchanged, the cut's page renewed: the new cut is
+  // published beside the rungs the full pass read, and filed.
+  const firstPage = openBoard({ n: 5466, updatedAt: "2026-09-28T10:44:10.000Z" });
+  const boards = { ev1: { text(page) {
+    if (page !== 9) return firstPage.text(page);
+    const stamp = new Date(Math.floor(NOW / 60e3) * 60e3).toISOString();
+    return openBoard({ n: 5466, updatedAt: stamp }).text(9);
+  } } };
+  const store = namespace();
+  const f = await firing({ events: [cup()], boards, store, mark: "2026-09-28T10:45:00Z" });
+  const one = f.live.windows[0], filed = kept(store);
+  const cut = (one.readings.find(r => r[0] === 1000) || [])[2];
+  check("the cut's page renewed under the same first page: the new cut published, the deeper rungs kept",
+        !f.error && one.updated === "2026-09-28T10:44:10.000Z" && cut === "2026-09-28T10:48:00.000Z"
+        && pointsAt(one, 250) > 0 && pointsAt(one, 500) > 0 && one.ranked === 5466,
+        { updated: one.updated, readings: one.readings, ranked: one.ranked });
+  check("the cut's page renewed under the same first page: each renewal filed, every record whole",
+        filed.length === 4 && filed.every(r => r.updated === "2026-09-28T10:44:10.000Z" && r.readings.some(x => x[0] === 500)),
+        filed.map(r => [r.updated, r.readings.length, (r.readings.find(x => x[0] === 1000) || [])[2]]));
+}
+{
+  // The namespace still serving, a minute later, the day as it stood before
+  // the firing: what a pass read back there must not be what it files on.
+  const store = namespace();
+  await pass({ events: [cup()], boards: { ev1: openBoard({ n: 5466, updatedAt: "2026-09-28T10:39:10.000Z" }) }, store, at: "2026-09-28T10:40:00Z" });
+  const stale = store.store.get("history-2026-09-28");
+  store.gets = []; store.puts = [];
+  store.served = (key, value) => key.startsWith("history-") ? stale : value;
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, store, mark: "2026-09-28T10:45:00Z" });
+  check("a stale read of the day's history cannot drop a reading: one before the firing and four in it",
+        !f.error && kept(store).length === 5, kept(store).map(r => r.updated));
+}
+{
+  // The firing itself starts 130 s late.
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, mark: "2026-09-28T10:45:00Z", startsLate: 130e3 });
+  check("a firing that starts late: its full pass, then only the minutes still ahead",
+        !f.error && f.results.length === 2 && f.minutes.join() === "2,3" && f.pagesAt(2).join() === "0,9,2,4,54" && f.ended < 235e3,
+        { results: f.results, minutes: f.minutes, pages: f.pagesAt(2), ended: f.ended });
+}
+{
+  // A firing that starts after its five minutes are all but gone asks nothing.
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, mark: "2026-09-28T10:45:00Z", startsLate: 280e3 });
+  check("a firing that starts as the next one is due: no request, nothing written, no error",
+        !f.error && f.asked.length === 0 && f.results.length === 1 && f.results[0].late === true && f.store.puts.length === 0 && f.calendarAsked.length === 0,
+        { error: f.error, asked: f.asked.length, results: f.results, puts: f.store.puts });
+}
+{
+  // The endgame begins at 10:40: the firing of 10:35 picks it up on its way.
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, mark: "2026-09-28T10:37:00Z" });
+  check("the endgame opening during a firing: light passes from that minute on",
+        !f.error && f.minutes.join() === "0,3" && f.pagesAt(3).join() === "0,9", { minutes: f.minutes, results: f.results });
+}
+{
+  // Twenty-five minutes after the close: still read, every five minutes.
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, mark: "2026-09-28T11:25:00Z" });
+  check("past the settling: the full pass only", !f.error && f.results.length === 1 && f.minutes.join() === "0", { minutes: f.minutes });
+}
+{
+  // Two windows, one in its endgame: the other keeps its reading in between.
+  const rows = [cup(), cup({ event: "ev2", window: "win2", end: "2026-09-28T12:30Z" })];
+  const store = namespace();
+  const f = await firing({ events: rows, boards: { ev1: movingBoard(), ev2: movingBoard() }, store, mark: "2026-09-28T10:50:00Z" });
+  const light = f.asked.filter(q => q.at - Date.parse("2026-09-28T10:50:00Z") > 50e3);
+  check("a light pass reads the windows in their endgame only, the others stand",
+        !f.error && light.length === 6 && light.every(q => q.event === "ev1") && f.live.windows.length === 2 && kept(store, "ev2|win2").length === 1,
+        { light: light.map(q => q.event + ":" + q.page), windows: f.live && f.live.windows.length, other: kept(store, "ev2|win2").length });
+}
+{
+  // A cut inside the top hundred: the light pass is the first page alone.
+  const f = await firing({ events: [cup({ tiers: [["q", 100, "Round 3", 3]] })], boards: { ev1: movingBoard() }, mark: "2026-09-28T10:45:00Z" });
+  check("a cut on the first page: one request a look", [1, 2, 3].every(m => f.pagesAt(m).join() === "0"), [1, 2, 3].map(m => f.pagesAt(m)));
+}
+{
+  // The full pass throws (the namespace refuses the write): the looks go on.
+  const store = namespace();
+  let refused = 0;
+  const put = store.put.bind(store);
+  store.put = async (key, value) => { if (key === "live" && refused++ === 0) throw new Error("KV PUT failed: 500"); return put(key, value); };
+  const said = [], report = console.error;
+  console.error = err => said.push(String(err));
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard() }, store, mark: "2026-09-28T10:45:00Z" });
+  console.error = report;
+  check("a pass that fails does not end the firing: the next look publishes, and the failure is reported",
+        !f.error && f.results.length === 4 && !!f.results[0].error && f.live && f.live.windows.length === 1 && kept(store).length === 3 && said.length === 1,
+        { error: f.error, results: f.results, history: kept(store).length, said });
+}
+{
+  // The day's history refuses one write, on a board that then stands still:
+  // the reading is owed, and the next look files it without a new board.
+  const store = namespace();
+  let refused = 0;
+  const put = store.put.bind(store);
+  store.put = async (key, value) => { if (key.startsWith("history-") && refused++ === 0) throw new Error("KV PUT failed: 500"); return put(key, value); };
+  const report = console.error;
+  console.error = () => {};
+  const f = await firing({ events: [cup()], boards: { ev1: movingBoard({ every: 5 }) }, store, mark: "2026-09-28T10:45:00Z" });
+  console.error = report;
+  check("a reading the day could not take: filed at the next look, the published document left as it was",
+        !f.error && !!f.results[0].error && kept(store).length === 1 && kept(store)[0].readings.length === 11
+        && f.live.windows[0].ranked === 5466 && pointsAt(f.live.windows[0], 500) > 0,
+        { results: f.results, history: kept(store).map(r => r.readings.length), ranked: f.live.windows[0].ranked });
+}
+
+{
+  // The API hands back an older first page after a newer one.
+  const A = openBoard({ n: 5466, updatedAt: "2026-09-28T10:44:10.000Z" }), B = openBoard({ n: 5466, updatedAt: "2026-09-28T10:45:40.000Z" });
+  const at = Date.parse("2026-09-28T10:45:00Z");
+  const boards = { ev1: { text(page) { const m = Math.round((NOW - at) / 60e3); return (m === 1 ? B : A).text(page); } } };
+  const store = namespace();
+  const f = await firing({ events: [cup()], boards, store, mark: "2026-09-28T10:45:00Z" });
+  check("an older first page after a newer one: the newer reading stands, nothing filed for it",
+        !f.error && f.live.windows[0].updated === "2026-09-28T10:45:40.000Z" && kept(store).map(r => r.updated).join() === "2026-09-28T10:44:10.000Z,2026-09-28T10:45:40.000Z",
+        { live: f.live.windows[0].updated, history: kept(store).map(r => [r.updated, r.readings.length]) });
+}
+{
+  // Three full passes handed A, B, then A again: the day keeps two records.
+  const A = openBoard({ n: 5466, updatedAt: "2026-09-28T09:58:10.000Z" }), B = openBoard({ n: 5466, updatedAt: "2026-09-28T10:03:40.000Z" });
+  const store = namespace();
+  await pass({ events: [cup()], boards: { ev1: A }, store, at: "2026-09-28T10:00:00Z" });
+  await pass({ events: [cup()], boards: { ev1: B }, store, at: "2026-09-28T10:05:00Z" });
+  await pass({ events: [cup()], boards: { ev1: A }, store, at: "2026-09-28T10:10:00Z" });
+  check("the same board handed back two passes later: not filed a second time", readingsKept(store) === 2, readingsKept(store));
+}
+{
+  // The same first page ten minutes on, and the cut's page out of reach.
+  const store = namespace();
+  await pass({ events: [cup()], boards: { ev1: board }, store });
+  const s = await pass({ events: [cup()], boards: { ev1: board }, store, at: "2026-09-28T10:05:00Z", intercept: q => q.page === 9 && reply(404, "gone") });
+  check("a full pass that misses a page of the board it already had: that rank keeps its reading",
+        !s.error && pointsAt(s.one, 1000) > 0 && pointsAt(s.one, 500) > 0 && s.one.ranked === 5466 && readingsKept(store) === 1,
+        s.one && { readings: s.one.readings, history: readingsKept(store) });
+}
+{
+  // The cut's page stamped after the first; a look later is handed an older
+  // copy of it. The reading in hand is the newer one, and keeps its stamp.
+  const newer = openBoard({ n: 5466, updatedAt: "2026-09-28T10:44:30.000Z" }), older = openBoard({ n: 5000, updatedAt: "2026-09-28T10:40:00.000Z" });
+  const base = openBoard({ n: 5466, updatedAt: "2026-09-28T10:42:00.000Z" });
+  const store = namespace();
+  const a = await pass({ events: [cup()], boards: { ev1: { text: page => (page === 9 ? newer : base).text(page) } }, store, at: "2026-09-28T10:45:00Z" });
+  const b = await pass({ events: [cup()], boards: { ev1: { text: page => (page === 9 ? older : base).text(page) } }, store, at: "2026-09-28T10:46:00Z", quick: true });
+  const cutA = a.one.readings.find(r => r[0] === 1000), cutB = b.one.readings.find(r => r[0] === 1000);
+  check("an older copy of the cut's page: the newer reading stands, with its own stamp",
+        cutA.length === 3 && cutA[2] === "2026-09-28T10:44:30.000Z" && JSON.stringify(cutB) === JSON.stringify(cutA) && readingsKept(store) === 1,
+        { cutA, cutB, history: readingsKept(store) });
+}
+{
+  // A firing across midnight UTC: each reading is filed under its own day.
+  const row = cup({ begin: "2026-09-28T21:00Z", end: "2026-09-29T00:05Z" });
+  const store = namespace();
+  const f = await firing({ events: [row], boards: { ev1: movingBoard() }, store, mark: "2026-09-28T23:57:00Z" });
+  const next = (((JSON.parse(store.store.get("history-2026-09-29") || "{}").windows || {})["ev1|win1"] || {}).readings || []);
+  check("a firing across midnight: three readings under the day ending, the fourth under the next",
+        !f.error && f.results.length === 4 && kept(store).length === 3 && next.length === 1,
+        { results: f.results, first: kept(store).length, second: next.length });
+}
+{
+  // The handler itself is not done before its looks are.
+  const store = namespace();
+  const calendarText = "window.CALENDAR = " + JSON.stringify({ generated: "x", days: 7, scorings: [], events: [cup()] }) + ";\n";
+  const moving = movingBoard();
+  globalThis.fetch = async url => {
+    url = String(url);
+    if (url.endsWith("calendar.js")) return reply(200, calendarText);
+    return reply(200, moving.text(Number(new URL(url).searchParams.get("page"))));
+  };
+  NOW = Date.parse("2026-09-28T10:45:00Z");
+  await W.default.scheduled({ scheduledTime: NOW }, { LIVE: store }, { waitUntil: () => {} });
+  check("the scheduled handler returns once its last look is filed", kept(store).length === 4, kept(store).length);
+}
+{
+  // A calendar that is not a list of windows ends the firing quietly.
+  for (const events of [{ a: 1 }, [null, 7, "x"]]) {
+    const calendarText = "window.CALENDAR = " + JSON.stringify({ generated: "x", days: 7, scorings: [], events }) + ";\n";
+    globalThis.fetch = async url => String(url).endsWith("calendar.js") ? reply(200, calendarText) : reply(404, "{}");
+    NOW = Date.parse("2026-09-28T10:45:00Z");
+    let error = null, results = null;
+    const report = console.error;
+    console.error = () => {};
+    try { results = await W.cycle({ LIVE: namespace() }, NOW); } catch (err) { error = String(err); }
+    console.error = report;
+    check(`a calendar whose events are ${JSON.stringify(events)}: the firing ends without throwing`, !error && Array.isArray(results), { error, results });
+  }
+}
+
+/* ---- what a pass may ask of the API ------------------------------------------ */
+
+section("What a pass may ask of the API");
+{
+  const rows = [], boards = {};
+  for (let i = 0; i < 12; i++) { rows.push(cup({ event: "ev" + i, window: "win" + i })); boards["ev" + i] = board; }
+  const s = await pass({ events: rows, boards });
+  const per = rows.map(r => s.asked.filter(q => q.event === r.event).length);
+  check("twelve windows at once: under the API's sixty a minute, every window read, its cut with it",
+        s.asked.length <= 46 && s.windows.length === 12 && per.every(n => n >= 2) && s.windows.every(w => pointsAt(w, 1000) > 0),
+        { asked: s.asked.length, per });
+  const nine = await pass({ events: rows.slice(0, 9), boards });
+  check("nine windows at once: nothing given up", nine.asked.length === 45 && nine.windows.every(w => w.ranked === 5466 && pointsAt(w, 500) > 0),
+        { asked: nine.asked.length, ranked: nine.windows.map(w => w.ranked) });
+}
+{
+  const rows = [], boards = {};
+  for (let i = 0; i < 6; i++) { rows.push(cup({ event: "ev" + i, window: "win" + i })); boards["ev" + i] = board; }
+  const s = await pass({ events: rows, boards });
+  check("six windows at once: nothing given up", s.asked.length === 30 && s.windows.every(w => w.ranked === 5466 && pointsAt(w, 500) > 0),
+        { asked: s.asked.length, ranked: s.windows.map(w => w.ranked) });
+}
+{
+  // Every answer a 429: three attempts a window, never the retries of a
+  // whole board.
+  const rows = [], boards = {};
+  for (let i = 0; i < 6; i++) { rows.push(cup({ event: "ev" + i, window: "win" + i })); boards["ev" + i] = board; }
+  const s = await pass({ events: rows, boards, intercept: () => reply(429, "slow down") });
+  const most = Math.max(...rows.map(r => s.asked.filter(q => q.event === r.event).length));
+  check("the API refusing everything: three attempts a window, no pause after the last, the pass completes",
+        !s.error && most === 3 && s.asked.length === 18 && s.slept <= 45e3 && s.windows.length === 0,
+        { error: s.error, asked: s.asked.length, most, slept: s.slept });
+}
+{
+  // An API that takes twenty seconds a page: the pass stops asking in time.
+  const rows = [], boards = {};
+  for (let i = 0; i < 4; i++) { rows.push(cup({ event: "ev" + i, window: "win" + i })); boards["ev" + i] = board; }
+  const store = namespace();
+  await pass({ events: rows, boards, store, at: "2026-09-28T09:50:00Z" });
+  const s = await pass({ events: rows, boards: Object.fromEntries(rows.map(r => [r.event, openBoard({ n: 5466, updatedAt: "2026-09-28T09:59:30.000Z" })])),
+                         store, intercept: () => { NOW += 20e3; } });
+  const fresh = s.windows.filter(w => w.updated === "2026-09-28T09:59:30.000Z").length;
+  check("a slow API: the pass stops asking after 45 s, publishes what it has, the rest keep their reading",
+        !s.error && s.asked.length === 3 && s.windows.length === 4 && fresh === 1 && s.windows.filter(w => w.updated === STAMP).length === 3
+        && s.windows.map(w => w.event).join() === "ev0,ev1,ev2,ev3",
+        { error: s.error, asked: s.asked.length, updated: s.windows.map(w => w.updated) });
+  // The pass after it starts with the next window: none is always last.
+  const slow = Object.fromEntries(rows.map(r => [r.event, openBoard({ n: 5466, updatedAt: "2026-09-28T10:04:30.000Z" })]));
+  const next = await pass({ events: rows, boards: slow, store, at: "2026-09-28T10:05:00Z", intercept: () => { NOW += 20e3; } });
+  check("a slow API: the next pass starts with the next window",
+        next.asked[0].event !== s.asked[0].event && next.windows.filter(w => w.updated === "2026-09-28T10:04:30.000Z").length === 1,
+        { first: [s.asked[0].event, next.asked[0].event], updated: next.windows.map(w => w.updated) });
+}
+{
+  const late = Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+  const s = await pass({ events: [cup()], boards: { ev1: board }, intercept: q => { if (q.page === 9) throw late; } });
+  check("a request not answered in time: a page not read, not asked a second time",
+        !s.error && s.asked.filter(q => q.page === 9).length === 1 && pointsAt(s.one, 1000) === null && pointsAt(s.one, 500) > 0,
+        { error: s.error, asked: s.asked.map(q => q.page) });
+}
+{
+  let options = null;
+  const s = await pass({ events: [cup()], boards: { ev1: board }, intercept: () => null });
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { if (!String(url).endsWith("calendar.js")) options = init; return real(url, init); };
+  NOW = Date.parse("2026-09-28T10:00:00Z");
+  await W.run({ LIVE: namespace() }, false);
+  check("every request to the API carries a time limit", !!options && !!options.signal && typeof options.signal.aborted === "boolean", options && Object.keys(options));
+}
+
 /* ---- CPU time ------------------------------------------------------------------ */
 
-section("CPU time (information: the free plan allows a run 10 ms)");
+section("CPU time (information)");
 {
   const median = a => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
   const cpu = fn => { const t = process.cpuUsage(); fn(); const d = process.cpuUsage(t); return (d.user + d.system) / 1000; };
@@ -481,7 +846,7 @@ section("CPU time (information: the free plan allows a run 10 ms)");
   NOW = Date.parse("2026-09-28T10:45:00Z");
   const quick = [];
   for (let i = 0; i < 5; i++) quick.push(await timeRun(true));
-  console.log(`info  full pass over six windows (30 pages): ${median(full).toFixed(1)} ms; quick pass in their endgame (6 pages): ${median(quick).toFixed(1)} ms`);
+  console.log(`info  full pass over six windows (30 pages): ${median(full).toFixed(1)} ms; light pass in their endgame (12 pages): ${median(quick).toFixed(1)} ms`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

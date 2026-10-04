@@ -775,7 +775,8 @@ const FR = {
   "points.last": "vers la dernière place (rang {r})",
   "points.need": "Saisis des points pour savoir quel rang ils donnent.",
   "status.auto": "Classement lu à {t} · prochaine lecture vers {n}",
-  "status.willAuto": " · le classement sera relevé automatiquement toutes les 10 min dès le début de la cup, et toutes les 5 min sur sa fin",
+  "status.late": "Classement lu à {t} · aucun classement plus récent n'est arrivé depuis : le flux est peut-être bloqué",
+  "status.willAuto": " · le classement sera relevé automatiquement toutes les 5 min dès le début de la cup, et chaque minute sur sa fin",
   "status.manual": "Dernier relevé saisi à {t}",
   "status.rankedPlayers": "{about}{n} joueurs au classement",
   "status.rankedTeams": "{about}{n} équipes au classement",
@@ -839,7 +840,7 @@ const FR = {
   "replayBeyond": "Les classements rejoués sont fiables jusqu'au rang {d} — au-delà, le rejeu remonte des équipes que les pages chargées ne contiennent pas. À partir de là le seuil suit l'échelle mesurée des files ouvertes de cette taille et de ce mode, depuis le rang {d}.",
   "ladderShape": "Aucune édition de cette cup n'a été relevée à ce rang : le rapport entre ce rang et le top 20 est lu sur l'échelle des files ouvertes de cette taille de plateau et de ce mode — la médiane de tous les classements harvestés, qui remplace la courbe ajustée, deux fois moins fausse qu'elle en profondeur (mesuré).",
   "status.unfollowed": " · le flux n'a pas suivi cette cup : elle n'était pas dans le calendrier pendant qu'elle tournait. Le classement final est sur osirion.gg, lien ci-dessus.",
-  "status.waiting": " · le classement est relevé toutes les 10 min ; rien n'est encore arrivé pour cette cup",
+  "status.waiting": " · le classement est relevé toutes les 5 min ; rien n'est encore arrivé pour cette cup",
   "basedOn": "Estimé à partir de", "editions": "édition(s)", "boardsReplayed": "classement(s) rejoué(s)", "matched": "Rapproché de",
   "assumedField": "Effectif supposé", "under": "moins de",
   "fieldEffect": "une erreur de 30 % ne déplace le seuil que de",
@@ -4470,12 +4471,16 @@ window.addEventListener("popstate", () => {
  * ================================================================== */
 const LIVE_EVERY = 5 * 60e3;
 // The last minutes of a cup and the settling that follows: the board moves a
-// point a minute at the ranks a cup qualifies on, and the feed refreshes the
-// top hundred every five minutes there rather than every ten. Asking twice as
-// often is a request for a cached file; being ten minutes behind the board is
+// point a minute at the ranks a cup qualifies on, and the feed looks at the
+// top hundred and the cuts every minute there rather than every five. Asking
+// as often is a request for a cached file; being minutes behind the board is
 // a wrong number on the screen.
-const LIVE_ENDGAME = 2 * 60e3;
+const LIVE_ENDGAME = 60e3;
 const ENDGAME_BEFORE = 20;
+// How late the next board can be before the page says so: Osirion renews the
+// copy it hands out every five minutes or so, and now and then serves the
+// same one twice running.
+const LATE_MS = 10 * 60e3;
 // How long the feed keeps reading past a window's close - the worker's own
 // TAIL_MINUTES. Past that there is nothing new to fetch.
 const TAIL_MINUTES = 45;
@@ -4668,7 +4673,7 @@ function dateLabel(day) {
 }
 
 /* When the forecast last moved, and when it will next: the answer's clock.
- * Automatic readings come every ten minutes; typed ones whenever they were
+ * Automatic readings come every five minutes; typed ones whenever they were
  * typed; before any, the forecast is the one from history. */
 /* How many rosters the board ranks: exactly, where the feed read the last
  * page too; from the page count otherwise - every page but the last holds a
@@ -4699,6 +4704,11 @@ function rankedCapped(entry) {
   return (Number((entry || {}).pages) || 0) >= PAGES_CAP && String((entry || {}).rankedFrom || "") !== "percentile";
 }
 
+/* When the board after the one stamped `stamp` should be on the page. */
+function nextReading(stamp, endgame) {
+  return new Date(endgame ? stamp + 6 * 60e3 : Math.ceil(stamp / 300e3) * 300e3 + 300e3 + 2 * 60e3);
+}
+
 function drawStatus() {
   const line = $("status-line");
   const clock = hhmm;
@@ -4710,11 +4720,15 @@ function drawStatus() {
   const logged = auto ? (STATE.autoLog || []).find(e => (e.seen || e.at) === read) || auto : null;
   let text;
   if (auto && (!manual || Date.parse(read) >= Date.parse(manual.at || 0))) {
-    // The feed reads on the five-minute marks, and the reading lands a couple
-    // of minutes after the one it was taken on. Outside a cup's endgame only
-    // every other pass fetches, so the next reading is up to ten minutes off.
-    const every = inEndgame() ? 300e3 : 600e3;
-    const next = new Date(Math.floor(Date.parse(read) / every) * every + every + 2 * 60e3);
+    // The feed reads on the five-minute marks: the board in hand was read on
+    // the first mark after its stamp, and the next one comes off the mark
+    // after that, landing a couple of minutes later. Over a cup's last minutes
+    // the feed looks every minute, and the next board is there as soon as
+    // Osirion renews its copy - five minutes or so after this one's stamp.
+    const next = nextReading(Date.parse(read), inEndgame());
+    // A board that should have been replaced long since is the feed, or
+    // Osirion, not answering: said, rather than a time already gone by.
+    const late = Date.now() > next.getTime() + LATE_MS;
     const sealed = String(STATE.format) === "sealed";
     // The window is over and, for a lobby, its games are in. That is not yet
     // the final board in an open queue: the games that started on the hour
@@ -4743,6 +4757,9 @@ function drawStatus() {
         ? T("status.settling", "Standings read at {t} · the last games are still landing, final around {n}")
         : T("status.settlingLate", "Standings read at {t} · the last games are still landing"))
         .replace("{t}", clock(read)).replace("{n}", clock(new Date(settleBy).toISOString()));
+    } else if (late) {
+      text = T("status.late", "Standings read at {t} · no newer board has come in since: the feed may be held up")
+        .replace("{t}", clock(read));
     } else if (auto.partial && String(STATE.format) === "sealed") {
       // A game under way: the board is half updated, and the forecast waits
       // for the standing at the end of it rather than reading the half.
@@ -4759,8 +4776,8 @@ function drawStatus() {
     text = T("status.cold", "Pre-tournament forecast");
     const begins = Date.parse(STATE.begin || ""), ends = Date.parse(STATE.end || "");
     if (liveUrl() && STATE.window && isFinite(begins) && begins > Date.now()) {
-      text += T("status.willAuto", " · the standings will be read automatically every 10 min once the cup "
-        + "starts, and every 5 min over its last minutes");
+      text += T("status.willAuto", " · the standings will be read automatically every 5 min once the cup "
+        + "starts, and every minute over its last minutes");
     } else if (liveUrl() && STATE.window && isFinite(ends) && Date.now() > ends + TAIL_MINUTES * 60e3) {
       // Over, and the feed has nothing: it follows the cups on the published
       // calendar, and this one was not on it while it ran - the calendar
@@ -4768,7 +4785,7 @@ function drawStatus() {
       text += T("status.unfollowed", " · the feed did not follow this cup: it was not on the calendar while "
         + "it ran. The final standings are on osirion.gg, link above.");
     } else if (liveUrl() && STATE.window && isFinite(begins) && begins <= Date.now()) {
-      text += T("status.waiting", " · the standings are read every 10 min; nothing has come in for this "
+      text += T("status.waiting", " · the standings are read every 5 min; nothing has come in for this "
         + "cup yet");
     }
   }

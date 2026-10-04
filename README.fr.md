@@ -171,14 +171,14 @@ passés jusqu'au top 250, de 5 à 7 % plus bas, contre une fourchette d'allure d
 dix et plus. L'échelle marque ces barreaux d'un point creux.
 
 Quand la cup est en cours et que le flux en direct du site est actif, le
-classement est lu pour toi toutes les dix minutes — les points aux top 1,
+classement est lu pour toi toutes les cinq minutes — les points aux top 1,
 3, 5, 10, 20, 25, 50 et 100, à chaque palier que la cup paie (le rang de
 qualification d'abord) et aux barreaux plus profonds de l'échelle, aussi loin
 que quelques pages le permettent — et enregistré comme relevés marqués *auto* :
 la prédiction les suit sans que personne ne tape rien. Sur les vingt dernières
 minutes d'une cup et pendant que son tableau se stabilise, là où le classement
-bouge d'environ un point par minute aux rangs qui qualifient, le top cent est
-relu toutes les cinq minutes et la page le demande toutes les deux. Un relevé saisi à la
+bouge d'environ un point par minute aux rangs qui qualifient, le top cent et
+les paliers sont regardés chaque minute et la page les demande aussi souvent. Un relevé saisi à la
 main marche toujours et prend le dessus tant qu'il est le plus récent. Le flux
 garde chaque lecture qu'il a faite : une cup ouverte tard, sur un autre
 appareil ou après sa fin montre toute la soirée, pas ce que ce navigateur a vu.

@@ -8,7 +8,9 @@
  * asked of Osirion's public API - the first page, then the pages holding the
  * cups' cuts (qualification first, then money, then cosmetics) and the
  * ladder's deeper rungs, a few pages at most - and the result is kept under
- * one key. On request: that key, as JSON, from any origin. A closed lobby's
+ * one key. Around a window's close the same trigger looks again on each
+ * minute until the next one: the first page and the cuts' pages only (see
+ * `cycle`). On request: that key, as JSON, from any origin. A closed lobby's
  * board is rebuilt as it stood when its last game ended (see `settle`), so
  * a reading taken mid-game does not carry half a game.
  *
@@ -24,7 +26,7 @@
  * the cups under way, what the page shows. And one key per day, `history-
  * YYYY-MM-DD`, to which every run appends its readings and which expires
  * after a month: what the research side pulls back into its database, so an
- * evening followed by the feed becomes a tournament with a reading every ten
+ * evening followed by the feed becomes a tournament with a reading every five
  * minutes without anyone pressing anything. Each reading also carries the
  * board's page count at the time - a hundred rosters a page - and, where the
  * API pages the board whole, the exact count off its last page: how many
@@ -75,22 +77,40 @@ const LEAD_MINUTES = 5;                // a window is watched from this long bef
 // +25, the minute the feed used to stop looking.
 const TAIL_MINUTES = 45;
 const LATE_MINUTES = 20;               // a lobby that started late has this long past the window to finish
-// The endgame: from this many minutes before a window closes until its board
-// settles, the standings move fastest - a point a minute at the ranks a cup
-// qualifies on - and a reading ten minutes old is several points behind what
-// a player sees. The cron runs every five minutes; the full pass, which reads
-// the pages the cuts fall on as well as the first, runs on the ten-minute
-// marks, and the pass in between reads the first page only, and only of the
-// windows in their endgame. That is one request per window rather than four,
-// so halving the lag costs a few hundred calls a day rather than doubling
-// every one of them. The first page carries the top hundred, which is where
-// the qualification cuts of an open queue sit.
+// The endgame: from this many minutes before a window closes until this many
+// after, the standings move fastest - a point a minute at the ranks a cup
+// qualifies on - and a reading five minutes old is several points behind what
+// a player sees. The cron runs every five minutes and each firing makes a full
+// pass over every window under way; while a window is in its endgame the same
+// firing then makes a light pass on each minute until the next one: the first
+// page and the pages the cuts fall on, of the windows in their endgame only.
+// What the API hands back for a page is a copy it renews every few minutes,
+// so most of those looks find the board they already had and file nothing;
+// the one that finds the new copy has it minutes sooner than the next full
+// pass would.
 const QUICK_BEFORE = 20;
+const QUICK_AFTER = 20;
+const STEP_MS = 60e3;                  // between the light passes of one firing
+// A firing asks nothing of the API past this long after its mark: its last
+// write is then more than a minute old when the next firing reads the
+// namespace, which may serve a copy that old. Closer than that, the next
+// firing could file the day on top of a copy without this one's last reading.
+const CYCLE_MS = 230e3;
 const GAP_MS = 250;                    // between requests; the API allows 60 a minute
+// What a pass may ask of the API, shared among the windows it reads, and how
+// long it may go on asking. A full pass and the light pass after it can fall
+// in the same minute: together they stay under the API's sixty.
+const PASS_REQUESTS = 46;
+const STEP_REQUESTS = 12;
+const WINDOW_REQUESTS = 9;             // the most one window may take of them, retries included
+const PASS_MS = 45e3;
+const STEP_PASS_MS = 30e3;
+// A request the API has not answered by then is a page not read.
+const FETCH_TIMEOUT_MS = 12e3;
 const SAME_SNAPSHOT_MS = 60e3;         // pages stamped this close together are one board
 const KEY = "live";
 const HISTORY_DAYS = 31;               // a day's history expires after this
-const HISTORY_MAX = 400;               // readings kept per window per day (a run every 10 min is 144)
+const HISTORY_MAX = 400;               // readings kept per window per day (a pass every five minutes is 288)
 // Where the calendar comes from when the dashboard sets no variables: the
 // site itself, then the repository's copy of the same file.
 const DEFAULT_SITE = "https://fortnitepredcomp.com";
@@ -104,11 +124,12 @@ const CORS = {
 
 export default {
   async scheduled(event, env, ctx) {
-    // Cron every five minutes; the pass in between the ten-minute marks is
-    // the quick one. Read off the schedule rather than off the clock, so a
-    // firing that lands a few seconds early is not mistaken for the other.
+    // Cron every five minutes. The firing is awaited, not only handed to
+    // waitUntil: it can go on for most of the five minutes (see `cycle`).
     const at = Number(event && event.scheduledTime) || Date.now();
-    ctx.waitUntil(run(env, new Date(at).getUTCMinutes() % 10 >= 5));
+    const work = cycle(env, at);
+    ctx.waitUntil(work);
+    await work;
   },
 
   async fetch(request, env) {
@@ -145,57 +166,138 @@ export default {
 
 /* ------------------------------------------------------------------ */
 
-async function run(env, quick) {
+/* One firing of the cron: the full pass, then - while a window is in its
+ * endgame - a light pass on each minute until the next firing is due. The
+ * passes of one firing follow one another and share what they know (`state`:
+ * the calendar, the document last published, the day's history), so none of
+ * them reads back from the namespace a copy older than what the pass before
+ * it wrote. The minutes are counted from the firing's own mark, not from when
+ * it started: a firing that starts late skips the looks it has missed rather
+ * than running into the next one. */
+async function cycle(env, at) {
+  // No pass of this firing asks the API anything past `until`.
+  const state = { until: at + CYCLE_MS };
+  const results = [];
+  try { results.push(await run(env, false, state)); } catch (err) { console.error(err); results.push({ error: String(err) }); }
+  // A calendar that is not the list it should be has no window to look at.
+  const closing = (row, t) => { try { return watched(row, t) && endgame(row, t); } catch (err) { return false; } };
+  for (let due = at + STEP_MS; due < at + CYCLE_MS; due += STEP_MS) {
+    const listed = (state.calendar || {}).events;
+    const events = Array.isArray(listed) ? listed : [];
+    // Nothing in its endgame between here and the next firing: nothing more
+    // to do, and the firing ends here - which is most of them.
+    let ahead = false;
+    for (let t = Math.max(due, Date.now()); t < at + CYCLE_MS && !ahead; t += STEP_MS) {
+      ahead = events.some(row => closing(row, t));
+    }
+    if (!ahead) break;
+    const wait = due - Date.now();
+    if (wait < -STEP_MS / 4) continue;               // this minute has gone by
+    if (wait > 0) await sleep(wait);
+    const now = Date.now();
+    // A pass that has only just started - a firing that was late, a full pass
+    // that ran long - has read what this look would.
+    if (now - (state.started || 0) < STEP_MS / 2) continue;
+    if (!events.some(row => closing(row, now))) continue;
+    try { results.push(await run(env, true, state)); } catch (err) { console.error(err); results.push({ error: String(err) }); }
+  }
+  return results;
+}
+
+/* One pass. A full pass reads every window under way; a light one (`quick`)
+ * the windows in their endgame only, the others keeping their last reading.
+ * `state`, when one firing makes several passes, carries the calendar, the
+ * document last published and the day's history from one to the next. */
+async function run(env, quick, state) {
   const now = Date.now();
-  const calendar = await loadCalendar(env);
-  const previous = await readPrevious(env);
+  // A firing that starts when its time is all but up has nothing to ask, and
+  // nothing to publish over what the firing after it will.
+  if (state && state.until && now >= state.until) return { quick: !!quick, watched: 0, published: 0, remembered: 0, late: true };
+  if (state) state.started = now;
+  const calendar = state && state.calendar ? state.calendar : await loadCalendar(env);
+  const previous = state && state.doc ? state.doc : await readPrevious(env);
+  if (state) state.calendar = calendar;
   const windows = (calendar.events || []).filter(row => watched(row, now));
-  const out = [];
-  for (const row of windows) {
-    // The quick pass leaves everything but the endgame alone, with its last
+  // The pass's requests are one pool, retries included. A window takes what
+  // it needs of it, up to WINDOW_REQUESTS, as long as two are left for each
+  // of the windows still to come: the first page and one more.
+  let pool = quick ? STEP_REQUESTS : PASS_REQUESTS;
+  let waiting = (quick ? windows.filter(row => endgame(row, now)) : windows).length;
+  const until = Math.min(Date.now() + (quick ? STEP_PASS_MS : PASS_MS), state && state.until ? state.until : Infinity);
+  // A pass that runs out of time leaves its last windows with the reading
+  // they had: the window it starts with moves on by one at every pass, so it
+  // is never the same ones. The document keeps the calendar's order.
+  const first = windows.length ? Math.floor(now / (quick ? STEP_MS : 5 * STEP_MS)) % windows.length : 0;
+  const entries = new Array(windows.length).fill(null);
+  for (let k = 0; k < windows.length; k++) {
+    const at = (first + k) % windows.length, row = windows[at];
+    const before = (previous.windows || []).find(w => w.window === row.window && w.event === row.event) || null;
+    // The light pass leaves everything but the endgame alone, with its last
     // reading standing: nothing is lost, and the calls go where the board is
     // actually moving.
-    if (quick && !endgame(row, now)) { keep(previous, row, out); continue; }
-    try {
-      const before = (previous.windows || []).find(w => w.window === row.window && w.event === row.event) || null;
-      const entry = await readWindow(row, now, calendar, quick, before);
-      if (entry) out.push(entry);
-      else keep(previous, row, out);
-    } catch (err) {
-      keep(previous, row, out);
-    }
+    if (quick && !endgame(row, now)) { entries[at] = before; continue; }
+    waiting -= 1;
+    const meter = { left: Math.max(0, Math.min(WINDOW_REQUESTS, Math.max(pool - 2 * waiting, Math.min(2, pool)))), until: until };
+    const granted = meter.left;
+    // A window whose standings could not be read keeps its last reading, so a
+    // hiccup at Osirion's end does not blank a cup until the next pass.
+    try { entries[at] = (await readWindow(row, now, calendar, quick, before, meter)) || before; }
+    catch (err) { entries[at] = before; }
+    pool -= granted - meter.left;
     await sleep(GAP_MS);
+  }
+  const out = entries.filter(Boolean);
+  // A light pass that found every board as the pass before it left them has
+  // nothing to publish: the document stands, with the minute it was made.
+  if (quick && state && state.doc && !state.unfiled && JSON.stringify(state.doc.windows || []) === JSON.stringify(out)) {
+    return { quick: true, watched: windows.length, published: out.length, remembered: 0, unchanged: true };
   }
   const doc = { generated: new Date(now).toISOString().slice(0, 16) + "Z", windows: out };
   await env.LIVE.put(KEY, JSON.stringify(doc));
-  const kept = await remember(env, out, now);
+  if (state) state.doc = doc;
+  let kept;
+  try { kept = await remember(env, out, now, state); }
+  catch (err) {
+    // The day could not be written: what this firing holds of it is no
+    // longer what the namespace holds. The next pass reads the day again and
+    // files, whether or not it finds a new board.
+    if (state) { state.history = null; state.unfiled = true; }
+    throw err;
+  }
+  if (state) state.unfiled = false;
   return { quick: !!quick, watched: windows.length, published: out.length, remembered: kept };
 }
 
 /* The last minutes of a window and the settling that follows it: where the
- * standings move fast enough for a ten-minute-old reading to be wrong by
+ * standings move fast enough for a five-minute-old reading to be wrong by
  * several points. See QUICK_BEFORE. */
 function endgame(row, now) {
   const end = Date.parse(row.end);
   if (!isFinite(end)) return false;
-  return now >= end - QUICK_BEFORE * 60e3;
+  return now >= end - QUICK_BEFORE * 60e3 && now <= end + QUICK_AFTER * 60e3;
 }
 
 /* The day's history: every window read today, with each distinct reading
- * the feed took of it. One read and one write per run, whatever the number
- * of cups, so the free plan's daily write allowance is never in question. */
-async function remember(env, out, now) {
+ * the feed took of it. One read and one write per run at most, whatever the
+ * number of cups: what a day costs in writes does not grow with the calendar. */
+async function remember(env, out, now, state) {
   const day = new Date(now).toISOString().slice(0, 10);
   const key = "history-" + day;
-  // A day that cannot be read is not an empty one: written over, it would
-  // lose every reading it holds - and once the free plan's KV has served its
-  // reads for the day, every read fails until midnight UTC. It is left alone
-  // this run; only a value that does not parse is started again.
-  let stored;
-  try { stored = await env.LIVE.get(key); } catch (err) { return 0; }
-  let doc;
-  try { doc = JSON.parse(stored || "null"); } catch (err) { doc = null; }
-  if (!doc || typeof doc !== "object" || !doc.windows) doc = { day: day, windows: {} };
+  // The passes of one firing hand the day on to one another: read back from
+  // the namespace a minute after it was written, it can still be the copy
+  // from before, and filing on top of that would drop what the last pass
+  // added.
+  let doc = state && state.history && state.history.key === key ? state.history.doc : null;
+  if (!doc) {
+    // A day that cannot be read is not an empty one: written over, it would
+    // lose every reading it holds - and a namespace that has served its
+    // reads for the day fails every read until midnight UTC. It is left
+    // alone this run; only a value that does not parse is started again.
+    let stored;
+    try { stored = await env.LIVE.get(key); } catch (err) { return 0; }
+    try { doc = JSON.parse(stored || "null"); } catch (err) { doc = null; }
+    if (!doc || typeof doc !== "object" || !doc.windows) doc = { day: day, windows: {} };
+  }
   let added = 0;
   for (const w of out) {
     if (!w.readings || !w.readings.length) continue;
@@ -224,6 +326,7 @@ async function remember(env, out, now) {
     added++;
   }
   if (added) await env.LIVE.put(key, JSON.stringify(doc), { expirationTtl: HISTORY_DAYS * 86400 });
+  if (state) state.history = { key: key, doc: doc };
   return added;
 }
 
@@ -269,13 +372,6 @@ async function readPrevious(env) {
   return doc && Array.isArray(doc.windows) ? doc : {};
 }
 
-/* A window whose standings could not be read keeps its last reading, so a
- * hiccup at Osirion's end does not blank a cup for ten minutes. */
-function keep(previous, row, out) {
-  const old = (previous.windows || []).find(w => w.window === row.window && w.event === row.event);
-  if (old) out.push(old);
-}
-
 /* The ranks a cup pays out on, as ranks, the ones that matter most first:
  * qualification, then money, then cosmetics. What the page asks for by
  * default, so their thresholds are read straight off the standings. */
@@ -295,10 +391,11 @@ function widestCut(row) {
 
 /* The pages worth reading after the first, in the order they matter: the
  * cuts' pages first, then the ladder's deeper rungs, never past the board's
- * last page, and never more than MAX_PAGES. */
-function pagesToRead(row, totalPages) {
+ * last page, and never more than MAX_PAGES. A light pass reads the cuts'
+ * pages only. */
+function pagesToRead(row, totalPages, light) {
   const last = totalPages > 0 ? totalPages * PAGE_SIZE : Infinity;
-  const wanted = cutRanks(row).concat(DEEP).filter(r => r > PAGE_SIZE && r <= last);
+  const wanted = (light ? cutRanks(row) : cutRanks(row).concat(DEEP)).filter(r => r > PAGE_SIZE && r <= last);
   const pages = [];
   for (const rank of wanted) {
     const page = Math.floor((rank - 1) / PAGE_SIZE);
@@ -395,11 +492,14 @@ function settle(entries, scoring, now) {
   };
 }
 
-async function readWindow(row, now, calendar, firstPageOnly, before) {
-  const text = await board(row.event, row.window, 0);
+async function readWindow(row, now, calendar, light, before, meter) {
+  const text = await board(row.event, row.window, 0, meter);
   if (!text) return null;
   let first = readPage(text, 0);
   if (!first || !first.teams) return null;
+  // The API can hand back a first page older than the one it gave a minute
+  // ago. A look that finds one has found nothing: the reading stands.
+  if (light && before && first.updatedAt && before.updated && Date.parse(first.updatedAt) < Date.parse(before.updated)) return null;
   // On a board at the ceiling, every page read says something about the
   // field through its rosters' percentiles (see fieldBounds).
   const capped = (first.totalPages || 0) >= PAGES_CAP;
@@ -414,13 +514,13 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
   // hundred, and the last page says the rest - one more request on a full
   // pass, none on a board that fits on one page. A board that reaches the
   // API's last page has no last page to count: its rosters' percentiles say
-  // the field instead (below). A quick pass keeps the previous count while
+  // the field instead (below). A light pass keeps the previous count while
   // the page count has not moved.
   const total = first.totalPages || 0;
   let ranked = null;
   if (total === 1) ranked = first.teams;
   else if (total > 1 && total < PAGES_CAP) {
-    if (firstPageOnly) ranked = before && before.pages === total && before.ranked > 0 ? before.ranked : null;
+    if (light) ranked = before && before.pages === total && before.ranked > 0 ? before.ranked : null;
   }
   let partial = null;
   if (sealed(row, first)) {
@@ -452,20 +552,21 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
     }
   };
   takeFrom(first.pairs, first.updatedAt);
-  // The quick pass stops at the first page: the top hundred, read five minutes
-  // sooner. The ranks deeper than that keep their reading from the full pass -
-  // the page holds each rank's latest reading whichever run it arrived in.
-  const pages = firstPageOnly ? [] : pagesToRead(row, first.totalPages);
+  // The light pass stops at the cuts' pages: the top hundred and the ranks a
+  // cup pays out on, read minutes sooner. The ladder's deeper rungs keep their
+  // reading from the full pass - the page holds each rank's latest reading
+  // whichever run it arrived in.
+  const pages = pagesToRead(row, first.totalPages, light);
   // The last page, for the count, when a full pass has not read it already.
   const last = total > 1 && total < PAGES_CAP ? total - 1 : -1;
-  if (!firstPageOnly && last >= 0 && !pages.includes(last)) pages.push(last);
+  if (!light && last >= 0 && !pages.includes(last)) pages.push(last);
   for (const number of pages) {
     await sleep(GAP_MS);
-    const more = await board(row.event, row.window, number);
+    const more = await board(row.event, row.window, number, meter);
     const page = more ? readPage(more, number) : null;
     readPages.push(number);
     if (page) { takeFrom(page.pairs, page.updatedAt); noteField(page); }
-    if (page && number === last) ranked = await countFrom(row, page, number);
+    if (page && number === last && !light) ranked = await countFrom(row, page, number, meter);
   }
   let rankedFrom = ranked > 0 ? "last page" : null;
   let fieldOut = null;
@@ -474,14 +575,13 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
     // it can be now; the pages read this pass bound it from above, and a page
     // or two more, where the percentile should step up, pin it. The search
     // goes on from pass to pass: the last pass's bounds, published beside the
-    // count, say where to look first. A quick pass reads the first page
-    // only, whose top hundred say nothing past a thousand, and keeps what the
-    // last one found.
+    // count, say where to look first. A light pass does not search, and
+    // keeps what the last full one found.
     const prev = before && Number(before.ranked) > 0 ? Number(before.ranked) : 0;
     const was = before && Array.isArray(before.field) ? before.field : null;
     const least = Math.max(was && Number(was[0]) > 0 ? Number(was[0]) : 0,
                            before && before.rankedFrom === "last page" && prev ? prev - 1 : 0);
-    let field = firstPageOnly ? null : combineField(bounds, least);
+    let field = light ? null : combineField(bounds, least);
     for (let extra = 0; field && extra < FIELD_EXTRA && field.high - field.low > FIELD_PIN; extra++) {
       // First where the step was last time, a little further on, since the
       // field has grown; or, while it is still being narrowed down, halfway
@@ -493,7 +593,7 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
       const number = fieldPage(field.low, field.high, guess);
       if (number < 0 || readPages.includes(number)) break;
       await sleep(GAP_MS);
-      const more = await board(row.event, row.window, number);
+      const more = await board(row.event, row.window, number, meter);
       const page = more ? readPage(more, number) : null;
       readPages.push(number);
       if (!page) break;
@@ -501,7 +601,7 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
       noteField(page);
       field = combineField(bounds, least);
     }
-    if (firstPageOnly) {
+    if (light) {
       if (prev) { ranked = prev; rankedFrom = before.rankedFrom === "percentile" ? "percentile" : "percentile-min"; fieldOut = was; }
     } else if (field) {
       fieldOut = [Math.floor(field.low), isFinite(field.high) ? Math.ceil(field.high) : null];
@@ -513,6 +613,21 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
         ranked = Math.ceil(field.low);
         rankedFrom = "percentile-min";
       }
+    }
+  }
+  // A pass that finds the first page it already had is the same board looked
+  // at again. The ranks it did not read - a light pass does not ask for the
+  // deeper rungs, and any pass can miss a page - keep the reading the last
+  // pass published, and so does a rank whose page came back as an older copy
+  // than the one in hand. The document loses nothing that way, and a look
+  // that found nothing new comes out as the entry it started from.
+  if (before && first.updatedAt && before.updated === first.updatedAt && Array.isArray(before.readings)) {
+    const clock = (r, base) => Date.parse(r[2] || base);
+    for (const r of before.readings) {
+      if (!Array.isArray(r)) continue;
+      const at = readings.findIndex(x => x[0] === r[0]);
+      if (at < 0) { seen.add(r[0]); readings.push(r); }
+      else if (clock(readings[at], first.updatedAt) < clock(r, before.updated)) readings[at] = r;
     }
   }
   readings.sort((a, b) => a[0] - b[0]);
@@ -569,13 +684,13 @@ async function readWindow(row, now, calendar, firstPageOnly, before) {
  * pages than were counted, the next one is read, a page or two at most: the
  * board gains under a hundred rosters a minute. */
 const COUNT_EXTRA = 2;
-async function countFrom(row, page, number) {
+async function countFrom(row, page, number, meter) {
   let extra = 0;
   while (page && page.teams >= PAGE_SIZE && page.totalPages > number + 1 && number + 1 < PAGES_CAP
          && extra < COUNT_EXTRA) {
     await sleep(GAP_MS);
     number += 1; extra += 1;
-    const more = await board(row.event, row.window, number);
+    const more = await board(row.event, row.window, number, meter);
     page = more ? readPage(more, number) : null;
   }
   // Still full with more behind it: the board outran the reading; no count
@@ -641,35 +756,67 @@ function fieldPage(low, high, guess) {
   return Math.floor((rank - 1) / PAGE_SIZE);
 }
 
-async function board(eventId, windowId, page) {
+/* One page of a board, as text; null when it could not be had. `meter`, when
+ * the pass gives one, is what this window may still ask and until when: a
+ * request refused by it is a page not read, like any other. */
+async function board(eventId, windowId, page, meter) {
   const url = API + "/tournaments/leaderboard?" + new URLSearchParams({
     leaderboardEventId: eventId, leaderboardEventWindowId: windowId, page: String(page) });
   const headers = { "User-Agent": AGENT, "Accept": "application/json" };
+  // One request of what the window may still ask, and how long it may take:
+  // never past the pass's own time. Zero when there is none left of either.
+  const allowed = () => {
+    if (!meter) return FETCH_TIMEOUT_MS;
+    const left = Math.min(FETCH_TIMEOUT_MS, meter.until - Date.now());
+    if (!(meter.left > 0) || !(left > 0)) return 0;
+    meter.left -= 1;
+    return left;
+  };
+  const limit = ms => (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(Math.max(1, Math.ceil(ms))) : undefined);
   for (let attempt = 0; attempt < 3; attempt++) {
+    let ms = allowed();
+    if (!ms) return null;
     // Straight from the API, never from a copy this side kept: a board is
     // worth reading only as it is now. Older runtimes reject the option and
-    // are asked again without it. A request that fails either way, or whose
-    // body is cut off on the way, is a page not read, as a 4xx is: the pages
-    // already in hand are still worth publishing.
+    // are asked again without it. A request that fails either way, that is
+    // not answered in time, or whose body is cut off on the way, is a page
+    // not read, as a 4xx is: the pages already in hand are still worth
+    // publishing.
     let res;
-    try { res = await fetch(url, { headers: headers, cache: "no-store" }); }
+    try { res = await fetch(url, { headers: headers, cache: "no-store", signal: limit(ms) }); }
     catch (err) {
-      try { res = await fetch(url, { headers: headers }); } catch (again) { return null; }
+      if (timedOut(err)) return null;
+      ms = allowed();
+      if (!ms) return null;
+      try { res = await fetch(url, { headers: headers, signal: limit(ms) }); } catch (again) { return null; }
     }
-    if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
+    if (res.status === 429 || res.status >= 500) {
+      // Asked again after a pause, unless that was the last attempt or the
+      // pause would run past the pass's time.
+      const pause = 2000 * (attempt + 1);
+      if (attempt === 2 || (meter && Date.now() + pause >= meter.until)) return null;
+      await sleep(pause);
+      continue;
+    }
     if (!res.ok) return null;
     try { return await res.text(); } catch (err) { return null; }
   }
   return null;
 }
 
+function timedOut(err) {
+  const name = err && err.name;
+  return name === "TimeoutError" || name === "AbortError";
+}
+
 /* What a page says: the (rank, points) of every roster on it, how many games
  * the leaders have played, the board's page count and its timestamp.
  *
  * A page is a hundred rosters with their game histories, a third of a
- * megabyte, and parsing it in full costs more of the CPU time the free plan
- * allows a run than reading several pages can afford. So the fast path picks
- * the few numbers it needs straight out of the text: every roster carries one
+ * megabyte and more, and parsing it in full costs several times the CPU time
+ * that reading the few numbers wanted does. So the fast path picks them
+ * straight out of the text: every roster carries one
  * "rank" and one "pointsEarned", the two are paired as they come, and the
  * pairs are trusted only when they come out page-shaped - every pair in the
  * same order as the first, ranks consecutive from the page's first, points
@@ -757,5 +904,5 @@ function parsePage(text) {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-export { run, watched, endgame, widestCut, cutRanks, pagesToRead, readWindow, readPage, settle, sealed, loadCalendar,
+export { run, cycle, watched, endgame, widestCut, cutRanks, pagesToRead, readWindow, readPage, settle, sealed, loadCalendar,
          fieldBounds, combineField, fieldPage };

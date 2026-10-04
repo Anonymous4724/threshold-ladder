@@ -16,9 +16,10 @@ compatibility_date = "2026-06-01"
 workers_dev = true
 
 [triggers]
-# Every five minutes. The ten-minute marks do the full pass; the ones between
-# read the first page of the windows in their endgame only - see QUICK_BEFORE
-# in worker.js. On the dashboard: Settings -> Triggers -> Cron, */5 * * * *.
+# Every five minutes: a full pass at each firing, and around a window's close
+# a lighter look on the minutes in between, inside the same firing - see
+# `cycle` in worker.js. On the dashboard: Settings -> Triggers -> Cron,
+# */5 * * * *.
 crons = ["*/5 * * * *"]
 
 # Optional: the code carries the same two addresses as defaults.

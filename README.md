@@ -101,8 +101,13 @@ running 23 % hot. How far along a threshold is at that point of the session is
 measured rather than assumed — replaying past leaderboards game by game shows
 that at half the games a threshold sits at half its final value, give or take
 fifteen per cent from one cup to the next. Readings and history are then
-combined by precision, whichever is sharper weighing more, so on the last game
-the readings are the answer; the page says what share of it they carried.
+combined by precision, whichever is sharper weighing more. Towards the end of
+the session, and after the close, the history's weight is cut further as the
+cup advances, by how much is learned on past cups: on precision alone it held
+on to too much of the answer late in a session. So on the last game the
+readings are the answer; the page says what share of it they carried. By then,
+too, a rank the board does not show follows the nearest rank it does show,
+unless ranks read on both sides frame it.
 
 That curve is the curve of this cup's own kind, not of every open queue
 pooled. Replayed per family — game mode, team size, window length, game cap —

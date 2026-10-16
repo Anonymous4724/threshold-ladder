@@ -857,6 +857,7 @@ const FR = {
   "liveAssumed": "supposé linéaire — le rythme n'a pas encore été mesuré",
   "liveBlend": "Relevés et historique sont combinés selon leur précision : ici les relevés pèsent {w} % de la réponse.",
   "liveCarried": "Ce rang n'a pas été relevé ; {c} % de ce que disent les relevés lui est reporté — mesuré, et dans une file ouverte tout le classement bouge ensemble.",
+  "liveNearest": "Ce rang n'a pas été relevé ; à ce stade de la session, il est estimé d'après le rang relevé le plus proche, le top {n}, dont le relevé lui est reporté entier.",
   "liveBetween": "Ce rang n'a pas été relevé, mais le top {a} ({pa} pts) et le top {b} ({pb} pts) l'ont été, et il est estimé entre les deux d'après le classement — une interpolation qui se trompe de quelques pour cent sur les tournois passés, davantage quand l'écart est large.",
   "liveFromFeed": "mesuré sur {n} relevés des soirées suivies par le flux",
   "liveLanding": "La fenêtre est fermée et les dernières parties tombent encore : ce classement a été relevé {m} min après le buzzer et il n'a pas cessé de bouger, donc le tableau ne peut plus que monter. Mesuré sur les soirées du flux, un classement aussi frais est jusqu'à {p} % en dessous du final.",
@@ -1728,6 +1729,17 @@ const PACE_MIN_SHARE = 0.2;                // one game of six says nothing about
  * at rank 10. Carrying a ratio down a sealed final's ladder prices the middle
  * of the board off one team's evening. */
 const CARRY_MIN = 0.05;
+/* From this share of the session on (the readings' clock, live.share), a rank
+ * read neither itself nor on both sides takes the ratio of the nearest rank
+ * read, whole: by then the board has taken its shape, and the rank next to it
+ * says more than a reading carried at its average share. Replayed on the
+ * feed's evenings, the error at the close came down and nothing moved before
+ * four fifths of the session. */
+const NEAREST_FROM = 0.7;
+/* The history's weight in the blend late in a session is the model's, by
+ * tranche of the session (blend.by_share): from this share on, and past the
+ * close. */
+const SHARE_FROM = 0.7;
 // A rank read on both sides is priced between the two readings, log-linear in
 // rank. On the harvest's final boards that interpolation is off by 1 to 3 %
 // at the median up to the top 250 and 5 to 7 % deeper, growing with the gap:
@@ -2351,6 +2363,36 @@ function coldWeightScale(source) {
   if (!(reading > 0) || !row || !(Number(row[0]) > 0)) return 1;
   return Number(row[0]) / reading;
 }
+/* Of the ranks read, the nearest to this one in log rank, the shallower of two
+ * as near. byRank's keys are strings: compared as numbers. */
+function nearestRead(live, rank) {
+  let best = 0, gap = Infinity;
+  for (const r of Object.keys(live.byRank).map(Number)) {
+    const g = Math.abs(Math.log(rank / r));
+    if (g < gap || (g === gap && r < best)) { best = r; gap = g; }
+  }
+  return best;
+}
+/* The tranche of the session the evening stands at: past the close by its
+ * minutes, else by the share the readings stand at; null below SHARE_FROM,
+ * where the blend is left as it is. */
+function shareTranche(share, after) {
+  if (after > 0) return after <= 10 ? "after 0-10" : "after 10+";
+  if (!(share >= SHARE_FROM)) return null;
+  return share < 0.9 ? "0.7-0.9" : "0.9-1";
+}
+/* What the history's weight in the blend is multiplied by there: the model's
+ * blend.by_share, learned on the cups the feed followed (analysis/blend.py).
+ * Weighed by the precision of the two widths alone, the forecast of a cup that
+ * ended far from its history covered barely half the way there by four fifths
+ * of the session. A tranche the model has not measured, or a model without the
+ * table: 1. Zero is a weight like any other - the readings alone - not a
+ * missing one. */
+function shareWeight(live) {
+  const tranche = shareTranche(live.share, live.after);
+  const k = tranche ? ((MODEL.blend || {}).by_share || {})[tranche] : undefined;
+  return k === undefined || k === null ? 1 : Number(k);
+}
 function forecastAt(t, rank, live) {
   const cold = predictOne(t, rank);
   if (cold && !cold.ok && cold.noPrior && live && (live.solo || {})[rank] > 0) {
@@ -2376,7 +2418,7 @@ function forecastAt(t, rank, live) {
              when: (live.when || {})[rank] || live.at };
   }
   const between = own === undefined ? bracketRead(live, rank) : null;
-  let ratio, relLive;
+  let ratio, relLive, nearest = null;
   if (own !== undefined) {
     // Read here: the reading is the evidence, with the pace's uncertainty at
     // the minute it was read.
@@ -2391,6 +2433,12 @@ function forecastAt(t, rank, live) {
     ratio = betweenReads(between, rank) / (cold.value * own);
     const gap = INTERP_REL * Math.log(between.b / between.a);
     relLive = Math.sqrt(rel * rel + gap * gap);
+  } else if (live.share >= NEAREST_FROM && Object.keys(live.byRank).length) {
+    // Read elsewhere, late in the session: the nearest rank read speaks for
+    // this one, whole, with the width of a carried reading.
+    nearest = nearestRead(live, rank);
+    ratio = live.byRank[nearest];
+    relLive = live.relFor ? Math.sqrt(Math.max(0, live.relFor(rank) ** 2 + live.rel ** 2 - live.relOwn ** 2)) : live.rel;
   } else if (live.carry >= CARRY_MIN) {
     // Read elsewhere: carry the measured share of it, in log space, so a carry
     // of zero leaves the cold forecast exactly where it was.
@@ -2408,9 +2456,12 @@ function forecastAt(t, rank, live) {
   const fromReadings = cold.value * ratio;
   // The two widths in the same units before they are weighed: see
   // coldWeightScale. A closed lobby keeps its widths as they are - the
-  // scales were measured on open queues.
-  const scale = live.kind === "open_by_time" ? coldWeightScale(cold.source) : 1;
-  const wl = 1 / Math.max(relLive, 0.01) ** 2, wc = 1 / Math.max(cold.rel * scale, 0.01) ** 2;
+  // scales were measured on open queues - and so its history's weight: see
+  // shareWeight.
+  const open = live.kind === "open_by_time";
+  const scale = open ? coldWeightScale(cold.source) : 1;
+  const k = open ? shareWeight(live) : 1;
+  const wl = 1 / Math.max(relLive, 0.01) ** 2, wc = k * (1 / Math.max(cold.rel * scale, 0.01) ** 2);
   const blended = (fromReadings * wl + cold.value * wc) / (wl + wc);
   // The ranges keep the widths as they stand: the multipliers that turn a
   // width into a range (pace.live_bands) were measured on them, and a
@@ -2424,7 +2475,7 @@ function forecastAt(t, rank, live) {
   const value = Math.max(blended, floor);
   const at = (own !== undefined && (live.clockOf || {})[rank]) || live;
   return { value: value, rel: 1 / Math.sqrt(wl + wcBand), weight: wl / (wl + wc),
-           between: between, floor: floor, floored: value > blended,
+           between: between, nearest: nearest, floor: floor, floored: value > blended,
            // What the ranges of a live answer are measured by: where the
            // evening stands and which rank was asked (see liveBands) - for a
            // rank read itself, the minute of its reading, as they were measured.
@@ -3570,7 +3621,8 @@ function explainBlock(live, cold, answer, rank) {
     }
     const readHere = live.byRank[rank] !== undefined;
     const between = readHere ? null : bracketRead(live, rank);
-    if (readHere || between || live.carry >= CARRY_MIN) {
+    const nearest = answer && answer.nearest;
+    if (readHere || between || nearest || live.carry >= CARRY_MIN) {
       lines.push(T("liveBlend", "Readings and history are combined by precision: here the readings "
         + "weigh {w} % of the answer.").replace("{w}", Math.round(100 * (answer ? answer.weight : 0)))
         + (readHere ? ""
@@ -3579,6 +3631,9 @@ function explainBlock(live, cold, answer, rank) {
               + "interpolation off by a few per cent on past boards, more the wider the gap.")
               .replace("{a}", nf().format(between.a)).replace("{pa}", num(between.pa))
               .replace("{b}", nf().format(between.b)).replace("{pb}", num(between.pb))
+          : nearest ? " " + T("liveNearest", "This rank was not read; this late in the session it is priced "
+              + "off the nearest rank that was, the top {n}, whose reading carries to it whole.")
+              .replace("{n}", nf().format(nearest))
           : " " + T("liveCarried", "This rank was not read; {c} % of what the "
             + "readings say carries to it — measured, and in an open queue the whole board moves "
             + "together.").replace("{c}", Math.round(100 * live.carry))));

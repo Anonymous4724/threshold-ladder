@@ -103,9 +103,13 @@ fini à 246, tourne 23 % au-dessus. Où en est un seuil à ce stade de la sessio
 est mesuré, pas supposé — en rejouant partie par partie des classements passés,
 on trouve qu'à la moitié des parties un seuil est à la moitié de sa valeur
 finale, à quinze pour cent près d'une cup à l'autre. Relevés et historique sont
-ensuite combinés selon leur précision, le plus précis pesant le plus, si bien
+ensuite combinés selon leur précision, le plus précis pesant le plus. Vers la
+fin de la session, et après la clôture, le poids de l'historique baisse encore
+à mesure que la cup avance, d'autant qu'on l'a appris sur les cups passées : à
+la seule précision, il gardait trop de la réponse en fin de session. Si bien
 qu'à la dernière partie les relevés sont la réponse ; la page dit quelle part
-ils en ont portée.
+ils en ont portée. À ce stade, un rang que le classement ne montre pas suit
+aussi le rang montré le plus proche, sauf s'il est encadré par des rangs lus.
 
 Cette courbe est celle du genre de cette cup, pas de toutes les files ouvertes
 confondues. Rejouée par famille — mode de jeu, taille d'équipe, durée de la

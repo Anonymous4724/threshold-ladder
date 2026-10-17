@@ -55,6 +55,20 @@ A final played by qualified teams in a single lobby is recognised as such: the
 format switches to sealed, the field becomes the lobby size, and the page says
 so under the field.
 
+So is a session in which a Victory Royale is the qualification itself: the
+FNCS Solo Heats and Last Chance Qualifier pay 1,000 points for a win, and the
+winner goes through at once and plays no more matches. The page knows such a
+session by its scoring table — a win paying 500 points or more, and five times
+second place or more — and reads it as one lobby. Its first places, one per
+match, are the winners' and get no number; every threshold below them is
+priced off what a game pays a player without a win, second place and the
+eliminations, and the winners' totals stay out of the readings and the chart.
+On the Heats in Asia on 17 October the page had put rank 35 at 1,217 points
+(2,330 with the field set to one lobby); it now says 175 before the session,
+which ended at 111, and on the feed's readings of that morning's two Heats, in
+Oceania and Asia, its forecast at rank 35 stayed within 16 % of the final from
+the end of the second game of six on, 6 % on average.
+
 A tournament that is not in the calendar can be typed in by hand, from the
 button under the list — name, region, team size, mode, open window or sealed,
 how long the session runs and how long a game takes, the field size if it is
@@ -207,7 +221,20 @@ same session for everyone in the lobby, and a game is over once a winner is
 recorded in it; a team that missed a game is simply a team with one fewer).
 The status line then says which game is under way and which standing the
 forecast rests on. A lobby that starts late plays on past the window's end,
-so its board is not called final until its games are in.
+so its board is not called final until its games are in. The feed takes a
+cup for one lobby when the calendar gives a field that fits in one, or when
+its board fits in one and the cup is a final or the calendar's own forecast
+reads it as one lobby, from the fields its past editions ranked or from a
+scoring table whose win qualifies — the FNCS Solo Fast Track is neither a
+final nor given a field.
+
+A lobby whose board the feed could not rebuild — a scoring table that does not
+add up to it — is still read one game at a time on the page: its board counts
+the games its leaders have started, so a game counts once the next one has
+begun, at the last standing read before it did, and the last one once the
+board, read twenty minutes or more past the close, has stood unchanged for
+ten. The forecast and the chart wait for each game to end, and the chart has
+one point per game finished.
 
 The window's close is not the end of the cup: the games under way when the
 clock stops keep landing for a quarter of an hour, and the board rises with
@@ -360,6 +387,11 @@ above it cannot:
    — the widest band, and the page says when it is in that mode. A cup's later
    round is its own kind of cup here: a few hundred qualified teams in a short
    session score another share of the maximum than the open round did.
+
+Rungs 5 and 6 price a game at the most it can pay — a win and a run of
+eliminations — except in a session whose win qualifies, where the most a
+player below the winners can take from a game is second place and the
+eliminations.
 
 The model is built from several thousand tournaments read from Osirion's public
 API — the page shows exactly how many it was trained on, and which rung it

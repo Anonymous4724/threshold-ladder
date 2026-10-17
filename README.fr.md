@@ -58,6 +58,21 @@ Une finale jouée par les équipes qualifiées dans un seul lobby est reconnue
 comme telle : le format passe en scellé, l'effectif devient la taille du lobby,
 et la page le dit sous le champ.
 
+Une session où la Victory Royale est la qualification elle-même l'est aussi :
+les FNCS Solo Heats et le Last Chance Qualifier paient 1 000 points une
+victoire, et le vainqueur passe aussitôt et ne joue plus. La page reconnaît une
+telle session à son barème — une victoire à 500 points ou plus, et à au moins
+cinq fois la deuxième place — et la lit comme un seul lobby. Ses premières
+places, une par partie, sont celles des vainqueurs et n'ont pas de chiffre ;
+chaque seuil en dessous est chiffré d'après ce qu'une partie rapporte à un
+joueur sans victoire, la deuxième place et les éliminations, et les totaux des
+vainqueurs restent hors des relevés et du graphique. Sur les Heats d'Asie du
+17 octobre, la page mettait le rang 35 à 1 217 points (2 330 avec l'effectif
+réglé sur un lobby) ; elle dit maintenant 175 avant la session, qui a fini à
+111, et sur les relevés du flux des deux Heats de ce matin-là, en Océanie et en
+Asie, sa prédiction au rang 35 est restée à moins de 16 % du final à partir de
+la fin de la deuxième partie sur six, 6 % en moyenne.
+
 Un tournoi absent du calendrier se saisit à la main, par le bouton sous la
 liste — nom, région, taille d'équipe, mode, fenêtre ouverte ou scellée, durée
 de la session et durée d'une partie, l'effectif s'il est connu — et le barème
@@ -220,7 +235,20 @@ tout le lobby, et une partie est finie dès qu'un vainqueur y est inscrit ; une
 moins). La ligne d'état dit alors quelle partie est en cours et sur quel
 classement la prédiction repose. Un lobby qui démarre en retard joue au-delà
 de la fin de la fenêtre : son classement n'est déclaré final qu'une fois ses
-parties rentrées.
+parties rentrées. Le flux tient une cup pour un seul lobby quand le calendrier
+donne un effectif qui y tient, ou quand son classement y tient et que la cup
+est une finale ou que la prédiction du calendrier la lit comme un seul lobby,
+d'après les effectifs de ses éditions passées ou un barème où la victoire
+qualifie — le FNCS Solo Fast Track n'est ni une finale ni donné avec un
+effectif.
+
+Un lobby dont le flux n'a pas pu rebâtir le classement — un barème qui ne
+retombe pas sur ses totaux — est quand même lu partie par partie sur la page :
+son classement compte les parties que ses meneurs ont commencées, donc une
+partie compte une fois la suivante commencée, au dernier classement lu avant,
+et la dernière une fois le classement, lu vingt minutes ou plus après la
+fermeture, inchangé depuis dix. La prédiction et le graphique attendent la
+fin de chaque partie, et le graphique a un point par partie terminée.
 
 La fermeture de la fenêtre n'est pas la fin de la cup : les parties en cours
 quand l'horloge s'arrête continuent de tomber pendant un quart d'heure, et le
@@ -386,6 +414,11 @@ celui du dessus ne peut pas :
    rejouer — la fourchette la plus large, et la page dit quand elle en est là. Le round suivant d'une cup y est
    un genre de cup à part : quelques centaines d'équipes qualifiées sur une
    session courte marquent une autre part du maximum que le round ouvert.
+
+Les échelons 5 et 6 chiffrent une partie à ce qu'elle peut rapporter de plus —
+une victoire et une série d'éliminations — sauf dans une session où la victoire
+qualifie : là, le plus qu'un joueur sous les vainqueurs peut tirer d'une partie,
+c'est la deuxième place et les éliminations.
 
 Le modèle est bâti sur plusieurs milliers de tournois lus depuis l'API publique
 d'Osirion — la page affiche exactement sur combien il a été entraîné, et de quel

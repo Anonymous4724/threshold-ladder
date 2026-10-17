@@ -410,13 +410,20 @@ function lobbyCap(team, mode) {
 }
 
 /* One closed lobby, playing its games one after another: the calendar says
- * so when it knows the field, and a final whose field it does not know is
- * one when its board fits on a page and inside a lobby. */
+ * so when it knows the field. A cup whose field it does not know is one when
+ * its board fits on a page and inside a lobby, and it is a final or the
+ * calendar's own forecast prices it as one lobby (`fc.lobby`: the page's
+ * reading of the cup, from the field its past editions ranked or a scoring
+ * table whose win qualifies, as the FNCS Solo Heats' does). The FNCS Solo
+ * Fast Track of 10 October was neither a final nor given a field: its board
+ * was read as an open queue's, half updated mid-game and numbered by the
+ * games its leaders had started, while the page drew it game by game. */
 function sealed(row, first) {
   const cap = lobbyCap(row.team, row.mode);
   if (!cap) return false;
   if (Number(row.field) > 0) return Number(row.field) <= cap;
-  return Number(row.stage) >= 8 && (first.totalPages || 1) <= 1 && first.teams <= cap;
+  const lobby = Number(row.stage) >= 8 || !!(row.fc && row.fc.lobby === true);
+  return lobby && (first.totalPages || 1) <= 1 && first.teams <= cap;
 }
 
 function stat(session, name) {
@@ -523,7 +530,8 @@ async function readWindow(row, now, calendar, light, before, meter) {
     if (light) ranked = before && before.pages === total && before.ranked > 0 ? before.ranked : null;
   }
   let partial = null;
-  if (sealed(row, first)) {
+  const lobby = sealed(row, first);
+  if (lobby) {
     // The whole lobby is on the first page: rebuild it as of the last
     // finished game, when the scoring table lets us.
     const full = first.entries ? first : parsePage(text);
@@ -671,7 +679,12 @@ async function readWindow(row, now, calendar, light, before, meter) {
     // standing with a game missing.
     final: isFinite(end) && now > end &&
       !(partial !== null && Number(row.games) > 0 && Number(first.games) < Number(row.games)
-        && now < end + LATE_MINUTES * 60e3),
+        && now < end + LATE_MINUTES * 60e3) &&
+      // A lobby whose board could not be rebuilt - a scoring table that does
+      // not reproduce it - counts the games its leaders have started, not the
+      // games finished, so a last game still under way looks played: its
+      // board waits the same LATE_MINUTES before it is called final.
+      !(lobby && partial === null && now < end + LATE_MINUTES * 60e3),
   };
 }
 

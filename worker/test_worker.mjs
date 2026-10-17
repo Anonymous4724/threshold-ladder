@@ -351,6 +351,63 @@ for (const [team, teams, mode] of [["Solo", 100, "Battle Royale"], ["Duo", 50, "
   const s = await pass({ events: [row], boards: { ev1: lobby.text }, scorings: [scoring] });
   check("open duo cup: its board read as it is", pointsAt(s.one, 1) === lobby.raw[0] && s.one.partial === null, s.one && s.one.readings);
 }
+// The FNCS Solo Fast Track: a hundred solos in one lobby, four games, a row
+// with no stage and no field, which the calendar's forecast prices as one
+// lobby all the same - the page draws it game by game.
+const fastTrack = (extra = {}) => cup({ kind: "FNCS Solos Fast Track", name: "FNCS Solos Fast Track", stage: 0, field: 0, games: 4,
+  tiers: [["q", 8, "Final"]], begin: "2026-09-28T18:00Z", end: "2026-09-28T19:45Z", scoring: 0,
+  fc: { cut: 8, field: 99, lobby: true, ranks: [[8, 154, 0.12, "closed lobby"]] }, ...extra });
+{
+  const scoring = { kill: 4, kill_cap: null, placement: table(50) };
+  const lobby = lobbyBoard({ teams: 99, finished: 2, dead: 60, scoring });
+  const s = await pass({ events: [fastTrack()], boards: { ev1: lobby.text }, scorings: [scoring], at: "2026-09-28T19:10:00Z" });
+  const w = s.one || {};
+  const right = (w.readings || []).length > 0 && w.readings.every(([rank, points]) => points === lobby.settled[rank - 1]);
+  const moved = (w.readings || []).some(([rank, points]) => points !== lobby.raw[rank - 1]);
+  check("one lobby by the calendar's forecast, no stage, no field, game 3 under way: the board as it stood after game 2",
+        right && moved && w.games === 2 && w.partial === true && w.final === false && pointsAt(w, 8) === lobby.settled[7],
+        { readings: w.readings, settled: lobby.settled.slice(0, 8), games: w.games, partial: w.partial });
+}
+{
+  const scoring = { kill: 4, kill_cap: null, placement: table(50) };
+  const lobby = lobbyBoard({ teams: 99, finished: 2, dead: 60, scoring });
+  const s = await pass({ events: [fastTrack({ fc: { cut: 8, field: 770, lobby: false, ranks: [] } })], boards: { ev1: lobby.text },
+                         scorings: [scoring], at: "2026-09-28T19:10:00Z" });
+  check("the same lobby, the calendar's forecast pricing an open queue: its board read as it is",
+        pointsAt(s.one, 1) === lobby.raw[0] && s.one.partial === null, s.one && { readings: s.one.readings, partial: s.one.partial });
+}
+{
+  const s = await pass({ events: [cup({ fc: { cut: 1000, field: 99, lobby: true, ranks: [] } })], boards: { ev1: board } });
+  check("priced as one lobby but its board runs to 55 pages: read as an open queue's",
+        !s.error && s.one && s.one.partial === null && s.one.games === 2 && s.one.pages === 55 && pointsAt(s.one, 1) === 520,
+        s.one && { partial: s.one.partial, games: s.one.games, pages: s.one.pages, top: pointsAt(s.one, 1), error: s.error });
+}
+{
+  // The last game under way past the close: a lobby rebuilt game by game owes
+  // it, and is not final until it is in or LATE_MINUTES have gone by.
+  const scoring = { kill: 4, kill_cap: null, placement: table(50) };
+  const lobby = lobbyBoard({ teams: 99, finished: 3, dead: 70, scoring });
+  const row = fastTrack({ begin: "2026-09-28T17:45Z", end: "2026-09-28T19:15Z" });
+  const a = await pass({ events: [row], boards: { ev1: lobby.text }, scorings: [scoring], at: "2026-09-28T19:26:00Z" });
+  const b = await pass({ events: [row], boards: { ev1: lobby.text }, scorings: [scoring], at: "2026-09-28T19:36:00Z" });
+  check("rebuilt lobby, last game under way past the close: not final, then final 20 minutes after it",
+        a.one && a.one.games === 3 && a.one.partial === true && a.one.final === false && b.one && b.one.final === true,
+        { a: a.one && [a.one.games, a.one.partial, a.one.final], b: b.one && b.one.final });
+}
+{
+  // A scoring table that does not reproduce the board: the lobby cannot be
+  // rebuilt, its leaders have started the last game, and it is still played.
+  const scoring = { kill: 4, kill_cap: null, placement: table(50) };
+  const wrong = { kill: 9, kill_cap: null, placement: table(10) };
+  const lobby = lobbyBoard({ teams: 99, finished: 3, dead: 70, scoring });
+  const row = fastTrack({ begin: "2026-09-28T17:45Z", end: "2026-09-28T19:15Z" });
+  const a = await pass({ events: [row], boards: { ev1: lobby.text }, scorings: [wrong], at: "2026-09-28T19:26:00Z" });
+  const b = await pass({ events: [row], boards: { ev1: lobby.text }, scorings: [wrong], at: "2026-09-28T19:36:00Z" });
+  check("lobby its scoring table cannot rebuild: read as it is, not final until 20 minutes past the close",
+        a.one && a.one.partial === null && pointsAt(a.one, 1) === lobby.raw[0] && a.one.games === 4 && a.one.final === false
+          && b.one && b.one.final === true,
+        { a: a.one && [a.one.partial, a.one.games, a.one.final, pointsAt(a.one, 1), lobby.raw[0]], b: b.one && b.one.final });
+}
 
 /* ---- windows cancelled or extended ---------------------------------------- */
 

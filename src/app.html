@@ -714,6 +714,8 @@ const FR = {
                + "L'effectif est celui des éditions précédentes.",
   "hint.closedguess": "Lobby fermé, probablement : c'est une finale que le modèle n'a jamais vue. "
                     + "L'effectif est la taille d'un lobby ; corrige-le si tu sais mieux.",
+  "hint.closedwin": "Lobby fermé : ici une Victory Royale qualifie d'office et son vainqueur ne joue plus, "
+                  + "un format que les FNCS jouent en un seul lobby. L'effectif est la taille d'un lobby ; corrige-le si tu sais mieux.",
   "l.callall": "Toute région", "l.calallmodes": "Tout mode",
   "l.calallteams": "Toute taille", "l.calother": "Autre",
   "l.calnone": "Rien ne correspond. La liste est le calendrier Epic de la semaine à venir : "
@@ -873,6 +875,8 @@ const FR = {
   "unconfirmedScoring": "Le barème n'est pas renseigné et aucune édition comparable n'existe.",
   "noAnchor": "Aucune référence utilisable.",
   "result.only": "Le flux l'a récolté à {t} : c'est le résultat, pas une prédiction.",
+  "winPlaces": "Le top {rank} revient à un vainqueur de partie : ici une Victory Royale rapporte {bonus} points et qualifie d'office, et son vainqueur ne joue plus, donc les {games} premières places sont celles des vainqueurs des {games} parties. Aucun seuil n'est prédit pour elles, seulement pour les rangs suivants.",
+  "winNote": "Ici une Victory Royale qualifie d'office : le vainqueur de chaque partie prend {bonus} points et ne joue plus, donc les {games} premières places reviennent aux {games} vainqueurs. La prédiction vaut pour les joueurs sans victoire, en dessous d'eux.",
   "lastPlaces": "Le top {rank} sur {field} fait partie des dernières places d'un lobby fermé : des équipes parties après une ou deux parties, pas un seuil que l'on joue. Le modèle ne le prédit pas ; le classement de l'édition précédente est la seule lecture."
 };
 let LANG = "en";
@@ -986,11 +990,61 @@ function fieldSensitivity(rank, field, curve) {
   const qref = Math.min(Math.max(curve.reference_rank / field, 1e-9), 1);
   return Math.abs(curve.a * curve.b * (Math.pow(q, curve.b) - Math.pow(qref, curve.b)));
 }
+/* A win paying this much and at least five times second place is not a
+ * placement but a qualification. The FNCS Solo Heats and Last Chance
+ * Qualifier in the calendar of 17 October 2026 pay 1,000 points for a
+ * Victory Royale and 53 for second place, where every other table in it pays
+ * 100 or less for a win; the winner advances at once and plays no more
+ * matches. The port of predict.WIN_BONUS_MIN. */
+const WIN_BONUS_MIN = 500;
+function placementPoints(scoring, rank) {
+  const row = ((scoring && scoring.placement) || []).find(r => r[0] <= rank && rank <= r[1]);
+  return row ? Number(row[2]) || 0 : 0;
+}
+/* The points a Victory Royale pays where the win itself qualifies, else 0.
+ * The winners of such a session sit above everyone else whatever they did
+ * before, so its first places are theirs, one per match, and every threshold
+ * below them is a total of players without a win. The port of
+ * predict.win_bonus. */
+function winBonus(scoring) {
+  if (!((scoring && scoring.placement) || []).length) return 0;
+  const first = placementPoints(scoring, 1), second = placementPoints(scoring, 2);
+  return first >= WIN_BONUS_MIN && first >= 5 * second ? first : 0;
+}
+/* The most one game pays the players a threshold is a total of: a win and a
+ * run of eliminations - second place and the eliminations where the win
+ * itself qualifies, since no threshold below the winners holds its bonus.
+ * Priced off the 1,000 points instead, the closed-lobby rung put rank 35 of
+ * the FNCS Solo Heats in Asia (17 October) at 2,330 points, where it ended at
+ * 111. The port of export_model.max_game_score. */
 function maxGameScore(scoring) {
   const rows = (scoring && scoring.placement) || [];
   if (!rows.length) return 0;
   const best = rows.reduce((a, r) => (r[0] < a[0] ? r : a));
-  return best[2] + (scoring.kill_cap || 8) * (scoring.kill || 0);
+  const top = winBonus(scoring) ? placementPoints(scoring, 2) : best[2];
+  return top + (scoring.kill_cap || 8) * (scoring.kill || 0);
+}
+/* The rule a session whose win qualifies is played under, said under its
+ * forecast: a reader asking for a cut needs to know that the winners take the
+ * first places whatever their points, and who the number is for. */
+function winNote(t) {
+  const bonus = winBonus(t.scoring);
+  if (!bonus) return "";
+  const games = Number(t.max_games) || 0;
+  return '<div class="note">' + esc(T("winNote", "A Victory Royale qualifies outright here: each match's "
+      + "winner takes {bonus} points and plays no more, so the first {games} places go to the {games} "
+      + "winners. The forecast is for the players without a win, below them.")
+    .replace("{bonus}", nf().format(bonus)).split("{games}").join(nf().format(games))) + "</div>";
+}
+/* Why a rank of the winners gets no number, in the model's words where the
+ * model says it (messages.win_places), the page's otherwise. */
+function winPlacesReason(rank, bonus, games) {
+  return T("winPlaces", MODEL.messages.win_places
+      || "Rank {rank} goes to a match winner: a Victory Royale pays {bonus} points here and qualifies "
+      + "outright, and its winner plays no more, so the first {games} places are the winners of the "
+      + "{games} matches. No threshold is forecast for them, only for the ranks after.")
+    .replace("{rank}", nf().format(rank)).replace("{bonus}", nf().format(bonus))
+    .split("{games}").join(nf().format(games));
 }
 function guessField(t) {
   const tries = [
@@ -1442,6 +1496,12 @@ function predictModel(t, rank) {
       + "this rank, carried to the end on the measured pace, is the forecast.") };
   }
   if (rank < 1) return null;
+  // Where the win itself qualifies, the first places are the winners', one per
+  // match, at a thousand points and more: not a threshold anyone plays for,
+  // and the previous edition's reading of them would be its winners' scores.
+  // The port of calibration.prior_prediction.
+  const bonus = winBonus(t.scoring), matches = Number(t.max_games) || 0;
+  if (bonus && rank <= matches) return { ok: false, winPlace: true, reason: winPlacesReason(rank, bonus, matches) };
   // A later day of a round played over several days reads the day before as
   // its previous edition, and draws fewer players: with no field typed, the
   // reading is moved by what the later days measured so far did at this band
@@ -2003,15 +2063,21 @@ function boardHeld(entry) {
  * the feed's the richer, since a threshold never falls and the poorer number
  * is the older copy of the board. Readings older than RECENT_MINUTES are let
  * go: a page the feed has stopped being handed says nothing about the minute
- * it is now. */
-function standing(entries, newest) {
+ * it is now. A closed lobby's board is one page, read whole every time, and
+ * it stands still while a game is played: read again unchanged, it is as
+ * fresh as that last reading (`seen`). Aged from the minute it first stood,
+ * a standing that held through a long game - 26 minutes in the Performance
+ * Evaluation's Round 2, 9 October - lost every reading: the chart lost that
+ * game's point and the answer fell back on the forecast from history. */
+function standing(entries, newest, lobby) {
   const best = {};
   (entries || []).forEach(e => {
     const typed = e.auto === false;
     (e.readings || []).forEach(r => {
       if (!(r.rank >= 1 && r.points > 0)) return;
       const at = Date.parse(r.at || e.at || 0);
-      if (isFinite(newest) && isFinite(at) && newest - at > RECENT_MINUTES * 60e3 && !e.final) return;
+      const fresh = lobby && !typed ? Math.max(at, Date.parse(e.seen || "") || at) : at;
+      if (isFinite(newest) && isFinite(fresh) && newest - fresh > RECENT_MINUTES * 60e3 && !e.final) return;
       const cand = { rank: r.rank, points: r.points, at: at, when: r.at || e.at,
                      share: r.share === undefined ? e.share : r.share,
                      after: r.after === undefined ? (e.after || 0) : r.after, typed: typed };
@@ -2187,7 +2253,7 @@ function refine(t, log) {
   // rank only: the conservative reading of no evidence.
   const carried = (((pace.carry || {})[kind]) || {}).slope;
 
-  const best = standing(entries, Date.parse(entry.seen || entry.at || 0));
+  const best = standing(entries, Date.parse(entry.seen || entry.at || 0), kind === "closed_by_game");
 
   const ratios = [], byRank = {}, points = {}, norm = {}, relOf = {}, whenOf = {};
   // The minute each rank's reading stands at: its width is that minute's, and
@@ -2561,10 +2627,47 @@ function liveLog(s) {
    * corrected from open queue to sealed lobby after three readings re-clocks
    * the three. */
   const manual = (s.log || []).map(e => Object.assign({}, e, { auto: false }));
-  const auto = (s.autoLog || []).map(e => Object.assign({}, e, { auto: true }));
-  return manual.concat(auto).filter(e => (e.readings || []).length)
+  const auto = finishedGames(s, (s.autoLog || []).map(e => Object.assign({}, e, { auto: true })));
+  // Where the win itself qualifies (winBonus), the first places are the
+  // winners', one per match: no threshold, and nothing to read the evening
+  // off. Kept, the winners' 1,009 and 1,078 points drew the chart of the
+  // Heats in Asia on a scale of a thousand, the thresholds flat at its foot.
+  const winners = winBonus(s.scoring) ? gameCount(s) : 0;
+  const below = e => winners
+    ? Object.assign({}, e, { readings: (e.readings || []).filter(r => Number(r.rank) > winners) }) : e;
+  return manual.concat(auto).map(below).filter(e => (e.readings || []).length)
     .sort((a, b) => Date.parse(a.at || 0) - Date.parse(b.at || 0))
     .map(e => clocked(s, e));
+}
+
+/* A closed lobby is read one standing per game finished, and nothing of a
+ * game still being played. The feed rebuilds a lobby's board as it stood
+ * when its last game ended (`rebuilt`), and those readings are that already.
+ * A board it could not rebuild - a cup it did not know for one lobby, a
+ * scoring table that does not reproduce the board - is the board as Osirion
+ * has it: half updated while a game runs, and numbered by the games its
+ * leaders have started, so the game it names can still be under way. Taken
+ * for finished, the first reading of each game drew the last game's standing
+ * again, a step flat, and the forecast fell a game's worth and rose back
+ * game after game; the last game read as the final board while it was played
+ * (the FNCS Solo Fast Track in Brazil, 10 October: 115 points at rank 8,
+ * range 115 - 116, ten minutes before the board settled at 150). Such a game
+ * counts once the next one has begun, at its last reading; the last one once
+ * the window has closed, the feed has read the board SETTLED_AFTER minutes or
+ * more past the close and it has held for HELD_MS - the lobby that started
+ * late has had the time to finish. Readings typed by hand, and the feed's
+ * readings of an open queue, pass as they are. `entries` are the feed's,
+ * in time order. */
+function finishedGames(s, entries) {
+  if (String(s.format) !== "sealed") return entries;
+  const raw = (entries || []).filter(e => e.auto !== false && e.rebuilt === false && Number(e.game) > 0);
+  if (!raw.length) return entries;
+  const playing = Math.max(...raw.map(e => Number(e.game)));
+  const last = raw[raw.length - 1];
+  const end = Date.parse(s.end || ""), read = Date.parse(last.seen || last.at || "");
+  const over = !!last.final && Number(last.game) === playing && boardHeld(last) >= HELD_MS
+    && isFinite(end) && isFinite(read) && read - end >= SETTLED_AFTER * 60e3;
+  return over ? entries : entries.filter(e => !(raw.includes(e) && Number(e.game) === playing));
 }
 
 /* One entry with its share, and each of its readings with the minute and
@@ -2870,6 +2973,10 @@ function fillForm() {
 }
 /* The closed-lobby note under the field, in the page's language. */
 function lobbyHint() {
+  if (STATE.field_guessed && winBonus(STATE.scoring)) {
+    return T("hint.closedwin", "Closed lobby: a Victory Royale qualifies outright here and its winner plays no more, "
+      + "a format the FNCS plays in a single lobby. The field is one lobby's worth; correct it if you know better.");
+  }
   return STATE.field_guessed
     ? T("hint.closedguess", "Closed lobby, probably: a final the model has never seen. The field is one lobby's worth; correct it if you know better.")
     : T("hint.closed", "Closed lobby: a final played by the qualified teams in a single lobby. The field is what previous editions ranked.");
@@ -3175,7 +3282,7 @@ function render() {
       esc(STATE.name) + " · " + STATE.region +
       (asked ? ' · <span class="cut">' + esc(cutWhat(asked)) + "</span>" : "") + "</p>" +
     totalNote(asked, answer, rank) +
-    explainBlock(live, cold, answer, rank);
+    explainBlock(live, cold, answer, rank) + winNote(t);
 
   drawPointsRank();
   const seen = {};
@@ -3376,7 +3483,7 @@ function drawChart(t, cold) {
   // not a hole the line falls into: its last reading still stands.
   const replay = entries.map((e, i) => {
     const seen = entries.slice(0, i + 1);
-    return { e: e, known: standing(seen, Date.parse(e.seen || e.at || 0)), live: refine(t, seen) };
+    return { e: e, known: standing(seen, Date.parse(e.seen || e.at || 0), sealed), live: refine(t, seen) };
   });
   const hidden = new Set(STATE.hideSeries || []);
   const series = ranks.map((rank, i) => ({
@@ -4239,7 +4346,12 @@ function closedLobby(row) {
   if (known && known.field && cap && known.field <= cap) {
     return { field: Math.round(known.field), guessed: false };
   }
-  if (cap && (row.stage === 9 || row.stage === 8)) {
+  // A session whose win qualifies is one lobby too: the FNCS plays its Heats,
+  // its Solo LCQ Final and its Last Chance Lobby one lobby a session, the
+  // winners leaving it one match after another. The port of
+  // export_model.closed_lobby.
+  const table = CAL ? (CAL.scorings || [])[row.scoring] : null;
+  if (cap && (row.stage === 9 || row.stage === 8 || winBonus(table))) {
     return { field: cap, guessed: true };
   }
   return null;
@@ -4581,6 +4693,11 @@ function entryFrom(found) {
                   elapsed: isFinite(gone) ? Math.max(0, Math.round(gone)) : 0,
                   at: found.updated, seen: found.updated, updated: found.updated, readings: readings, auto: true,
                   final: !!found.final, partial: found.partial === true,
+                  // A closed lobby's board rebuilt by the feed as it stood when
+                  // its last game ended: the feed says whether a game is under
+                  // way (`partial`) only of a board it rebuilt. See
+                  // finishedGames for the boards it could not.
+                  rebuilt: found.partial === true || found.partial === false,
                   // How many pages the board had when it was read - a hundred
                   // rosters a page, so how many have played so far, give or
                   // take the last page - and the exact count where the feed
@@ -4677,10 +4794,13 @@ function loadHistory() {
       // What this browser saw itself and the feed has not filed yet stays.
       const newest = Date.parse(log[log.length - 1].at);
       (STATE.autoLog || []).forEach(e => { if (Date.parse(e.at || 0) > newest) log = foldInto(log, e); });
-      const t = asTournament(STATE), seen = (STATE.log || []).map(e => clocked(STATE, e));
+      // What the page said at each reading, on the readings it had then - of
+      // a closed lobby, the games finished by then (see finishedGames).
+      const t = asTournament(STATE), typed = (STATE.log || []).map(e => clocked(STATE, e)), fed = [];
       log.forEach(e => {
-        seen.push(clocked(STATE, e));
-        if (!e.said) e.said = saidNow(t, STATE.asked || STATE.rank || 0, refine(t, seen));
+        fed.push(e);
+        if (!e.said) e.said = saidNow(t, STATE.asked || STATE.rank || 0,
+                                      refine(t, typed.concat(finishedGames(STATE, fed).map(x => clocked(STATE, x)))));
       });
       STATE.autoLog = log;
       const last = log[log.length - 1];
@@ -4784,7 +4904,21 @@ function drawStatus() {
     const held = boardHeld(logged) / 60e3;
     const still = held >= HELD_MS / 60e3;
     const firstAfter = isFinite(ends) ? (Date.parse(logged.at) - ends) / 60e3 : -1;
-    if (over && still && (sealed || firstAfter >= SETTLED_AFTER)) {
+    // A lobby the feed could not rebuild is final on the terms its forecast
+    // is (see finishedGames): its board read SETTLED_AFTER minutes or more
+    // past the close. Ten minutes unchanged is not enough there: the Fast
+    // Track's board in Europe read the same for eleven minutes early in its
+    // last game, and was called final at 112 points at rank 8. It settled
+    // at 154.
+    const lastAfter = isFinite(ends) ? (Date.parse(logged.seen || logged.at) - ends) / 60e3 : -1;
+    const lobbyIn = sealed && (logged.rebuilt !== false || lastAfter >= SETTLED_AFTER);
+    // The same lobby with a game under way: the forecast stands on the last
+    // game finished, and the line says which, as it does for a board the
+    // feed rebuilt.
+    const counted = sealed && auto.rebuilt === false ? liveLog(STATE).filter(e => e.auto) : [];
+    const before = counted.length ? counted[counted.length - 1] : null;
+    const waits = before && Number(auto.game) > Number(before.game) ? before : null;
+    if (over && still && (lobbyIn || firstAfter >= SETTLED_AFTER)) {
       text = T("status.final", "Final standings · unchanged since {t}").replace("{t}", clock(logged.at));
     } else if (over && Date.now() >= settleBy + SETTLED_AFTER * 60e3) {
       text = T("status.stale", "Standings read at {t}, before the last games had landed · "
@@ -4799,6 +4933,10 @@ function drawStatus() {
     } else if (late) {
       text = T("status.late", "Standings read at {t} · no newer board has come in since: the feed may be held up")
         .replace("{t}", clock(read));
+    } else if (waits) {
+      text = T("status.partial", "Game {p} under way · standings as they stood after game {g}, read at {t} · next reading around {n}")
+        .replace("{p}", auto.game).replace("{g}", waits.game)
+        .replace("{t}", clock(waits.seen || waits.at)).replace("{n}", clock(next.toISOString()));
     } else if (auto.partial && String(STATE.format) === "sealed") {
       // A game under way: the board is half updated, and the forecast waits
       // for the standing at the end of it rather than reading the half.

@@ -37,7 +37,7 @@ they are made, how they are tested, and where they should not be trusted.</p>
 <h2>The data</h2>
 <p>Everything starts from Osirion's public Fortnite API: Epic's tournament calendar, each event's
 scoring rules, and the final leaderboards. A harvester reads them every day; the model is trained on
-99,784 thresholds from 8,145 tournaments (model of 24 October 2026). A threshold is
+100,166 thresholds from 8,177 tournaments (model of 25 October 2026). A threshold is
 the points held by the team at a given rank when the leaderboard is final.</p>
 <p>The leaderboards also record, for each team, its placement and eliminations in every game and
 when each game ended. That makes it possible to rebuild the board at any moment of a past session,
@@ -75,7 +75,7 @@ had not seen.</p>
 <h2>During the cup: the live board</h2>
 <p>While a cup runs, a small service reads its public standings every five minutes. Each reading is
 compared with the share of its final value a threshold has typically reached at that point of the
-session – measured on 3,690 replayed open queues and 655 single lobbies, by
+session – measured on 3,753 replayed open queues and 663 single lobbies, by
 kind of cup – and weighed against the forecast made before the cup, each according to how precise it
 has proven on past evenings. Towards the end of the session the history's weight shrinks further as
 the cup advances, by how much is learned on past cups, and a rank the board does not show follows
@@ -84,13 +84,13 @@ the nearest rank it does show. The points already on the board are a floor: a th
 
 <h2>How accurate it is</h2>
 <p>The test that matters is the one a player lives: forecasting a cup from what had finished before
-it. The newest 600 tournaments – everything since 15 September 2026 – were each forecast only from the
+it. The newest 600 tournaments – everything since 19 September 2026 – were each forecast only from the
 tournaments that had finished before their day, and compared with their final leaderboards
-(6,409 thresholds):</p>
-<div class="scroll"><table class="data"><thead><tr><th>What is forecast</th><th>Median error</th><th>Inside the quoted range</th></tr></thead><tbody><tr><td>Every threshold of the newest 600 tournaments</td><td>6.4%</td><td>93%</td></tr><tr><td>Cups with a previous edition (where the model and both baselines answer)</td><td>3.9%</td><td>—</td></tr><tr><td>… the same rows, last edition carried forward</td><td>4.2%</td><td>—</td></tr><tr><td>… the same rows, median of the cup's category</td><td>5.3%</td><td>—</td></tr><tr><td>Cups never seen in their region, from the scoring table alone</td><td>9.5%</td><td>—</td></tr><tr><td>Finals played in a single lobby</td><td>36.3%</td><td>—</td></tr></tbody></table></div>
+(6,377 thresholds):</p>
+<div class="scroll"><table class="data"><thead><tr><th>What is forecast</th><th>Median error</th><th>Inside the quoted range</th></tr></thead><tbody><tr><td>Every threshold of the newest 600 tournaments</td><td>6.5%</td><td>93%</td></tr><tr><td>Cups with a previous edition (where the model and both baselines answer)</td><td>3.7%</td><td>—</td></tr><tr><td>… the same rows, last edition carried forward</td><td>3.9%</td><td>—</td></tr><tr><td>… the same rows, median of the cup's category</td><td>4.9%</td><td>—</td></tr><tr><td>Cups never seen in their region, from the scoring table alone</td><td>10.3%</td><td>—</td></tr><tr><td>Finals played in a single lobby</td><td>35.3%</td><td>—</td></tr></tbody></table></div>
 <p class="muted">Median absolute error, in per cent of the final threshold. "Inside the quoted range":
 the share of final thresholds inside the forecast's main range, which claims 80%; the site's own
-50% and 90% ranges are measured from the same errors. Measured 22 October 2026, and measured again
+50% and 90% ranges are measured from the same errors. Measured 25 October 2026, and measured again
 every three days as tournaments are added.</p>
 <p>Three honest caveats. The cups the model has seen before are the easy ones, and most of the
 error is concentrated in the others. The top five ranks are the noisiest part of any leaderboard:
@@ -117,7 +117,7 @@ repository; the harvester, the model's training and every measurement quoted on 
 <a href="https://github.com/Anonymous4724/fortnite-tracker/blob/main/docs/methodology.md" rel="noopener">methodology
 note</a> records each change to the model and what it was measured to do.</p>
 
-<p class="stamp">Updated 24 October 2026</p></main>
+<p class="stamp">Updated 25 October 2026</p></main>
 <footer class="site-foot"><p class="foot-nav"><a href="../about/">About</a> · <a href="../contact/">Contact</a> · <a href="../privacy/">Privacy</a> · <a href="../methodology/">Method and accuracy</a> · <a href="https://github.com/Anonymous4724/threshold-ladder" rel="noopener">Source code</a></p><p>Tournament data from <a href="https://osirion.gg" rel="noopener">Osirion</a>'s public Fortnite API. Forecasts are statistical estimates, not guarantees.</p><p>An independent fan project, not affiliated with Epic Games or Osirion.</p><p lang="en">Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. All rights reserved by Epic. This material is not official and is not endorsed by Epic.</p><p>© 2026 Threshold Ladder</p></footer>
 <script src="../site.js" defer></script>
 </body>
